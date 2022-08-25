@@ -1,24 +1,21 @@
-package api
+package server
 
 import (
-	"encoding/json"
-	"fmt"
+	"time"
+
 	"github.com/dofusdude/api/gen"
 	"github.com/dofusdude/api/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-memdb"
-	"github.com/meilisearch/meilisearch-go"
-	"log"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 var Db *memdb.MemDB
 var Indexes map[string]gen.SearchIndexes
 
-var Indexed *bool
+var Indexed bool
+
+var Version utils.VersionT
 
 /* // TODO bonusesIds => real items? amounts are to high? how to compute the date?
 r.Route("/almanax", func(r chi.Router) {
@@ -43,148 +40,54 @@ func Router() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Route("/dofus/{lang}", func(r chi.Router) {
+	r.With(languageChecker).Route("/dofus/{lang}", func(r chi.Router) {
 		r.Route("/items", func(r chi.Router) {
 			r.Route("/consumables", func(r chi.Router) {
 				r.With(paginate).Get("/", ListConsumables)
-				r.Get("/{ankamaId}", GetConsumableHandler)
-				r.Get("/search", SearchAll)
+				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleConsumableHandler)
+				r.Get("/search", SearchConsumables)
 			})
 
 			r.Route("/resources", func(r chi.Router) {
-				r.With(paginate).Get("/", ListConsumables)
-				r.Get("/{ankamaId}", GetConsumableHandler)
-				r.Get("/search", SearchAll)
+				r.With(paginate).Get("/", ListResources)
+				r.Get("/{ankamaId}", ListConsumables)
+				r.Get("/search", SearchResources)
 			})
 
 			r.Route("/equipment", func(r chi.Router) {
-				r.With(paginate).Get("/", ListConsumables)
-				r.Get("/{ankamaId}", GetConsumableHandler)
-				r.Get("/search", SearchAll)
+				r.With(paginate).Get("/", ListEquipment)
+				r.Get("/{ankamaId}", ListConsumables)
+				r.Get("/search", SearchEquipment)
 			})
 
 			r.Route("/quest", func(r chi.Router) {
-				r.With(paginate).Get("/", ListConsumables)
-				r.Get("/{ankamaId}", GetConsumableHandler)
-				r.Get("/search", SearchAll)
+				r.With(paginate).Get("/", ListQuestItems)
+				r.Get("/{ankamaId}", ListConsumables)
+				r.Get("/search", SearchQuestItems)
 			})
 
 			r.Route("/cosmetics", func(r chi.Router) {
-				r.With(paginate).Get("/", ListConsumables)
-				r.Get("/{ankamaId}", GetConsumableHandler)
-				r.Get("/search", SearchAll)
+				r.With(paginate).Get("/", ListCosmetics)
+				r.Get("/{ankamaId}", ListConsumables)
+				r.Get("/search", SearchCosmetics)
 			})
 
-			r.Get("/search", SearchAll)
+			r.Get("/search", SearchAllItems)
 
 		})
 
 		r.Route("/mounts", func(r chi.Router) {
 			r.With(paginate).Get("/", ListConsumables)
-			r.Get("/{ankamaId}", GetConsumableHandler)
-			r.Get("/search", SearchAll)
+			r.Get("/{ankamaId}", ListConsumables)
+			r.Get("/search", SearchAllItems)
 		})
 
 		r.Route("/sets", func(r chi.Router) {
 			r.With(paginate).Get("/", ListConsumables)
-			r.Get("/{ankamaId}", GetConsumableHandler)
-			r.Get("/search", SearchAll)
+			r.Get("/{ankamaId}", ListConsumables)
+			r.Get("/search", SearchAllItems)
 		})
 	})
 
 	return r
-}
-
-// paginate is a stub, but very possible to implement middleware logic
-// to handle the request params for handling a paginated request.
-func paginate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// just a stub.. some ideas are to look at URL query params for something like
-		// the page number, or the limit, and send a query cursor down the chain
-		next.ServeHTTP(w, r)
-	})
-}
-
-func ListConsumables(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("hi"))
-}
-
-func SearchAll(w http.ResponseWriter, r *http.Request) {
-	if !*Indexed {
-		w.WriteHeader(http.StatusProcessing)
-		w.Write([]byte("102 -- index building in progress, try again later"))
-		return
-	}
-
-	client := utils.CreateMeiliClient()
-	query := r.URL.Query().Get("q")
-	lang := chi.URLParam(r, "lang")
-
-	index := client.Index(fmt.Sprintf("all_items-%s", lang))
-	searchResp, err := index.Search(query, &meilisearch.SearchRequest{})
-	if err != nil {
-		log.Println(err)
-		w.Write([]byte("error"))
-		return
-	}
-
-	log.Println(searchResp)
-	if searchResp.EstimatedTotalHits == 0 {
-		w.Write([]byte("no results"))
-		return
-	}
-
-	rawRespJson, err := searchResp.MarshalJSON()
-	if err != nil {
-		log.Println(err)
-		w.Write([]byte("error"))
-		return
-	}
-
-	w.Write(rawRespJson)
-
-	/*
-	   raw_query := r.URL.Query().Get("q")
-	   search_query := fmt.Sprintf("%s", raw_query)
-
-	   var results []ApiSearchResult
-
-	   	for _, hit := range searchResult.Hits {
-	   		id_type_split := strings.Split(hit.ID, ":")
-	   		id, _ := strconv.Atoi(id_type_split[0])
-	   		results = append(results, ApiSearchResult{
-	   			Id:    id,
-	   			Score: hit.Score,
-	   		})
-	   	}
-
-	   json.NewEncoder(w).Encode(results)
-	*/
-}
-
-func GetConsumablesHandler(w http.ResponseWriter, r *http.Request) {
-	ankamaId := chi.URLParam(r, "ankamaId")
-	lang := chi.URLParam(r, "lang")
-	log.Println("serving", ankamaId, "in", lang)
-	w.Write([]byte("hi"))
-}
-
-func GetConsumableHandler(w http.ResponseWriter, r *http.Request) {
-	//r.URL.Query().Get("q")
-	lang := chi.URLParam(r, "lang")
-	ankamaId, err := strconv.Atoi(chi.URLParam(r, "ankamaId"))
-	if err != nil {
-		panic(err)
-	}
-
-	txn := Db.Txn(false)
-	defer txn.Abort()
-
-	raw, err := txn.First("consumables", "id", ankamaId)
-	if err != nil {
-		panic(err)
-	}
-
-	consumable := RenderConsumable(raw.(*gen.MappedMultilangItem), lang)
-	json.NewEncoder(w).Encode(consumable)
 }

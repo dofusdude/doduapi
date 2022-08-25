@@ -23,8 +23,6 @@ type MappedMultiangCondition struct {
 	Operator  string            `json:"operator"`
 	Value     int               `json:"value"`
 	Templated map[string]string `json:"templated"`
-	//IsParsed bool `json:"is_parsed"`
-	//Unparsed string `json:"unparsed"`
 }
 
 type MappedMultilangRecipe struct {

@@ -15,6 +15,7 @@
 # vendor/
 
 data/*
+data.ms/*
 
 api
 

@@ -235,22 +235,22 @@ func Unpack(filepath string, dest_dir_rel string, fileType string) {
 }
 
 func DownloadHashImageFileInJson(files map[string]interface{}, hashFile HashFile) {
-	hashfile := files[hashFile.filename].(map[string]interface{})
-	hashFile.hash = hashfile["hash"].(string)
+	file := files[hashFile.filename].(map[string]interface{})
+	hashFile.hash = file["hash"].(string)
 	DownloadHashFile(hashFile)
 
 }
 
-func DownloadHashFileInJson(files map[string]interface{}, hash_file HashFile, dest_dir_rel string, fileType string) {
-	hashfile := files[hash_file.filename].(map[string]interface{})
-	hash_file.hash = hashfile["hash"].(string)
-	DownloadHashFile(hash_file)
+func DownloadHashFileInJson(files map[string]interface{}, hashFile HashFile, destDirRel string, fileType string) {
+	hashfile := files[hashFile.filename].(map[string]interface{})
+	hashFile.hash = hashfile["hash"].(string)
+	DownloadHashFile(hashFile)
 
-	Unpack(hash_file.friendlyName, dest_dir_rel, fileType)
+	Unpack(hashFile.friendlyName, destDirRel, fileType)
 }
 
-func DownloadImagesLauncher(hash_json map[string]interface{}) {
-	main := hash_json["main"].(map[string]interface{})
+func DownloadImagesLauncher(hashJson map[string]interface{}) {
+	main := hashJson["main"].(map[string]interface{})
 	files := main["files"].(map[string]interface{})
 
 	log.Println("loading item images...")

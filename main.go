@@ -3,10 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/dofusdude/api/gen"
-	"github.com/dofusdude/api/server"
-	"github.com/dofusdude/api/update"
-	"github.com/dofusdude/api/utils"
 	"log"
 	"net/http"
 	"os"
@@ -14,13 +10,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dofusdude/api/gen"
+	"github.com/dofusdude/api/server"
+	"github.com/dofusdude/api/update"
+	"github.com/dofusdude/api/utils"
+
 	"github.com/hashicorp/go-memdb"
 )
 
-func AutoUpdate(done chan bool, indexWaiterDone chan bool, indexed *bool, ticker *time.Ticker, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes) {
+func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *time.Ticker, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes) {
+	indexWaiterDone := make(chan bool)
 	for {
 		select {
 		case <-done:
+			indexWaiterDone <- true
 			ticker.Stop()
 			return
 		case <-ticker.C:
@@ -29,16 +32,74 @@ func AutoUpdate(done chan bool, indexWaiterDone chan bool, indexed *bool, ticker
 				continue
 			}
 			gen.Parse()
-			db, idx := gen.IndexApiData(indexWaiterDone, indexed)
+			db, idx := gen.IndexApiData(indexWaiterDone, indexed, version)
 
 			// send data to main thread
 			updateDb <- db
+
+			nowOldItemsTable := fmt.Sprintf("%s-all_items", utils.CurrentRedBlueVersionStr(version.MemDb))
+			nowOldSetsTable := fmt.Sprintf("%s-sets", utils.CurrentRedBlueVersionStr(version.MemDb))
+			nowOldMountsTable := fmt.Sprintf("%s-mounts", utils.CurrentRedBlueVersionStr(version.MemDb))
+			nowOldRecipesTable := fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(version.MemDb))
+
+			version.MemDb = !version.MemDb // atomic version switch
+
+			delOldTxn := db.Txn(true)
+			_, err := delOldTxn.DeleteAll(nowOldItemsTable, "id")
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = delOldTxn.DeleteAll(nowOldSetsTable, "id")
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = delOldTxn.DeleteAll(nowOldMountsTable, "id")
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = delOldTxn.DeleteAll(nowOldRecipesTable, "id")
+			if err != nil {
+				log.Fatal(err)
+			}
+			delOldTxn.Commit()
+
+			// ----
 			updateSearchIndex <- idx
+
+			client := utils.CreateMeiliClient()
+			nowOldRedBlueVersion := utils.CurrentRedBlueVersionStr(version.Search)
+
+			version.Search = !version.Search // atomic version switch
+
+			log.Println("-- updater: changed search version")
+			for _, lang := range utils.Languages {
+				nowOldItemIndexUid := fmt.Sprintf("%s-all_items-%s", nowOldRedBlueVersion, lang)
+				nowOldSetIndexUid := fmt.Sprintf("%s-sets-%s", nowOldRedBlueVersion, lang)
+				nowOldMountIndexUid := fmt.Sprintf("%s-mounts-%s", nowOldRedBlueVersion, lang)
+
+				itemDeleteTask, err := client.DeleteIndex(nowOldItemIndexUid)
+				_, err = client.WaitForTask(itemDeleteTask.TaskUID)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				setDeletionTask, err := client.DeleteIndex(nowOldSetIndexUid)
+				_, err = client.WaitForTask(setDeletionTask.TaskUID)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				mountDeletionTask, err := client.DeleteIndex(nowOldMountIndexUid)
+				_, err = client.WaitForTask(mountDeletionTask.TaskUID)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
 		}
 	}
 }
 
-func Hook(updaterRunning bool, updaterDone chan bool, indexWaiterCouldBeRunning bool, indexWaiterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes) {
+func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes) {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -46,22 +107,18 @@ func Hook(updaterRunning bool, updaterDone chan bool, indexWaiterCouldBeRunning 
 	go func() {
 		for {
 			select {
-			case api.Db = <-updateDb: // override main memory with updated data
-			case api.Indexes = <-updateSearchIndex:
+			case server.Db = <-updateDb: // override main memory with updated data
+
+			case server.Indexes = <-updateSearchIndex:
 			case sig := <-sigs:
 				fmt.Println(sig)
 
 				if updaterRunning {
 					updaterDone <- true // signal update to stop
-					fmt.Println("stopped update")
+					fmt.Println("stopped update routine")
 				}
 
-				if indexWaiterCouldBeRunning && !*api.Indexed {
-					indexWaiterDone <- true // signal index waiter to stop
-					fmt.Println("stopped waiter")
-				}
-
-				err := server.Close()
+				err := httpServer.Close()
 				if err != nil {
 					panic(err)
 				} // close http connections and delete server
@@ -74,19 +131,19 @@ func Hook(updaterRunning bool, updaterDone chan bool, indexWaiterCouldBeRunning 
 	fmt.Println("Bye!")
 }
 
-var server *http.Server
+var httpServer *http.Server
 
 func main() {
-	parseFlag := flag.Bool("parseFlag", false, "Parse already existing files")
-	updateFlag := flag.Bool("updateFlag", false, "Update the data")
+	parseFlag := flag.Bool("parse", false, "Parse already existing files")
+	updateFlag := flag.Bool("update", false, "Update the data")
 	genFlag := flag.Bool("gen", false, "Generate API datastructure")
-	serveFlag := flag.Bool("serveFlag", false, "No processing, just serveFlag")
+	serveFlag := flag.Bool("serve", false, "No processing, just serveFlag")
 	flag.Parse()
+	utils.ReadEnvs()
 
 	all := !*parseFlag && !*updateFlag && !*genFlag && !*serveFlag
 
-	isIndexed := false
-	api.Indexed = &isIndexed
+	server.Indexed = false
 
 	updaterDone := make(chan bool)
 	indexWaiterDone := make(chan bool)
@@ -104,7 +161,9 @@ func main() {
 	}
 
 	if all || *genFlag {
-		gen.IndexApiData(indexWaiterDone, api.Indexed)
+		server.Db, server.Indexes = gen.IndexApiData(indexWaiterDone, &server.Indexed, &server.Version)
+		server.Version.Search = !server.Version.Search
+		server.Version.MemDb = !server.Version.MemDb
 	}
 
 	updateDb := make(chan *memdb.MemDB)
@@ -112,40 +171,35 @@ func main() {
 	if all || *serveFlag {
 
 		if !all && !*genFlag {
-			*api.Indexed = true
+			server.Indexed = true
 		}
 
 		// start webserver async
-		port, ok := os.LookupEnv("API_PORT")
-		if !ok {
-			port = "3000"
-		}
-
-		server = &http.Server{
-			Addr:    fmt.Sprintf(":%s", port),
-			Handler: api.Router(),
+		httpServer = &http.Server{
+			Addr:    fmt.Sprintf(":%s", utils.ApiPort),
+			Handler: server.Router(),
 		}
 
 		go func() {
-			log.Printf("listen on port %s\n", port)
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("listen on port %s\n", utils.ApiPort)
+			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
 		}()
 
 		if all || *updateFlag {
 			ticker := time.NewTicker(1 * time.Minute)
-			go AutoUpdate(updaterDone, indexWaiterDone, api.Indexed, ticker, updateDb, updateSearchIndex)
+			go AutoUpdate(updaterDone, &server.Indexed, &server.Version, ticker, updateDb, updateSearchIndex)
 		}
 	}
 
 	if all || *serveFlag {
-		Hook(all || *updateFlag, updaterDone, all || *genFlag, indexWaiterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
+		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
 	}
 
 	if !*serveFlag && *genFlag {
 		for {
-			if !*api.Indexed {
+			if !server.Indexed {
 				log.Println("waiting for index to finish. else there could be dataraces when starting the service again")
 				time.Sleep(4 * time.Second)
 			} else {
