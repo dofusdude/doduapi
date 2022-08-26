@@ -27,9 +27,12 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			updated := update.DownloadUpdatesIfAvailable(false)
-			if !updated {
-				continue
+			err := update.DownloadUpdatesIfAvailable(false)
+			if err != nil {
+				if err.Error() == "no updates available" {
+					continue
+				}
+				log.Fatal(err)
 			}
 			gen.Parse()
 			db, idx := gen.IndexApiData(indexWaiterDone, indexed, version)
@@ -45,7 +48,7 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 			version.MemDb = !version.MemDb // atomic version switch
 
 			delOldTxn := db.Txn(true)
-			_, err := delOldTxn.DeleteAll(nowOldItemsTable, "id")
+			_, err = delOldTxn.DeleteAll(nowOldItemsTable, "id")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -99,16 +102,20 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 	}
 }
 
-func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes) {
+func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes, updateImagesDone chan bool) {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	var updaterImagesRunning bool
 	go func() {
 		for {
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
-
+			case <-updateImagesDone:
+				updaterImagesRunning = false
+				fmt.Println("all image conversions done")
+				os.RemoveAll("./images")
 			case server.Indexes = <-updateSearchIndex:
 			case sig := <-sigs:
 				fmt.Println(sig)
@@ -116,6 +123,11 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 				if updaterRunning {
 					updaterDone <- true // signal update to stop
 					fmt.Println("stopped update routine")
+				}
+
+				if updaterImagesRunning {
+					updateImagesDone <- true
+					fmt.Println("stopped update images routine")
 				}
 
 				err := httpServer.Close()
@@ -132,6 +144,7 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 }
 
 var httpServer *http.Server
+var updaterImagesRunning bool
 
 func main() {
 	parseFlag := flag.Bool("parse", false, "Parse already existing files")
@@ -152,11 +165,22 @@ func main() {
 
 	if all || *updateFlag {
 		startHashes := time.Now()
-		update.DownloadUpdatesIfAvailable(true)
-		log.Println("downloading game files took", time.Since(startHashes))
+		log.Printf("loading game files...")
+		err := update.DownloadUpdatesIfAvailable(true)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("... took", time.Since(startHashes))
 	}
 
 	if all || *parseFlag {
+		if !*updateFlag { // need hashfile first for mount images
+			config := utils.GetConfig("config.json")
+			_, err := utils.GetFileHashesJson(config.CurrentVersion)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 		gen.Parse()
 	}
 
@@ -167,6 +191,7 @@ func main() {
 	}
 
 	updateDb := make(chan *memdb.MemDB)
+	updateImagesDone := make(chan bool)
 	updateSearchIndex := make(chan map[string]gen.SearchIndexes)
 	if all || *serveFlag {
 
@@ -190,18 +215,26 @@ func main() {
 		if all || *updateFlag {
 			ticker := time.NewTicker(1 * time.Minute)
 			go AutoUpdate(updaterDone, &server.Indexed, &server.Version, ticker, updateDb, updateSearchIndex)
+
+			path, err := os.Getwd()
+			if err != nil {
+				log.Println(err)
+			}
+
+			go server.RenderVectorImages(fmt.Sprintf("%s/data/vector", path), updateImagesDone, "mount")
+			go server.RenderVectorImages(fmt.Sprintf("%s/data/vector", path), updateImagesDone, "item")
 		}
 	}
 
 	if all || *serveFlag {
-		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
+		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex, updateImagesDone) // block and wait for signal, handle db updates
 	}
 
 	if !*serveFlag && *genFlag {
 		for {
 			if !server.Indexed {
 				log.Println("waiting for index to finish. else there could be dataraces when starting the service again")
-				time.Sleep(4 * time.Second)
+				time.Sleep(4 * time.Second) // TODO work with done channel
 			} else {
 				break
 			}

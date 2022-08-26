@@ -3,12 +3,13 @@ package gen
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/dofusdude/api/update"
 	"github.com/dofusdude/api/utils"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,14 @@ func Parse() {
 	log.Println("parsing...")
 	startParsing := time.Now()
 	gameData := ParseRawData()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadMountsImages(gameData, utils.FileHashes, 6)
+	}()
+
 	languageData := ParseRawLanguages()
 	log.Println("... completed parsing in", time.Since(startParsing))
 
@@ -86,23 +95,60 @@ func Parse() {
 
 	outRecipes.Write(outRecipeBytes)
 
+	wg.Wait() // mount images
 	log.Println("... completed mapping in", time.Since(startMapping))
 	mappedSets = nil
 	mappedItems = nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+func DownloadMountImageWorker(files map[string]interface{}, workerSlice []JSONGameMount) {
+	wg := sync.WaitGroup{}
+
+	for _, mount := range workerSlice {
+		wg.Add(1)
+		go func(mountId int, wg *sync.WaitGroup) {
+			defer wg.Done()
+			var image update.HashFile
+			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.png", mountId)
+			image.FriendlyName = fmt.Sprintf("data/img/mount/%d.png", mountId)
+			err := update.DownloadHashImageFileInJson(files, image)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(mount.Id, &wg)
+
+		wg.Add(1)
+		go func(mountId int, wg *sync.WaitGroup) {
+			defer wg.Done()
+			var image update.HashFile
+			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.swf", mountId)
+			image.FriendlyName = fmt.Sprintf("data/vector/mount/%d.swf", mountId)
+			err := update.DownloadHashImageFileInJson(files, image)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(mount.Id, &wg)
 	}
-	return b
+
+	wg.Wait()
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+func DownloadMountsImages(mounts *JSONGameData, hashJson map[string]interface{}, worker int) {
+	main := hashJson["main"].(map[string]interface{})
+	files := main["files"].(map[string]interface{})
+
+	arr := utils.Values(mounts.Mounts)
+	workerSlices := utils.PartitionSlice(arr, worker)
+
+	wg := sync.WaitGroup{}
+	for _, workerSlice := range workerSlices {
+		wg.Add(1)
+		go func(workerSlice []JSONGameMount) {
+			defer wg.Done()
+			DownloadMountImageWorker(files, workerSlice)
+		}(workerSlice)
 	}
-	return b
+	wg.Wait()
 }
 
 func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs *map[string]LangDict) [][]MappedMultilangEffect {
@@ -178,316 +224,6 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 	return mappedAllEffects
 }
 
-func PrepareTextForRegex(input string) string {
-	input = strings.ReplaceAll(input, "{~1~2 -}", "{~1~2 - }")
-	input = strings.ReplaceAll(input, "{~1~2 to}level", "{~1~2 to } level") // {~1~2 to}level
-	input = strings.ReplaceAll(input, "{~1~2 to}", "{~1~2 to }")
-	input = strings.ReplaceAll(input, "\"\"", "")
-	return input
-}
-
-func PrepareAndCreateRangeRegex(input string, extract bool) (string, *regexp.Regexp) {
-	var regexStr string
-	combiningWords := "(und|et|and|bis|to|a|à|-|auf)"
-	if extract {
-		regexStr = fmt.Sprintf("{~1~2 (%s [-,+]?)}", combiningWords)
-	} else {
-		regexStr = fmt.Sprintf("[-,+]?#1{~1~2 %s [-,+]?}#2", combiningWords)
-	}
-
-	concatRegex := regexp.MustCompile(regexStr)
-
-	return PrepareTextForRegex(input), concatRegex
-}
-
-// returns info about min max with in. -1 "only_min", -2 "no_min_max"
-func NumSpellFormatter(input string, lang string, gameData *JSONGameData, langs *map[string]LangDict, diceNum *int, diceSide *int, value *int, effectNameId int, numIsSpell bool, useDice bool) (string, int) {
-	diceNumIsSpellId := *diceNum > 12000 || numIsSpell
-	diceSideIsSpellId := *diceSide > 12000
-	valueIsSpellId := *value > 12000
-
-	onlyNoMinMax := 0
-
-	// when + xp
-	if !useDice && *diceNum == 0 && *value == 0 && *diceSide != 0 {
-		*value = *diceSide
-		*diceSide = 0
-	}
-
-	delValue := false
-
-	input, concatRegex := PrepareAndCreateRangeRegex(input, true)
-	numSigned, sideSigned := ParseSigness(input)
-	concatEntries := concatRegex.FindAllStringSubmatch(input, -1)
-
-	if *diceSide == 0 { // only replace #1 with dice_num
-		for _, extracted := range concatEntries {
-			input = strings.ReplaceAll(input, extracted[0], "")
-		}
-	} else {
-		for _, extracted := range concatEntries {
-			input = strings.ReplaceAll(input, extracted[0], fmt.Sprintf(" %s", extracted[1]))
-		}
-	}
-
-	num1Regex := regexp.MustCompile("([-,+]?)#1")
-	num1Entries := num1Regex.FindAllStringSubmatch(input, -1)
-	for _, extracted := range num1Entries {
-		var diceNumStr string
-		if diceNumIsSpellId {
-			diceNumStr = (*langs)[lang].Texts[gameData.spells[*diceNum].NameId]
-		} else {
-			diceNumStr = fmt.Sprint(*diceNum)
-		}
-		input = strings.ReplaceAll(input, extracted[0], fmt.Sprintf("%s%s", extracted[1], diceNumStr))
-	}
-
-	if *diceSide == 0 {
-		input = strings.ReplaceAll(input, "#2", "")
-	} else {
-		var diceSideStr string
-		if diceSideIsSpellId {
-			diceSideStr = (*langs)[lang].Texts[gameData.spells[*diceSide].NameId]
-			//del_dice_side = true
-		} else {
-			diceSideStr = fmt.Sprint(*diceSide)
-		}
-		input = strings.ReplaceAll(input, "#2", diceSideStr)
-	}
-
-	var valueStr string
-	if valueIsSpellId {
-		valueStr = (*langs)[lang].Texts[gameData.spells[*value].NameId]
-		delValue = true
-	} else {
-		valueStr = fmt.Sprint(*value)
-	}
-	if effectNameId == 427090 { // go to <npc> for more info
-		return "", -2
-	}
-	input = strings.ReplaceAll(input, "#3", valueStr)
-
-	if delValue {
-		*diceNum = min(*diceNum, *diceSide)
-	}
-
-	/*
-		// reorder the values so diceNum is always the smallest, diceSide the bigger and value the spellId
-		if dice_num_is_spell_id && !value_is_spell_id && !dice_side_is_spell_id {
-			spell_id := *dice_num
-			if *value == 0 {
-				*dice_num = *dice_side
-				*dice_side = 0
-			} else {
-				*dice_num = min(*value, *dice_side)
-				*dice_side = max(*value, *dice_side)
-			}
-			*value = spell_id
-		}
-
-		if dice_side_is_spell_id && !value_is_spell_id && !dice_num_is_spell_id {
-			spell_id := *dice_num
-			if *value == 0 {
-				*dice_side = 0
-			} else {
-				*dice_num = min(*value, *dice_num)
-				*dice_side = max(*value, *dice_num)
-			}
-			*value = spell_id
-		}
-	*/
-	if !useDice {
-		// avoid min = 0, max > x
-		if *diceNum == 0 && *diceSide != 0 {
-			*diceNum = *diceSide
-			*diceSide = 0
-		}
-	}
-
-	if *diceNum == 0 && *diceSide == 0 {
-		onlyNoMinMax = -2
-	}
-
-	if *diceNum != 0 && *diceSide == 0 {
-		onlyNoMinMax = -1
-	}
-
-	input = strings.TrimSpace(input)
-
-	if numSigned {
-		*diceNum *= -1
-	}
-
-	if sideSigned {
-		*diceSide *= -1
-	}
-
-	return input, onlyNoMinMax
-}
-
-func ParseSigness(input string) (bool, bool) {
-	numSigness := false
-	sideSigness := false
-
-	regexNum := regexp.MustCompile("(([+,-])?#1)")
-	entriesNum := regexNum.FindAllStringSubmatch(input, -1)
-	for _, extracted := range entriesNum {
-		for _, entry := range extracted {
-			if entry == "-" {
-				numSigness = true
-			}
-		}
-	}
-
-	regexSide := regexp.MustCompile("([+,-])?}?#2")
-	entriesSide := regexSide.FindAllStringSubmatch(input, -1)
-	for _, extracted := range entriesSide {
-		for _, entry := range extracted {
-			if entry == "-" {
-				sideSigness = true
-			}
-		}
-	}
-
-	return numSigness, sideSigness
-}
-
-func DeleteDamageFormatter(input string) string {
-	input, regex := PrepareAndCreateRangeRegex(input, false)
-	if strings.Contains(input, "+#1{~1~2 to } level #2") {
-		return "level"
-	}
-
-	input = strings.ReplaceAll(input, "#1{~1~2 -}#2", "#1{~1~2 - }#2") // bug from ankama
-	input = regex.ReplaceAllString(input, "")
-
-	numRegex := regexp.MustCompile(" ?#1")
-	input = numRegex.ReplaceAllString(input, "")
-
-	sideRegex := regexp.MustCompile(" ?#2")
-	input = sideRegex.ReplaceAllString(input, "")
-
-	valueRegex := regexp.MustCompile(" ?#3")
-	input = valueRegex.ReplaceAllString(input, "")
-
-	input = strings.TrimSpace(input)
-	return input
-}
-
-func SingularPluralFormatter(input string, amount int, lang string) string {
-	str := strings.ReplaceAll(input, "{~s}", "") // avoid only s without what to append
-	str = strings.ReplaceAll(str, "{~p}", "")    // same
-
-	// delete unknown z
-	unknownZRegex := regexp.MustCompile("{~z[^}]*}")
-	str = unknownZRegex.ReplaceAllString(str, "")
-
-	var indicator rune
-
-	if amount > 1 {
-		indicator = 'p'
-	} else {
-		indicator = 's'
-	}
-
-	indicators := []rune{'s', 'p'}
-	var regexps []*regexp.Regexp
-	for _, indicatorIt := range indicators {
-		regex := fmt.Sprintf("{~%c([^}]*)}", indicatorIt) // capturing with everything inside ()
-		regexExtract := regexp.MustCompile(regex)
-		regexps = append(regexps, regexExtract)
-
-		//	if lang == "es" || lang == "pt" {
-		if indicatorIt != indicator {
-			continue
-		}
-		extractedEntries := regexExtract.FindAllStringSubmatch(str, -1)
-		for _, extracted := range extractedEntries {
-			str = strings.ReplaceAll(str, extracted[0], extracted[1])
-		}
-	}
-
-	for _, regexIt := range regexps {
-		str = regexIt.ReplaceAllString(str, "")
-	}
-
-	return str
-}
-
-func ElementFromCode(code string) int {
-	code = strings.ToLower(code)
-
-	switch code {
-	case "cs":
-		return 501945 // "Strength"
-	case "ci":
-		return 501944 // "Intelligence"
-	case "cv":
-		return 501947 // "Vitality"
-	case "ca":
-		return 501941 // "Agility"
-	case "cc":
-		return 501942 // "Chance"
-	case "cw":
-		return 501946 // "Wisdom"
-	case "pk":
-		return 422874 // "Set-Bonus"
-	case "pl":
-		return 837224 // "Mindestens Stufe %1"
-	case "cm":
-		return 67248 // "Bewegungsp. (BP)"
-	case "cp":
-		return 67755 // "Aktionsp. (AP)"
-	case "po":
-		return 335357 // Anderes Gebiet als: %1
-	case "pf":
-		return 644231 // Nicht ausgerüstetes %1-Reittier
-	//case "": // Ps=1
-	//	return 644230 // Ausgerüstetes %1-Reittier
-	case "pa":
-		return 66566 // Gesinunngsstufe
-	//case "":
-	//	return 637203 // Kein ausgerüstetes %1-Reittier haben
-	case "of":
-		return 637212 // Ein ausgerüstetes %1-Reittier haben
-	case "pz":
-		return 66351 // Abonniert sein
-	}
-
-	return -1
-}
-
-func ConditionWithOperator(input string, operator string, langs *map[string]LangDict, out *MappedMultiangCondition, data *JSONGameData) bool {
-	partSplit := strings.Split(input, operator)
-	rawElement := ElementFromCode(partSplit[0])
-	if rawElement == -1 {
-		return false
-	}
-	out.Element = strings.ToLower(partSplit[0])
-	out.Value, _ = strconv.Atoi(partSplit[1])
-	for _, lang := range utils.Languages {
-		lang_str := (*langs)[lang].Texts[rawElement]
-
-		switch rawElement {
-		case 837224: // %1 replace
-			int_val, _ := strconv.Atoi(partSplit[1])
-			lang_str = strings.ReplaceAll(lang_str, "%1", fmt.Sprint(int_val+1))
-			break
-		case 335357: // anderes gebiet als %1
-			lang_str = strings.ReplaceAll(lang_str, "%1", (*langs)[lang].Texts[data.areas[out.Value].NameId])
-			break
-		case 637212: // reittier %1
-		case 644231:
-			lang_str = strings.ReplaceAll(lang_str, "%1", (*langs)[lang].Texts[data.Mounts[out.Value].NameId])
-			break
-		}
-
-		out.Templated[lang] = lang_str
-	}
-	out.Operator = operator
-	return true
-}
-
 func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGameData) []MappedMultiangCondition {
 	if condition == "" || (!strings.Contains(condition, "&") && !strings.Contains(condition, "<") && !strings.Contains(condition, ">")) {
 		return nil
@@ -536,13 +272,6 @@ func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGame
 	return outs
 }
 
-func cleanJSON(jsonStr string) string {
-	jsonStr = strings.ReplaceAll(jsonStr, "NaN", "null")
-	jsonStr = strings.ReplaceAll(jsonStr, "\"null\"", "null")
-	jsonStr = strings.ReplaceAll(jsonStr, " ", " ")
-	return jsonStr
-}
-
 func ParseRawData() *JSONGameData {
 	path, err := os.Getwd()
 	if err != nil {
@@ -571,7 +300,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameNPC
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -590,7 +319,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameMountFamily
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -609,7 +338,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameBreed
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -628,7 +357,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameMount
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -647,7 +376,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameArea
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -666,7 +395,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameSpell
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -685,7 +414,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameSpellType
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -704,7 +433,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		fileStr := cleanJSON(string(file))
+		fileStr := utils.CleanJSON(string(file))
 		var fileJson []JSONGameRecipe
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
@@ -723,7 +452,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		itemsFileStr := cleanJSON(string(itemsFile))
+		itemsFileStr := utils.CleanJSON(string(itemsFile))
 		var itemsJson []JSONGameItem
 		err = json.Unmarshal([]byte(itemsFileStr), &itemsJson)
 		if err != nil {
@@ -742,7 +471,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		itemTypesFileStr := cleanJSON(string(itemsTypeFile))
+		itemTypesFileStr := utils.CleanJSON(string(itemsTypeFile))
 		var itemTypesJson []JSONGameItemType
 		err = json.Unmarshal([]byte(itemTypesFileStr), &itemTypesJson)
 		if err != nil {
@@ -761,7 +490,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		itemSetsFileStr := cleanJSON(string(itemsSetsFile))
+		itemSetsFileStr := utils.CleanJSON(string(itemsSetsFile))
 		var setsJson []JSONGameSet
 		err = json.Unmarshal([]byte(itemSetsFileStr), &setsJson)
 		if err != nil {
@@ -781,7 +510,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		bonusesFileStr := cleanJSON(string(bonusesFile))
+		bonusesFileStr := utils.CleanJSON(string(bonusesFile))
 		var bonusesJson []JSONGameBonus
 		err = json.Unmarshal([]byte(bonusesFileStr), &bonusesJson)
 		if err != nil {
@@ -800,7 +529,7 @@ func ParseRawData() *JSONGameData {
 		if err != nil {
 			fmt.Print(err)
 		}
-		effectsFileStr := cleanJSON(string(effectsFile))
+		effectsFileStr := utils.CleanJSON(string(effectsFile))
 		var effectsJson []JSONGameEffect
 		err = json.Unmarshal([]byte(effectsFileStr), &effectsJson)
 		if err != nil {
@@ -855,7 +584,7 @@ func ParseRawData() *JSONGameData {
 	return &data
 }
 
-func ParseLangDict(lang_code string) LangDict {
+func ParseLangDict(langCode string) LangDict {
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -867,12 +596,12 @@ func ParseLangDict(lang_code string) LangDict {
 	data.Texts = make(map[int]string)
 	data.NameText = make(map[string]int)
 
-	langFile, err := os.ReadFile(fmt.Sprintf("%s/lang_%s.json", dataPath, lang_code))
+	langFile, err := os.ReadFile(fmt.Sprintf("%s/lang_%s.json", dataPath, langCode))
 	if err != nil {
 		fmt.Print(err)
 	}
 
-	langFileStr := cleanJSON(string(langFile))
+	langFileStr := utils.CleanJSON(string(langFile))
 	var langJson JSONLangDict
 	err = json.Unmarshal([]byte(langFileStr), &langJson)
 	if err != nil {
@@ -950,4 +679,11 @@ func ParseRawLanguages() *map[string]LangDict {
 	close(chanIt)
 
 	return &data
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
