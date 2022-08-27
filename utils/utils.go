@@ -13,15 +13,18 @@ import (
 	"strings"
 )
 
-var Languages = []string{"de", "en", "es", "fr", "it", "pt"}
-var ImgResolutions = []string{"200", "400", "800"}
-var ImgWithResExists *Set
-
-var ApiHostName string
-var ApiPort string
-var ApiScheme string
-var DockerMountDataPath string
-var FileHashes map[string]interface{}
+var (
+	Languages           = []string{"de", "en", "es", "fr", "it", "pt"}
+	ImgResolutions      = []string{"200", "400", "800"}
+	ImgWithResExists    *Set
+	ApiHostName         string
+	ApiPort             string
+	ApiScheme           string
+	DockerMountDataPath string
+	FileHashes          map[string]interface{}
+	MeiliHost           string
+	MeiliKey            string
+)
 
 var currentWd string
 
@@ -87,6 +90,30 @@ func ReadEnvs() (string, string) {
 
 	DockerMountDataPath = dockerMountDataPath
 
+	meiliPort, ok := os.LookupEnv("MEILI_PORT")
+	if !ok {
+		meiliPort = "7700"
+	}
+
+	meiliKey, ok := os.LookupEnv("MEILI_MASTER_KEY")
+	if !ok {
+		meiliKey = "masterKey"
+	}
+
+	MeiliKey = meiliKey
+
+	meiliProtocol, ok := os.LookupEnv("MEILI_PROTOCOL")
+	if !ok {
+		meiliProtocol = "http"
+	}
+
+	meiliHost, ok := os.LookupEnv("MEILI_HOST")
+	if !ok {
+		meiliHost = "127.0.0.1"
+	}
+
+	MeiliHost = fmt.Sprintf("%s://%s:%s", meiliProtocol, meiliHost, meiliPort)
+
 	return ApiHostName, ApiPort
 }
 
@@ -110,24 +137,9 @@ func ImageUrls(iconId int, apiType string) []string {
 }
 
 func CreateMeiliClient() *meilisearch.Client {
-	meiliPort, ok := os.LookupEnv("MEILISEARCH_PORT")
-	if !ok {
-		meiliPort = "7700"
-	}
-
-	meiliKey, ok := os.LookupEnv("MEILISEARCH_API_KEY")
-	if !ok {
-		meiliKey = "masterKey"
-	}
-
-	meiliHost, ok := os.LookupEnv("MEILISEARCH_HOST")
-	if !ok {
-		meiliHost = "http://127.0.0.1"
-	}
-
 	client := meilisearch.NewClient(meilisearch.ClientConfig{
-		Host:   fmt.Sprintf("%s:%s", meiliHost, meiliPort),
-		APIKey: meiliKey,
+		Host:   MeiliHost,
+		APIKey: MeiliKey,
 	})
 
 	return client
@@ -142,6 +154,11 @@ func CreateDataDirectoryStructure() {
 	os.MkdirAll("data/vector/mount", 0755)
 
 	os.MkdirAll("data/languages", 0755)
+
+	err := os.Chown("data", 1000, 1000)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 type Config struct {

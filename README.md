@@ -2,27 +2,41 @@
 
 Auto generated, always up to date API for all things Dofus.
 
-sudo apt-get install zlib1g zlib1g-dev libjpeg-dev
+## Setup
 
-sudo apt install autoconf automake gconf-2.0 pkg-config libltdl3-dev build-essential libgconf2-dev
+```
+git clone git@github.com:dofusdude/api.git
+cd api/
+git submodule update --init --recursive 
+sudo docker-compose build
 
-libtool libltdl3-dev autoconf automake pkg-config
+mkdir data
+sudo chown -R 1000:1000 data
+```
 
-sudo ./deb-attempt-install-dependencies.sh
+```
+echo "DOCKER_MOUNT_DATA_PATH=$(pwd)
+MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)" > .env
+```
 
-in gnash
-./autogen.sh
-./configure
-make
-sudo make install
+`sudo docker-compose up`
 
-dump-gnash --screenshot last --screenshot-file out.png -1 -r1 --width 1000 --height 1000 mount3.swf
+## Building the SWF Renderer
+sudo apt install libtool libltdl3-dev autoconf automake pkg-config
 
+clone gnash
+```
 apt install git build-essential
 git clone git://git.sv.gnu.org/gnash.git
 cd gnash
 ./configure
 ./autogen.sh
 sudo ./deb-attempt-install-dependencies.sh
+./configure
 
-docker run -v $(pwd):/home/developer --entrypoint /usr/local/bin/dump-gnash dofusdude/swf-renderer --screenshot last --screenshot-file out.png -1 -r1 --width 1000 --height 1000 mount3.swf
+make
+sudo make install
+```
+
+
+`docker run -v $(pwd):/home/developer --entrypoint /usr/local/bin/dump-gnash dofusdude/swf-renderer --screenshot last --screenshot-file out.png -1 -r1 --width 1000 --height 1000 mount3.swf`
