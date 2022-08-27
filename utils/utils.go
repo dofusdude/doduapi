@@ -146,14 +146,14 @@ func CreateMeiliClient() *meilisearch.Client {
 }
 
 func CreateDataDirectoryStructure() {
-	os.MkdirAll("data/tmp/vector", 0755)
-	os.MkdirAll("data/img/item", 0755)
-	os.MkdirAll("data/img/mount", 0755)
+	os.MkdirAll("data/tmp/vector", os.ModePerm)
+	os.MkdirAll("data/img/item", os.ModePerm)
+	os.MkdirAll("data/img/mount", os.ModePerm)
 
-	os.MkdirAll("data/vector/item", 0755)
-	os.MkdirAll("data/vector/mount", 0755)
+	os.MkdirAll("data/vector/item", os.ModePerm)
+	os.MkdirAll("data/vector/mount", os.ModePerm)
 
-	os.MkdirAll("data/languages", 0755)
+	os.MkdirAll("data/languages", os.ModePerm)
 }
 
 type Config struct {

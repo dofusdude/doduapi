@@ -15,6 +15,7 @@ services:
       - MEILI_HOST=meili
       - DOCKER_MOUNT_DATA_PATH
       - MEILI_MASTER_KEY
+    user: developer
   meili:
     build:
       context: .
