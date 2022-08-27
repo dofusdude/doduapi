@@ -4,7 +4,12 @@ Auto generated, always up to date API for all things Dofus.
 
 ## Setup
 
+Install Docker and make it available for all users.
+```shell
+sudo chmod 666 /var/run/docker.sock
 ```
+
+```shell
 git clone git@github.com:dofusdude/api.git
 cd api/
 git submodule update --init --recursive
@@ -14,7 +19,7 @@ mkdir data
 sudo chown -R 1000:1000 data
 ```
 
-```
+```shell
 echo "DOCKER_MOUNT_DATA_PATH=$(pwd)
 MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
 CURRENT_UID=$(id -u):$(id -g)" > .env
@@ -26,7 +31,7 @@ CURRENT_UID=$(id -u):$(id -g)" > .env
 sudo apt install libtool libltdl3-dev autoconf automake pkg-config
 
 clone gnash
-```
+```shell
 apt install git build-essential
 git clone git://git.sv.gnu.org/gnash.git
 cd gnash

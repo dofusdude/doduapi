@@ -7,7 +7,7 @@ services:
     ports:
       - "8080:3000"
     volumes:
-      - ./data:/app/data
+      - ./data:/home/developer/data
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - meili
@@ -15,7 +15,7 @@ services:
       - MEILI_HOST=meili
       - DOCKER_MOUNT_DATA_PATH
       - MEILI_MASTER_KEY
-    user: developer
+    user: ${CURRENT_UID}
   meili:
     build:
       context: .
