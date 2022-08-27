@@ -154,11 +154,6 @@ func CreateDataDirectoryStructure() {
 	os.MkdirAll("data/vector/mount", 0755)
 
 	os.MkdirAll("data/languages", 0755)
-
-	err := os.Chown("data", 1000, 1000)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 type Config struct {
