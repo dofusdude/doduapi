@@ -7,7 +7,7 @@ Auto generated, always up to date API for all things Dofus.
 ```
 git clone git@github.com:dofusdude/api.git
 cd api/
-git submodule update --init --recursive 
+git submodule update --init --recursive
 sudo docker-compose build
 
 mkdir data
@@ -16,7 +16,8 @@ sudo chown -R 1000:1000 data
 
 ```
 echo "DOCKER_MOUNT_DATA_PATH=$(pwd)
-MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)" > .env
+MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
+CURRENT_UID=$(id -u):$(id -g)" > .env
 ```
 
 `sudo docker-compose up`
