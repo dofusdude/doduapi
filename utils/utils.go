@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/meilisearch/meilisearch-go"
@@ -10,15 +9,21 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
 var Languages = []string{"de", "en", "es", "fr", "it", "pt"}
+var ImgResolutions = []string{"200", "400", "800"}
+var ImgWithResExists *Set
 
 var ApiHostName string
 var ApiPort string
 var ApiScheme string
+var DockerMountDataPath string
 var FileHashes map[string]interface{}
+
+var currentWd string
 
 func GetFileHashesJson(version string) (map[string]interface{}, error) {
 	gameHashesUrl := fmt.Sprintf("https://launcher.cdn.ankama.com/dofus/releases/main/windows/%s.json", version)
@@ -69,15 +74,39 @@ func ReadEnvs() (string, string) {
 	}
 	ApiPort = apiPort
 
+	path, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	currentWd = path
+
+	dockerMountDataPath, ok := os.LookupEnv("DOCKER_MOUNT_DATA_PATH")
+	if !ok {
+		dockerMountDataPath = currentWd
+	}
+
+	DockerMountDataPath = dockerMountDataPath
+
 	return ApiHostName, ApiPort
 }
 
-func ItemImageUrl(itemId int) string {
-	return fmt.Sprintf("%s/img/item/%d.png", ApiHostName, itemId)
-}
+func ImageUrls(iconId int, apiType string) []string {
+	baseUrl := fmt.Sprintf("%s://%s/dofus/img/%s", ApiScheme, ApiHostName, apiType)
+	var urls []string
+	urls = append(urls, fmt.Sprintf("%s/%d.png", baseUrl, iconId))
 
-func MountImageUrl(itemId int) string {
-	return fmt.Sprintf("%s/img/item/%d.png", ApiHostName, itemId)
+	if ImgResolutions == nil {
+		return urls
+	}
+
+	for _, resolution := range ImgResolutions {
+		finalImagePath := fmt.Sprintf("%s/data/img/%s/%d-%s.png", currentWd, apiType, iconId, resolution)
+		resolutionUrl := fmt.Sprintf("%s/%d-%s.png", baseUrl, iconId, resolution)
+		if ImgWithResExists.Has(finalImagePath) {
+			urls = append(urls, resolutionUrl)
+		}
+	}
+	return urls
 }
 
 func CreateMeiliClient() *meilisearch.Client {
@@ -167,6 +196,18 @@ type Pagination struct {
 	BiggestPageSize int
 }
 
+func PageninationWithState(paginationStr string) Pagination {
+	vals := strings.Split(paginationStr, ",")
+	num, _ := strconv.Atoi(vals[0])
+	size, _ := strconv.Atoi(vals[1])
+	max, _ := strconv.Atoi(vals[2])
+	return Pagination{
+		PageNumber:      num,
+		PageSize:        size,
+		BiggestPageSize: max,
+	}
+}
+
 type PaginationLinks struct {
 	First string `json:"first"`
 	Prev  string `json:"prev"`
@@ -174,7 +215,7 @@ type PaginationLinks struct {
 	Last  string `json:"last"`
 }
 
-func (p *Pagination) ValidatePagination(listSize int) int {
+func (p Pagination) ValidatePagination(listSize int) int {
 	if p.PageSize > p.BiggestPageSize {
 		return -1
 	}
@@ -184,12 +225,7 @@ func (p *Pagination) ValidatePagination(listSize int) int {
 	return 0
 }
 
-func (p *Pagination) BuildLinks(listSize int) (PaginationLinks, bool) {
-	mainUrl := url.URL{
-		Scheme: ApiScheme,
-		Host:   ApiHostName,
-	}
-
+func (p Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, bool) {
 	firstPage := 1
 	var lastPage int
 
@@ -200,70 +236,45 @@ func (p *Pagination) BuildLinks(listSize int) (PaginationLinks, bool) {
 		lastPage = (listSize / p.PageSize) + 1
 	}
 
-	firstUrlQuery := mainUrl.Query()
-	firstUrlQuery.Set("pnum", fmt.Sprint(firstPage))
-	firstUrlQuery.Set("psize", fmt.Sprint(p.PageSize))
+	baseUrl, _ := url.JoinPath(fmt.Sprintf("%s://%s", ApiScheme, ApiHostName), mainUrl.Path)
 
-	prevUrlQuery := mainUrl.Query()
-	prevUrlQuery.Set("pnum", fmt.Sprint(p.PageNumber-1))
-	prevUrlQuery.Set("psize", fmt.Sprint(p.PageSize))
+	firstUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", firstPage, p.PageSize)
+	prevUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", p.PageNumber-1, p.PageSize)
+	nextUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", p.PageNumber+1, p.PageSize)
+	lastUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", lastPage, p.PageSize)
 
-	nextUrlQuery := mainUrl.Query()
-	nextUrlQuery.Set("pnum", fmt.Sprint(p.PageNumber+1))
-	nextUrlQuery.Set("psize", fmt.Sprint(p.PageSize))
+	firstUrlStr := url.QueryEscape(firstUrlQuery)
+	prevUrlStr := url.QueryEscape(prevUrlQuery)
+	nextUrlStr := url.QueryEscape(nextUrlQuery)
+	lastUrlStr := url.QueryEscape(lastUrlQuery)
 
-	lastUrlQuery := mainUrl.Query()
-	lastUrlQuery.Set("pnum", fmt.Sprint(lastPage))
-	lastUrlQuery.Set("psize", fmt.Sprint(p.PageSize))
-
-	firstUrl := mainUrl
-	prevUrl := mainUrl
-	nextUrl := mainUrl
-	lastUrl := mainUrl
-
-	firstUrl.RawQuery = firstUrlQuery.Encode()
-	prevUrl.RawQuery = prevUrlQuery.Encode()
-	nextUrl.RawQuery = nextUrlQuery.Encode()
-	lastUrl.RawQuery = lastUrlQuery.Encode()
-
-	firstUrlStr := firstUrl.String()
-	prevUrlStr := prevUrl.String()
-	nextUrlStr := nextUrl.String()
-	lastUrlStr := lastUrl.String()
+	firstUrl := fmt.Sprintf("%s?%s", baseUrl, firstUrlStr)
+	prevUrl := fmt.Sprintf("%s?%s", baseUrl, prevUrlStr)
+	nextUrl := fmt.Sprintf("%s?%s", baseUrl, nextUrlStr)
+	lastUrl := fmt.Sprintf("%s?%s", baseUrl, lastUrlStr)
 
 	if p.PageNumber == firstPage {
-		prevUrlStr = ""
+		prevUrl = ""
 	}
 	if p.PageNumber == lastPage {
-		nextUrlStr = ""
+		nextUrl = ""
 	}
 
 	return PaginationLinks{
-		First: firstUrlStr,
-		Prev:  prevUrlStr,
-		Next:  nextUrlStr,
-		Last:  lastUrlStr,
-	}, firstUrl == lastUrl
+		First: firstUrl,
+		Prev:  prevUrl,
+		Next:  nextUrl,
+		Last:  lastUrl,
+	}, firstUrlStr == lastUrlStr
 }
 
-// calculate the start and end index for the pagination
-func (p *Pagination) CalculateStartEndIndex(listSize int) (int, int) {
+func (p Pagination) CalculateStartEndIndex(listSize int) (int, int) {
 	startIndex := (p.PageNumber - 1) * p.PageSize
 	endIndex := startIndex + p.PageSize
 	if endIndex > listSize {
 		endIndex = listSize
 	}
 	return startIndex, endIndex
-}
-
-func WithValues(ctx context.Context, kv ...interface{}) context.Context {
-	if len(kv)%2 != 0 {
-		panic("odd numbers of key-value pairs")
-	}
-	for i := 0; i < len(kv); i = i + 2 {
-		ctx = context.WithValue(ctx, kv[i], kv[i+1])
-	}
-	return ctx
 }
 
 func PartitionSlice[T any](items []T, parts int) (chunks [][]T) {
@@ -298,4 +309,36 @@ func CleanJSON(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "\"null\"", "null")
 	jsonStr = strings.ReplaceAll(jsonStr, " ", " ")
 	return jsonStr
+}
+
+func CategoryIdMapping(id int) string {
+	switch id {
+	case 0:
+		return "equipment"
+	case 1:
+		return "consumables"
+	case 2:
+		return "resources"
+	case 3:
+		return "quest_items"
+	case 5:
+		return "cosmetics"
+	}
+	return ""
+}
+
+func CategoryIdApiMapping(id int) string {
+	switch id {
+	case 0:
+		return "equipment"
+	case 1:
+		return "consumables"
+	case 2:
+		return "resources"
+	case 3:
+		return "quest"
+	case 5:
+		return "cosmetics"
+	}
+	return ""
 }

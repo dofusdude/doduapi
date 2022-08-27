@@ -179,6 +179,9 @@ func cleanUp() {
 	//os.Mkdir("data/img", 0755)
 
 	meiliClient := utils.CreateMeiliClient()
+	if meiliClient == nil {
+		log.Fatal("meili could not be reached")
+	}
 
 	for _, lang := range utils.Languages {
 		taskItemsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("all_items-%s", lang))

@@ -274,6 +274,9 @@ func PrepareTextForRegex(input string) string {
 	input = strings.ReplaceAll(input, "{~1~2 to}level", "{~1~2 to } level") // {~1~2 to}level
 	input = strings.ReplaceAll(input, "{~1~2 to}", "{~1~2 to }")
 	input = strings.ReplaceAll(input, "\"\"", "")
+	input = strings.TrimPrefix(input, ":")
+	input = strings.TrimSuffix(input, ":")
+	input = strings.TrimPrefix(input, "+")
 	return input
 }
 

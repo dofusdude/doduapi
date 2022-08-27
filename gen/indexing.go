@@ -300,22 +300,6 @@ func DownloadImagesAsync(items *[]MappedMultilangItem) {
 	wg.Wait()
 }
 
-func CategoryIdMapping(id int) string {
-	switch id {
-	case 0:
-		return "equipment"
-	case 1:
-		return "consumables"
-	case 2:
-		return "resources"
-	case 3:
-		return "quest_items"
-	case 5:
-		return "cosmetics"
-	}
-	return ""
-}
-
 type SearchIndexes struct {
 	AllItems *meilisearch.Index
 	Sets     *meilisearch.Index
@@ -393,14 +377,22 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 		// add filters
 		allItemsIdx := client.Index(itemIndexUid)
-		allItemsIdx.UpdateFilterableAttributes(&[]string{
+		_, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"type",
 		})
+		if err != nil {
+			log.Println(err)
+			return nil, nil
+		}
 
 		mountsIdx := client.Index(mountIndexUid)
-		mountsIdx.UpdateFilterableAttributes(&[]string{
+		_, err = mountsIdx.UpdateFilterableAttributes(&[]string{
 			"family_name",
 		})
+		if err != nil {
+			log.Println(err)
+			return nil, nil
+		}
 
 		setsIdx := client.Index(setIndexUid)
 
@@ -431,10 +423,10 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
 	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
 	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
-	
+
 	for _, recipe := range *recipes {
-		recipe_ct := recipe
-		if err := txn.Insert(recipesTable, &recipe_ct); err != nil {
+		recipeCt := recipe
+		if err := txn.Insert(recipesTable, &recipeCt); err != nil {
 			panic(err)
 		}
 	}
@@ -445,7 +437,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		if itemCp.Type.CategoryId == 4 {
 			continue
 		}
-		insertCategoryTable = CategoryIdMapping(itemCp.Type.CategoryId)
+		insertCategoryTable = utils.CategoryIdMapping(itemCp.Type.CategoryId)
 
 		if err := txn.Insert(fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
 			panic(err)
@@ -590,6 +582,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 						awaited[i] = waitingForSucceededOrFailed
 					}
 				}
+				firstRun = false
 
 				if allTrue {
 					*indexed = true

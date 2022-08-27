@@ -13,6 +13,14 @@ func MapSets(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangS
 		mappedSet.ItemIds = set.ItemIds
 		mappedSet.Effects = ParseEffects(data, set.Effects, langs)
 
+		highestLevel := 0
+		for _, item := range set.ItemIds {
+			if data.Items[item].Level > highestLevel {
+				highestLevel = data.Items[item].Level
+			}
+		}
+		mappedSet.Level = highestLevel
+
 		mappedSet.Name = make(map[string]string)
 		for _, lang := range utils.Languages {
 			mappedSet.Name[lang] = (*langs)[lang].Texts[set.NameId]
@@ -92,6 +100,7 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 		mappedItem.Name = make(map[string]string)
 		mappedItem.Description = make(map[string]string)
 		mappedItem.Type.Name = make(map[string]string)
+		mappedItem.IconId = item.IconId
 
 		// skip unnamed and hidden items
 		if (*langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 {

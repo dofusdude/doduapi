@@ -102,31 +102,38 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 	}
 }
 
-func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes, updateImagesDone chan bool) {
+func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]gen.SearchIndexes, updateMountImagesDone chan bool, updateItemImagesDone chan bool) {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	var updaterImagesRunning bool
+	updaterImagesRunning := make(chan bool)
+	itemImagesDone := false
+	mountImagesDone := false
 	go func() {
 		for {
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
-			case <-updateImagesDone:
-				updaterImagesRunning = false
-				fmt.Println("all image conversions done")
-				os.RemoveAll("./images")
+			case mountImagesDone = <-updateMountImagesDone:
+				if itemImagesDone {
+					updaterImagesRunning <- true
+				}
+			case itemImagesDone = <-updateItemImagesDone:
+				if mountImagesDone {
+					updaterImagesRunning <- true
+				}
 			case server.Indexes = <-updateSearchIndex:
+			case <-updaterImagesRunning:
+				fmt.Println("all image conversions done")
 			case sig := <-sigs:
 				fmt.Println(sig)
 
 				if updaterRunning {
 					updaterDone <- true // signal update to stop
 					fmt.Println("stopped update routine")
-				}
 
-				if updaterImagesRunning {
-					updateImagesDone <- true
+					updateMountImagesDone <- true
+					updateItemImagesDone <- true
 					fmt.Println("stopped update images routine")
 				}
 
@@ -144,7 +151,6 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 }
 
 var httpServer *http.Server
-var updaterImagesRunning bool
 
 func main() {
 	parseFlag := flag.Bool("parse", false, "Parse already existing files")
@@ -191,7 +197,8 @@ func main() {
 	}
 
 	updateDb := make(chan *memdb.MemDB)
-	updateImagesDone := make(chan bool)
+	updateMountImagesDone := make(chan bool)
+	updateItemImagesDone := make(chan bool)
 	updateSearchIndex := make(chan map[string]gen.SearchIndexes)
 	if all || *serveFlag {
 
@@ -216,18 +223,13 @@ func main() {
 			ticker := time.NewTicker(1 * time.Minute)
 			go AutoUpdate(updaterDone, &server.Indexed, &server.Version, ticker, updateDb, updateSearchIndex)
 
-			path, err := os.Getwd()
-			if err != nil {
-				log.Println(err)
-			}
-
-			go server.RenderVectorImages(fmt.Sprintf("%s/data/vector", path), updateImagesDone, "mount")
-			go server.RenderVectorImages(fmt.Sprintf("%s/data/vector", path), updateImagesDone, "item")
+			go server.RenderVectorImages(updateMountImagesDone, "mount")
+			go server.RenderVectorImages(updateItemImagesDone, "item")
 		}
 	}
 
 	if all || *serveFlag {
-		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex, updateImagesDone) // block and wait for signal, handle db updates
+		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex, updateMountImagesDone, updateItemImagesDone) // block and wait for signal, handle db updates
 	}
 
 	if !*serveFlag && *genFlag {

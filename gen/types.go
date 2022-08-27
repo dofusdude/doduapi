@@ -41,6 +41,7 @@ type MappedMultilangSet struct {
 	Name     map[string]string         `json:"name"`
 	ItemIds  []int                     `json:"items"`
 	Effects  [][]MappedMultilangEffect `json:"effects"`
+	Level    int                       `json:"level"`
 }
 
 type MappedMultilangMount struct {
@@ -90,6 +91,7 @@ type MappedMultilangItem struct {
 	Range                  int                             `json:"range"`
 	CriticalHitProbability int                             `json:"criticalHitProbability"`
 	Pods                   int                             `json:"pods"`
+	IconId                 int                             `json:"iconId"`
 }
 
 type JSONGameSpellType struct {

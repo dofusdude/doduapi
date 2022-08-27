@@ -1,6 +1,10 @@
 package server
 
 import (
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dofusdude/api/gen"
@@ -34,58 +38,84 @@ r.Route("/almanax", func(r chi.Router) {
 })
 */
 
+func FileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
+}
+
 func Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(middleware.Timeout(10 * time.Second))
 
-	r.With(languageChecker).Route("/dofus/{lang}", func(r chi.Router) {
-		r.Route("/items", func(r chi.Router) {
-			r.Route("/consumables", func(r chi.Router) {
-				r.With(paginate).Get("/", ListConsumables)
-				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleConsumableHandler)
-				r.Get("/search", SearchConsumables)
+	r.Route("/dofus", func(r chi.Router) {
+
+		workDir, _ := os.Getwd()
+		filesDir := http.Dir(filepath.Join(workDir, "data", "img"))
+		FileServer(r, "/img", filesDir)
+
+		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
+			r.Route("/items", func(r chi.Router) {
+				r.Route("/consumables", func(r chi.Router) {
+					r.With(paginate).Get("/", ListConsumables)
+					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleConsumableHandler)
+					r.Get("/search", SearchConsumables)
+				})
+
+				r.Route("/resources", func(r chi.Router) {
+					r.With(paginate).Get("/", ListResources)
+					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleResourceHandler)
+					r.Get("/search", SearchResources)
+				})
+
+				r.Route("/equipment", func(r chi.Router) {
+					r.With(paginate).Get("/", ListEquipment)
+					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleEquipmentHandler)
+					r.Get("/search", SearchEquipment)
+				})
+
+				r.Route("/quest", func(r chi.Router) {
+					r.With(paginate).Get("/", ListQuestItems)
+					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleQuestItemHandler)
+					r.Get("/search", SearchQuestItems)
+				})
+
+				r.Route("/cosmetics", func(r chi.Router) {
+					r.With(paginate).Get("/", ListCosmetics)
+					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleCosmeticHandler)
+					r.Get("/search", SearchCosmetics)
+				})
+
+				r.Get("/search", SearchAllItems)
+
 			})
 
-			r.Route("/resources", func(r chi.Router) {
-				r.With(paginate).Get("/", ListResources)
-				r.Get("/{ankamaId}", ListConsumables)
-				r.Get("/search", SearchResources)
+			r.Route("/mounts", func(r chi.Router) {
+				r.With(paginate).Get("/", ListMounts)
+				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleMountHandler)
+				r.Get("/search", SearchMounts)
 			})
 
-			r.Route("/equipment", func(r chi.Router) {
-				r.With(paginate).Get("/", ListEquipment)
-				r.Get("/{ankamaId}", ListConsumables)
-				r.Get("/search", SearchEquipment)
+			r.Route("/sets", func(r chi.Router) {
+				r.With(paginate).Get("/", ListSets)
+				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleSetHandler)
+				r.Get("/search", SearchSets)
 			})
-
-			r.Route("/quest", func(r chi.Router) {
-				r.With(paginate).Get("/", ListQuestItems)
-				r.Get("/{ankamaId}", ListConsumables)
-				r.Get("/search", SearchQuestItems)
-			})
-
-			r.Route("/cosmetics", func(r chi.Router) {
-				r.With(paginate).Get("/", ListCosmetics)
-				r.Get("/{ankamaId}", ListConsumables)
-				r.Get("/search", SearchCosmetics)
-			})
-
-			r.Get("/search", SearchAllItems)
-
-		})
-
-		r.Route("/mounts", func(r chi.Router) {
-			r.With(paginate).Get("/", ListConsumables)
-			r.Get("/{ankamaId}", ListConsumables)
-			r.Get("/search", SearchAllItems)
-		})
-
-		r.Route("/sets", func(r chi.Router) {
-			r.With(paginate).Get("/", ListConsumables)
-			r.Get("/{ankamaId}", ListConsumables)
-			r.Get("/search", SearchAllItems)
 		})
 	})
 
