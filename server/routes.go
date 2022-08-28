@@ -21,23 +21,6 @@ var Indexed bool
 
 var Version utils.VersionT
 
-/* // TODO bonusesIds => real items? amounts are to high? how to compute the date?
-r.Route("/almanax", func(r chi.Router) {
-	r.Route("/bonuses", func(r chi.Router) {
-		r.Get("/", SearchAll)
-		r.Get("/{bonus_type}/next", SearchAll)
-	})
-
-	r.Route("/ahead/{days_ahead}", func(r chi.Router) {
-		r.Get("/", SearchAll)
-		r.Get("/bonus/{bonus_type}", SearchAll)
-		r.Get("/items", SearchAll)
-	})
-
-	r.Get("/{date}", SearchAll)
-})
-*/
-
 func FileServer(r chi.Router, path string, root http.FileSystem) {
 	if strings.ContainsAny(path, "{}*") {
 		panic("FileServer does not permit any URL parameters.")
@@ -50,8 +33,8 @@ func FileServer(r chi.Router, path string, root http.FileSystem) {
 	path += "*"
 
 	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
-		rctx := chi.RouteContext(r.Context())
-		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		routeCtx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(routeCtx.RoutePattern(), "/*")
 		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
 		fs.ServeHTTP(w, r)
 	})
@@ -63,11 +46,14 @@ func Router() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
-	r.Route("/dofus", func(r chi.Router) {
+	workDir, _ := os.Getwd()
+	docsDir := http.Dir(filepath.Join(workDir, "docs"))
+	FileServer(r, "/docs", docsDir)
 
-		workDir, _ := os.Getwd()
-		filesDir := http.Dir(filepath.Join(workDir, "data", "img"))
-		FileServer(r, "/img", filesDir)
+	r.Route("/dofus2", func(r chi.Router) {
+
+		imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))
+		FileServer(r, "/img", imagesDir)
 
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
 			r.Route("/items", func(r chi.Router) {

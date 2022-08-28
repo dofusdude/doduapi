@@ -4,7 +4,8 @@ type SearchIndexedItem struct {
 	Id          int    `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Type        string `json:"type"`
+	SuperType   string `json:"super_type"`
+	TypeName    string `json:"type_name"`
 }
 
 type SearchIndexedMount struct {
@@ -14,8 +15,9 @@ type SearchIndexedMount struct {
 }
 
 type SearchIndexedSet struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+	Id    int    `json:"id"`
+	Name  string `json:"name"`
+	Level int    `json:"highest_equipment_level"`
 }
 
 type MappedMultiangCondition struct {

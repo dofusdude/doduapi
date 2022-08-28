@@ -3,10 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -110,8 +112,9 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 	updaterImagesRunning := make(chan bool)
 	itemImagesDone := false
 	mountImagesDone := false
+	allDone := false
 	go func() {
-		for {
+		for !allDone {
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
 			case mountImagesDone = <-updateMountImagesDone:
@@ -137,10 +140,17 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 					fmt.Println("stopped update images routine")
 				}
 
-				err := httpServer.Close()
+				err := httpDataServer.Close()
 				if err != nil {
 					panic(err)
 				} // close http connections and delete server
+
+				err = httpMetricsServer.Close()
+				if err != nil {
+					panic(err)
+				}
+
+				allDone = true
 				done <- true
 			}
 		}
@@ -150,7 +160,8 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 	fmt.Println("Bye!")
 }
 
-var httpServer *http.Server
+var httpDataServer *http.Server
+var httpMetricsServer *http.Server
 
 func main() {
 	parseFlag := flag.Bool("parse", false, "Parse already existing files")
@@ -207,14 +218,29 @@ func main() {
 		}
 
 		// start webserver async
-		httpServer = &http.Server{
+		httpDataServer = &http.Server{
 			Addr:    fmt.Sprintf(":%s", utils.ApiPort),
 			Handler: server.Router(),
 		}
 
+		if utils.PrometheusEnabled {
+			apiPort, _ := strconv.Atoi(utils.ApiPort)
+			httpMetricsServer = &http.Server{
+				Addr:    fmt.Sprintf(":%d", apiPort+1),
+				Handler: promhttp.Handler(),
+			}
+
+			go func() {
+				log.Printf("metrics on port %d\n", apiPort+1)
+				if err := httpMetricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					log.Fatal(err)
+				}
+			}()
+		}
+
 		go func() {
 			log.Printf("listen on port %s\n", utils.ApiPort)
-			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := httpDataServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
 		}()

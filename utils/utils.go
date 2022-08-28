@@ -24,6 +24,9 @@ var (
 	FileHashes          map[string]interface{}
 	MeiliHost           string
 	MeiliKey            string
+	PrometheusEnabled   bool
+	PromUsername        string
+	PromPassword        string
 )
 
 var currentWd string
@@ -114,15 +117,36 @@ func ReadEnvs() (string, string) {
 
 	MeiliHost = fmt.Sprintf("%s://%s:%s", meiliProtocol, meiliHost, meiliPort)
 
+	promEnables, ok := os.LookupEnv("PROMETHEUS")
+	if !ok {
+		promEnables = ""
+	}
+
+	PrometheusEnabled = strings.ToLower(promEnables) == "true"
+
+	prometheusUser, ok := os.LookupEnv("PROMETHEUS_USERNAME")
+	if !ok {
+		prometheusUser = ""
+	}
+
+	PromUsername = prometheusUser
+
+	prometheusPassword, ok := os.LookupEnv("PROMETHEUS_PASSWORD")
+	if !ok {
+		prometheusPassword = ""
+	}
+
+	PromPassword = prometheusPassword
+
 	return ApiHostName, ApiPort
 }
 
 func ImageUrls(iconId int, apiType string) []string {
-	baseUrl := fmt.Sprintf("%s://%s/dofus/img/%s", ApiScheme, ApiHostName, apiType)
+	baseUrl := fmt.Sprintf("%s://%s/dofus2/img/%s", ApiScheme, ApiHostName, apiType)
 	var urls []string
 	urls = append(urls, fmt.Sprintf("%s/%d.png", baseUrl, iconId))
 
-	if ImgResolutions == nil {
+	if ImgResolutions == nil || ImgWithResExists == nil {
 		return urls
 	}
 
@@ -145,6 +169,19 @@ func CreateMeiliClient() *meilisearch.Client {
 	return client
 }
 
+func touchFileIfNotExists(fileName string) error {
+	_, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		file, err := os.Create(fileName)
+		defer file.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func CreateDataDirectoryStructure() {
 	os.MkdirAll("data/tmp/vector", os.ModePerm)
 	os.MkdirAll("data/img/item", os.ModePerm)
@@ -154,6 +191,20 @@ func CreateDataDirectoryStructure() {
 	os.MkdirAll("data/vector/mount", os.ModePerm)
 
 	os.MkdirAll("data/languages", os.ModePerm)
+
+	err := touchFileIfNotExists("data/img/index.html")
+	if err != nil {
+		log.Println(err)
+	}
+	err = touchFileIfNotExists("data/img/item/index.html")
+	if err != nil {
+		log.Println(err)
+	}
+	err = touchFileIfNotExists("data/img/mount/index.html")
+	if err != nil {
+		log.Println(err)
+	}
+
 }
 
 type Config struct {

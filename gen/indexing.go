@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
-	"sync"
+	"strings"
 	"time"
 
-	"github.com/dofusdude/api/update"
 	"github.com/dofusdude/api/utils"
 
 	"github.com/hashicorp/go-memdb"
@@ -273,33 +271,6 @@ func GetItemSuperType(id int) int {
 	return 0
 }
 
-func DownloadImages(items *[]MappedMultilangItem) {
-	for _, item := range *items {
-		filename := path.Base(item.Image)
-		err := update.DownloadFile(fmt.Sprintf("data/img/%s", filename), item.Image)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	time.Sleep(time.Millisecond * 200)
-}
-
-func DownloadImagesAsync(items *[]MappedMultilangItem) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(*items))
-	for _, item := range *items {
-		go func(item *MappedMultilangItem) {
-			defer wg.Done()
-			filename := path.Base(item.Image)
-			err := update.DownloadFile(fmt.Sprintf("data/img/%s", filename), item.Image)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}(&item)
-	}
-	wg.Wait()
-}
-
 type SearchIndexes struct {
 	AllItems *meilisearch.Index
 	Sets     *meilisearch.Index
@@ -378,7 +349,8 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		// add filters
 		allItemsIdx := client.Index(itemIndexUid)
 		_, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
-			"type",
+			"super_type",
+			"type_name",
 		})
 		if err != nil {
 			log.Println(err)
@@ -395,6 +367,13 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 
 		setsIdx := client.Index(setIndexUid)
+		_, err = setsIdx.UpdateFilterableAttributes(&[]string{
+			"highest_equipment_level",
+		})
+		if err != nil {
+			log.Println(err)
+			return nil, nil
+		}
 
 		multilangSearchIndexes[lang] = SearchIndexes{
 			AllItems: allItemsIdx,
@@ -417,7 +396,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		langItems[lang] = make(map[int][]SearchIndexedItem)
 	}
 
-	maxBatchSize := 100
+	maxBatchSize := 250
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
 	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
@@ -452,7 +431,8 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				Name:        itemCp.Name[lang],
 				Id:          itemCp.AnkamaId,
 				Description: itemCp.Description[lang],
-				Type:        insertCategoryTable,
+				SuperType:   insertCategoryTable,
+				TypeName:    strings.ToLower(itemCp.Type.Name[lang]),
 			}
 
 			itemIndexBatch[lang] = append(itemIndexBatch[lang], object)
@@ -477,8 +457,9 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 		for _, lang := range utils.Languages {
 			object := SearchIndexedSet{
-				Name: setCp.Name[lang],
-				Id:   setCp.AnkamaId,
+				Name:  setCp.Name[lang],
+				Id:    setCp.AnkamaId,
+				Level: setCp.Level,
 			}
 
 			setIndexBatch[lang] = append(setIndexBatch[lang], object)
@@ -504,7 +485,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			object := SearchIndexedMount{
 				Name:       mountCp.Name[lang],
 				Id:         mountCp.AnkamaId,
-				FamilyName: mountCp.FamilyName[lang],
+				FamilyName: strings.ToLower(mountCp.FamilyName[lang]),
 			}
 
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)

@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"github.com/dofusdude/api/gen"
 	"github.com/dofusdude/api/utils"
+	"github.com/hashicorp/go-memdb"
+	"log"
 )
 
 type ApiImageUrls struct {
@@ -33,24 +36,26 @@ func RenderImageUrls(urls []string) ApiImageUrls {
 }
 
 type ApiEffect struct {
-	Min       int    `json:"min"`
-	Max       int    `json:"max"`
-	Type      string `json:"type"`
-	IgnoreMin bool   `json:"ignore_min"`
-	IgnoreMax bool   `json:"ignore_max"`
-	Templated string `json:"templated"`
+	MinInt       int     `json:"int_minimum"`
+	MaxInt       int     `json:"int_maximum"`
+	Type         ApiType `json:"type"`
+	IgnoreMinInt bool    `json:"ignore_int_min"`
+	IgnoreMaxInt bool    `json:"ignore_int_max"`
+	Formatted    string  `json:"formatted"`
 }
 
 func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffect {
 	var retEffects []ApiEffect
 	for _, effect := range *effects {
 		retEffects = append(retEffects, ApiEffect{
-			Min:       effect.Min,
-			Max:       effect.Max,
-			IgnoreMin: effect.MinMaxIrrelevant == -2,
-			IgnoreMax: effect.MinMaxIrrelevant <= -1,
-			Type:      effect.Type[lang],
-			Templated: effect.Templated[lang],
+			MinInt:       effect.Min,
+			MaxInt:       effect.Max,
+			IgnoreMinInt: effect.MinMaxIrrelevant == -2,
+			IgnoreMaxInt: effect.MinMaxIrrelevant <= -1,
+			Type: ApiType{
+				Name: effect.Type[lang],
+			},
+			Formatted: effect.Templated[lang],
 		})
 	}
 
@@ -61,24 +66,30 @@ func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffec
 	return nil
 }
 
+type ApiCondition struct {
+	Name string `json:"name"`
+}
+
 type APIResource struct {
-	Id          int          `json:"ankama_id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Type        string       `json:"type"`
-	Level       int          `json:"level"`
-	Pods        int          `json:"pods"`
-	ImageUrls   ApiImageUrls `json:"image_urls,omitempty"`
-	Effects     []ApiEffect  `json:"effects"`
-	Conditions  []string     `json:"conditions"`
-	Recipe      []APIRecipe  `json:"recipe"`
+	Id          int            `json:"ankama_id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Type        ApiType        `json:"type"`
+	Level       int            `json:"level"`
+	Pods        int            `json:"pods"`
+	ImageUrls   ApiImageUrls   `json:"image_urls,omitempty"`
+	Effects     []ApiEffect    `json:"effects"`
+	Conditions  []ApiCondition `json:"conditions"`
+	Recipe      []APIRecipe    `json:"recipe"`
 }
 
 func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 	return APIResource{
-		Id:          item.AnkamaId,
-		Name:        item.Name[lang],
-		Type:        item.Type.Name[lang],
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
+		Type: ApiType{
+			Name: item.Type.Name[lang],
+		},
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
@@ -89,24 +100,26 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 }
 
 type APIEquipment struct {
-	Id          int          `json:"ankama_id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Type        string       `json:"type"`
-	IsWeapon    bool         `json:"is_weapon"`
-	Level       int          `json:"level"`
-	Pods        int          `json:"pods"`
-	ImageUrls   ApiImageUrls `json:"image_urls,omitempty"`
-	Effects     []ApiEffect  `json:"effects"`
-	Conditions  []string     `json:"conditions"`
-	Recipe      []APIRecipe  `json:"recipe"`
+	Id          int            `json:"ankama_id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Type        ApiType        `json:"type"`
+	IsWeapon    bool           `json:"is_weapon"`
+	Level       int            `json:"level"`
+	Pods        int            `json:"pods"`
+	ImageUrls   ApiImageUrls   `json:"image_urls,omitempty"`
+	Effects     []ApiEffect    `json:"effects"`
+	Conditions  []ApiCondition `json:"conditions"`
+	Recipe      []APIRecipe    `json:"recipe"`
 }
 
 func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 	return APIEquipment{
-		Id:          item.AnkamaId,
-		Name:        item.Name[lang],
-		Type:        item.Type.Name[lang],
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
+		Type: ApiType{
+			Name: item.Type.Name[lang],
+		},
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
@@ -119,30 +132,32 @@ func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 }
 
 type APIWeapon struct {
-	Id                     int          `json:"ankama_id"`
-	Name                   string       `json:"name"`
-	Description            string       `json:"description"`
-	Type                   string       `json:"type"`
-	IsWeapon               bool         `json:"is_weapon"`
-	Level                  int          `json:"level"`
-	Pods                   int          `json:"pods"`
-	ImageUrls              ApiImageUrls `json:"image_urls,omitempty"`
-	Effects                []ApiEffect  `json:"effects"`
-	Conditions             []string     `json:"conditions"`
-	CriticalHitProbability int          `json:"critical_hit_probability"`
-	CriticalHitBonus       int          `json:"critical_hit_bonus"`
-	TwoHanded              bool         `json:"is_two_handed"`
-	MaxCastPerTurn         int          `json:"max_cast_per_turn"`
-	ApCost                 int          `json:"ap_cost"`
-	Range                  int          `json:"range"`
-	Recipe                 []APIRecipe  `json:"recipe"`
+	Id                     int            `json:"ankama_id"`
+	Name                   string         `json:"name"`
+	Description            string         `json:"description"`
+	Type                   ApiType        `json:"type"`
+	IsWeapon               bool           `json:"is_weapon"`
+	Level                  int            `json:"level"`
+	Pods                   int            `json:"pods"`
+	ImageUrls              ApiImageUrls   `json:"image_urls,omitempty"`
+	Effects                []ApiEffect    `json:"effects"`
+	Conditions             []ApiCondition `json:"conditions"`
+	CriticalHitProbability int            `json:"critical_hit_probability"`
+	CriticalHitBonus       int            `json:"critical_hit_bonus"`
+	TwoHanded              bool           `json:"is_two_handed"`
+	MaxCastPerTurn         int            `json:"max_cast_per_turn"`
+	ApCost                 int            `json:"ap_cost"`
+	Range                  int            `json:"range"`
+	Recipe                 []APIRecipe    `json:"recipe"`
 }
 
 func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
 	return APIWeapon{
-		Id:                     item.AnkamaId,
-		Name:                   item.Name[lang],
-		Type:                   item.Type.Name[lang],
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
+		Type: ApiType{
+			Name: item.Type.Name[lang],
+		},
 		Description:            item.Description[lang],
 		Level:                  item.Level,
 		Pods:                   item.Pods,
@@ -167,10 +182,12 @@ type MappedMultilangCondition struct {
 	Templated map[string]string `json:"templated"`
 }
 
-func RenderConditions(conditions *[]gen.MappedMultiangCondition, lang string) []string {
-	var retConditions []string
+func RenderConditions(conditions *[]gen.MappedMultiangCondition, lang string) []ApiCondition {
+	var retConditions []ApiCondition
 	for _, condition := range *conditions {
-		retConditions = append(retConditions, condition.Templated[lang])
+		retConditions = append(retConditions, ApiCondition{
+			Name: condition.Templated[lang],
+		})
 	}
 
 	if len(retConditions) > 0 {
@@ -180,19 +197,25 @@ func RenderConditions(conditions *[]gen.MappedMultiangCondition, lang string) []
 	return nil
 }
 
+type ApiType struct {
+	Name string `json:"name"`
+}
+
 type APIListItem struct {
 	Id        int          `json:"ankama_id"`
 	Name      string       `json:"name"`
-	Type      string       `json:"type"`
+	Type      ApiType      `json:"type"`
 	Level     int          `json:"level"`
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
 }
 
 func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem {
 	return APIListItem{
-		Id:        item.AnkamaId,
-		Name:      item.Name[lang],
-		Type:      item.Type.Name[lang],
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
+		Type: ApiType{
+			Name: item.Type.Name[lang],
+		},
 		Level:     item.Level,
 		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
 	}
@@ -201,7 +224,7 @@ func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem
 type APIListTypedItem struct {
 	Id          int          `json:"ankama_id"`
 	Name        string       `json:"name"`
-	Type        string       `json:"type"`
+	Type        ApiType      `json:"type"`
 	ItemSubtype string       `json:"item_subtype"`
 	Level       int          `json:"level"`
 	ImageUrls   ApiImageUrls `json:"image_urls,omitempty"`
@@ -209,9 +232,11 @@ type APIListTypedItem struct {
 
 func RenderTypedItemListEntry(item *gen.MappedMultilangItem, lang string) APIListTypedItem {
 	return APIListTypedItem{
-		Id:          item.AnkamaId,
-		Name:        item.Name[lang],
-		Type:        item.Type.Name[lang],
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
+		Type: ApiType{
+			Name: item.Type.Name[lang],
+		},
 		ItemSubtype: utils.CategoryIdApiMapping(item.Type.CategoryId),
 		Level:       item.Level,
 		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
@@ -235,20 +260,32 @@ func RenderMountListEntry(mount *gen.MappedMultilangMount, lang string) APIListM
 }
 
 type APIRecipe struct {
-	AnkamaId int `json:"item_ankama_id"`
-	Quantity int `json:"quantity"`
+	AnkamaId int    `json:"item_ankama_id"`
+	ItemType string `json:"item_subtype"`
+	Quantity int    `json:"quantity"`
 }
 
-func RenderRecipe(recipe gen.MappedMultilangRecipe) []APIRecipe {
+func RenderRecipe(recipe gen.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe {
 	if len(recipe.Entries) == 0 {
 		return nil
 	}
 
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
 	var apiRecipes []APIRecipe
 	for _, entry := range recipe.Entries {
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", entry.ItemId)
+		if err != nil {
+			log.Println(err)
+			return nil
+		}
+		item := raw.(*gen.MappedMultilangItem)
+
 		apiRecipes = append(apiRecipes, APIRecipe{
 			AnkamaId: entry.ItemId,
 			Quantity: entry.Quantity,
+			ItemType: utils.CategoryIdApiMapping(item.Type.CategoryId),
 		})
 	}
 	return apiRecipes
@@ -327,9 +364,9 @@ func RenderSetListEntry(set *gen.MappedMultilangSet, lang string) APIListSet {
 type APISet struct {
 	AnkamaId int           `json:"ankama_id"`
 	Name     string        `json:"name"`
-	ItemIds  []int         `json:"items"`
+	ItemIds  []int         `json:"equipment_ids"`
 	Effects  [][]ApiEffect `json:"effects"`
-	Level    int           `json:"level"`
+	Level    int           `json:"highest_equipment_level"`
 }
 
 func RenderSet(set *gen.MappedMultilangSet, lang string) APISet {
@@ -345,13 +382,4 @@ func RenderSet(set *gen.MappedMultilangSet, lang string) APISet {
 		Effects:  effects,
 		Level:    set.Level,
 	}
-}
-
-type ApiSearchResult struct {
-	Id    int     `json:"ankama_id"`
-	Score float64 `json:"score"`
-}
-
-func (item APIResource) SetRecipe(recipe []APIRecipe) {
-	item.Recipe = recipe
 }

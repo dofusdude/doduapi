@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 func paginate(next http.Handler) http.Handler {
@@ -61,7 +62,7 @@ func paginate(next http.Handler) http.Handler {
 
 func languageChecker(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lang := chi.URLParam(r, "lang")
+		lang := strings.ToLower(chi.URLParam(r, "lang"))
 		switch lang {
 		case "en", "fr", "de", "es", "it", "pt":
 			ctx := context.WithValue(r.Context(), "lang", lang)
