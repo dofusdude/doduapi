@@ -25,8 +25,6 @@ var (
 	MeiliHost           string
 	MeiliKey            string
 	PrometheusEnabled   bool
-	PromUsername        string
-	PromPassword        string
 )
 
 var currentWd string
@@ -123,20 +121,6 @@ func ReadEnvs() (string, string) {
 	}
 
 	PrometheusEnabled = strings.ToLower(promEnables) == "true"
-
-	prometheusUser, ok := os.LookupEnv("PROMETHEUS_USERNAME")
-	if !ok {
-		prometheusUser = ""
-	}
-
-	PromUsername = prometheusUser
-
-	prometheusPassword, ok := os.LookupEnv("PROMETHEUS_PASSWORD")
-	if !ok {
-		prometheusPassword = ""
-	}
-
-	PromPassword = prometheusPassword
 
 	return ApiHostName, ApiPort
 }
