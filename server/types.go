@@ -66,8 +66,14 @@ func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffec
 	return nil
 }
 
+type ApiElement struct {
+	Name string `json:"name"`
+}
+
 type ApiCondition struct {
-	Formatted string `json:"formatted"`
+	Operator string     `json:"operator"`
+	IntValue int        `json:"int_value"`
+	Element  ApiElement `json:"element"`
 }
 
 type APIResource struct {
@@ -186,7 +192,11 @@ func RenderConditions(conditions *[]gen.MappedMultiangCondition, lang string) []
 	var retConditions []ApiCondition
 	for _, condition := range *conditions {
 		retConditions = append(retConditions, ApiCondition{
-			Formatted: condition.Templated[lang],
+			Operator: condition.Operator,
+			IntValue: condition.Value,
+			Element: ApiElement{
+				Name: condition.Templated[lang],
+			},
 		})
 	}
 
