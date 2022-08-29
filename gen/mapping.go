@@ -134,10 +134,10 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 		/*
 			if item.Range != 0 {
 				var mappedRange MappedMultilangCharacteristic
-				mappedRange.Name = make(map[string]string)
+				mappedRange.Formatted = make(map[string]string)
 				mappedRange.Value = make(map[string]string)
 				for _, lang := range Languages {
-					mappedRange.Name[lang] = (*langs)[lang].Texts[501940] // id effect "range"
+					mappedRange.Formatted[lang] = (*langs)[lang].Texts[501940] // id effect "range"
 					mappedRange.Value[lang] = fmt.Sprint(item.Range)
 				}
 				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedRange)
@@ -145,10 +145,10 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 
 			if item.CriticalHitBonus != 0 {
 				var mappedCrits MappedMultilangCharacteristic
-				mappedCrits.Name = make(map[string]string)
+				mappedCrits.Formatted = make(map[string]string)
 				mappedCrits.Value = make(map[string]string)
 				for _, lang := range Languages {
-					mappedCrits.Name[lang] = (*langs)[lang].Texts[66291] // id effect "CH"
+					mappedCrits.Formatted[lang] = (*langs)[lang].Texts[66291] // id effect "CH"
 					mappedCrits.Value[lang] = fmt.Sprint(item.CriticalHitBonus)
 				}
 				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedCrits)
@@ -156,10 +156,10 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 
 			if item.ApCost != 0 {
 				var mappedAp MappedMultilangCharacteristic
-				mappedAp.Name = make(map[string]string)
+				mappedAp.Formatted = make(map[string]string)
 				mappedAp.Value = make(map[string]string)
 				for _, lang := range Languages {
-					mappedAp.Name[lang] = (*langs)[lang].Texts[261993] // id effect "AP"
+					mappedAp.Formatted[lang] = (*langs)[lang].Texts[261993] // id effect "AP"
 					mappedAp.Value[lang] = fmt.Sprint(item.ApCost)
 				}
 				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedAp)
@@ -167,10 +167,10 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 
 			if item.MaxCastPerTurn != 0 {
 				var mappedCastPerTurn MappedMultilangCharacteristic
-				mappedCastPerTurn.Name = make(map[string]string)
+				mappedCastPerTurn.Formatted = make(map[string]string)
 				mappedCastPerTurn.Value = make(map[string]string)
 				for _, lang := range Languages {
-					mappedCastPerTurn.Name[lang] = (*langs)[lang].Texts[335272] // id effect "use per turn"
+					mappedCastPerTurn.Formatted[lang] = (*langs)[lang].Texts[335272] // id effect "use per turn"
 					mappedCastPerTurn.Value[lang] = fmt.Sprint(item.MaxCastPerTurn)
 				}
 				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedCastPerTurn)
