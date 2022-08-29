@@ -282,7 +282,7 @@ func (p Pagination) ValidatePagination(listSize int) int {
 	if p.PageSize > p.BiggestPageSize {
 		return -1
 	}
-	if p.BiggestPageSize*p.PageNumber > listSize+p.BiggestPageSize {
+	if (p.PageSize * p.PageNumber) >= listSize+p.PageSize {
 		return 1
 	}
 	return 0
@@ -332,12 +332,27 @@ func (p Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, 
 }
 
 func (p Pagination) CalculateStartEndIndex(listSize int) (int, int) {
-	startIndex := (p.PageNumber - 1) * p.PageSize
+	startIndex := (p.PageNumber * p.PageSize) - p.PageSize
 	endIndex := startIndex + p.PageSize
+
 	if endIndex > listSize {
 		endIndex = listSize
 	}
-	return startIndex, endIndex
+	return Max(startIndex, 0), Max(endIndex, 0)
+}
+
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func Max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func PartitionSlice[T any](items []T, parts int) (chunks [][]T) {

@@ -20,17 +20,14 @@ func paginate(next http.Handler) http.Handler {
 		var pageSize int
 
 		var err error
-		if pageSizeStr == "" && pageNumStr != "" {
-			pageSize = maxPageSize / 2
+		if pageNumStr != "" {
 			pageNum, err = strconv.Atoi(pageNumStr)
-			if err != nil {
+			if err != nil || pageNum <= 0 {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if pageNum < 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
+		} else {
+			pageNum = 1
 		}
 
 		if pageSizeStr != "" {
@@ -43,15 +40,8 @@ func paginate(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-		}
-
-		if pageSizeStr == "" && pageNumStr == "" {
+		} else {
 			pageSize = maxPageSize / 2
-			pageNum = 1
-		}
-
-		if pageSizeStr != "" && pageNumStr == "" {
-			pageNum = 1
 		}
 
 		ctx := context.WithValue(r.Context(), "pagination", fmt.Sprintf("%d,%d,%d", pageNum, pageSize, maxPageSize))

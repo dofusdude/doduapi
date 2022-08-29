@@ -321,22 +321,6 @@ type APICharacteristic struct {
 	Name  string `json:"name"`
 }
 
-func RenderCharacteristics(characteristics *[]gen.MappedMultilangCharacteristic, lang string) []APICharacteristic {
-	var retCharacteristics []APICharacteristic
-	for _, characteristic := range *characteristics {
-		retCharacteristics = append(retCharacteristics, APICharacteristic{
-			Value: characteristic.Value[lang],
-			Name:  characteristic.Name[lang],
-		})
-	}
-
-	if len(retCharacteristics) > 0 {
-		return retCharacteristics
-	}
-
-	return nil
-}
-
 type APIMount struct {
 	Id         int          `json:"ankama_id"`
 	Name       string       `json:"name"`

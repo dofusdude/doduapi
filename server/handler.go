@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -117,13 +118,18 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
 	links, _ := pagination.BuildLinks(*r.URL, total)
 	paginatedMounts := mounts[startIdx:endIdx]
+	log.Println(len(paginatedMounts), startIdx, endIdx)
 
 	response := APIPageMount{
 		Items: paginatedMounts,
 		Links: links,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func ListSets(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +210,11 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
@@ -293,7 +303,11 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func ListConsumables(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +395,11 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		mounts = append(mounts, RenderMountListEntry(item, lang))
 	}
 
-	json.NewEncoder(w).Encode(mounts)
+	err = json.NewEncoder(w).Encode(mounts)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func SearchSets(w http.ResponseWriter, r *http.Request) {
@@ -453,7 +471,11 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, RenderSetListEntry(item, lang))
 	}
 
-	json.NewEncoder(w).Encode(sets)
+	err = json.NewEncoder(w).Encode(sets)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Request) {
@@ -555,10 +577,15 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	var encodeErr error
 	if all {
-		json.NewEncoder(w).Encode(typedItems)
+		encodeErr = json.NewEncoder(w).Encode(typedItems)
 	} else {
-		json.NewEncoder(w).Encode(items)
+		encodeErr = json.NewEncoder(w).Encode(items)
+	}
+	if encodeErr != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -605,7 +632,11 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	requestsSetsSingle.Inc()
 
 	set := RenderSet(raw.(*gen.MappedMultilangSet), lang)
-	json.NewEncoder(w).Encode(set)
+	err = json.NewEncoder(w).Encode(set)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
@@ -625,7 +656,11 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	requestsMountsSingle.Inc()
 
 	mount := RenderMount(raw.(*gen.MappedMultilangMount), lang)
-	json.NewEncoder(w).Encode(mount)
+	err = json.NewEncoder(w).Encode(mount)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWriter, r *http.Request) {
@@ -649,7 +684,11 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	if exists {
 		resource.Recipe = RenderRecipe(recipe, Db)
 	}
-	json.NewEncoder(w).Encode(resource)
+	err = json.NewEncoder(w).Encode(resource)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetSingleConsumableHandler(w http.ResponseWriter, r *http.Request) {
@@ -691,14 +730,22 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		if exists {
 			weapon.Recipe = RenderRecipe(recipe, Db)
 		}
-		json.NewEncoder(w).Encode(weapon)
+		err = json.NewEncoder(w).Encode(weapon)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	} else {
 		equipment := RenderEquipment(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
 			equipment.Recipe = RenderRecipe(recipe, Db)
 		}
-		json.NewEncoder(w).Encode(equipment)
+		err = json.NewEncoder(w).Encode(equipment)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
 	}
 }

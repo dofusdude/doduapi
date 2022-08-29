@@ -212,34 +212,9 @@ func NumSpellFormatter(input string, lang string, gameData *JSONGameData, langs 
 	input = strings.ReplaceAll(input, "#3", valueStr)
 
 	if delValue {
-		*diceNum = min(*diceNum, *diceSide)
+		*diceNum = utils.Min(*diceNum, *diceSide)
 	}
 
-	/*
-		// reorder the values so diceNum is always the smallest, diceSide the bigger and value the spellId
-		if dice_num_is_spell_id && !value_is_spell_id && !dice_side_is_spell_id {
-			spell_id := *dice_num
-			if *value == 0 {
-				*dice_num = *dice_side
-				*dice_side = 0
-			} else {
-				*dice_num = min(*value, *dice_side)
-				*dice_side = max(*value, *dice_side)
-			}
-			*value = spell_id
-		}
-
-		if dice_side_is_spell_id && !value_is_spell_id && !dice_num_is_spell_id {
-			spell_id := *dice_num
-			if *value == 0 {
-				*dice_side = 0
-			} else {
-				*dice_num = min(*value, *dice_num)
-				*dice_side = max(*value, *dice_num)
-			}
-			*value = spell_id
-		}
-	*/
 	if !useDice {
 		// avoid min = 0, max > x
 		if *diceNum == 0 && *diceSide != 0 {

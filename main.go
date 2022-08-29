@@ -145,9 +145,11 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 					panic(err)
 				} // close http connections and delete server
 
-				err = httpMetricsServer.Close()
-				if err != nil {
-					panic(err)
+				if utils.PrometheusEnabled {
+					err = httpMetricsServer.Close()
+					if err != nil {
+						panic(err)
+					}
 				}
 
 				allDone = true

@@ -16,6 +16,7 @@ services:
       - MEILI_HOST=meili
       - DOCKER_MOUNT_DATA_PATH
       - MEILI_MASTER_KEY
+      - PROMETHEUS=true
     user: ${CURRENT_UID}
     restart: unless-stopped
   meili:
@@ -25,9 +26,3 @@ services:
     environment:
       - MEILI_MASTER_KEY
     restart: unless-stopped
-  docs:
-    image: swaggerapi/swagger-ui:v4.14.0
-    ports:
-      - "8087:8080"
-    environment:
-        - SWAGGER_JSON_URL=https://api.dofusdu.de/docs/openapi-3.0.json
