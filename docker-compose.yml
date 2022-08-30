@@ -20,7 +20,7 @@ services:
       - API_SCHEME
       - API_HOSTNAME
       - API_PORT
-      - DISABLE_FILESERVER=true
+      - FILESERVER=false
     user: ${CURRENT_UID}
     restart: unless-stopped
   meili:
