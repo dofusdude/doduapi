@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -26,6 +27,7 @@ var (
 	MeiliKey            string
 	PrometheusEnabled   bool
 	FileServer          bool
+	CurrentConfig       Config
 )
 
 var currentWd string
@@ -58,6 +60,11 @@ func GetFileHashesJson(version string) (map[string]interface{}, error) {
 type VersionT struct {
 	Search bool
 	MemDb  bool
+}
+
+func WriteCacheHeader(w *http.ResponseWriter) {
+	(*w).Header().Set("Cache-Control", "max-age:300, public")
+	(*w).Header().Set("Last-Modified", CurrentConfig.LastUpdate.Format(http.TimeFormat))
 }
 
 func ReadEnvs() (string, string) {
@@ -200,7 +207,8 @@ func CreateDataDirectoryStructure() {
 }
 
 type Config struct {
-	CurrentVersion string `json:"currentDofusVersion"`
+	CurrentVersion string    `json:"currentDofusVersion"`
+	LastUpdate     time.Time `json:"lastUpdate"`
 }
 
 func GetConfig(path string) Config {
@@ -214,6 +222,8 @@ func GetConfig(path string) Config {
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	CurrentConfig = config
 
 	return config
 }

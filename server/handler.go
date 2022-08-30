@@ -125,6 +125,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -210,6 +211,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -303,6 +305,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -395,6 +398,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		mounts = append(mounts, RenderMountListEntry(item, lang))
 	}
 
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mounts)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -471,6 +475,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, RenderSetListEntry(item, lang))
 	}
 
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(sets)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -577,6 +582,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	utils.WriteCacheHeader(&w)
 	var encodeErr error
 	if all {
 		encodeErr = json.NewEncoder(w).Encode(typedItems)
@@ -632,6 +638,7 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	requestsSetsSingle.Inc()
 
 	set := RenderSet(raw.(*gen.MappedMultilangSet), lang)
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(set)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -656,6 +663,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	requestsMountsSingle.Inc()
 
 	mount := RenderMount(raw.(*gen.MappedMultilangMount), lang)
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mount)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -684,6 +692,7 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	if exists {
 		resource.Recipe = RenderRecipe(recipe, Db)
 	}
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(resource)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -730,6 +739,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		if exists {
 			weapon.Recipe = RenderRecipe(recipe, Db)
 		}
+		utils.WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(weapon)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -741,6 +751,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		if exists {
 			equipment.Recipe = RenderRecipe(recipe, Db)
 		}
+		utils.WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(equipment)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dofusdude/api/utils"
 )
@@ -72,6 +73,7 @@ func DownloadUpdatesIfAvailable(force bool) error {
 	os.RemoveAll("data/tmp")
 
 	config.CurrentVersion = versions.main
+	config.LastUpdate = time.Now()
 	utils.SaveConfig(config, configPath)
 
 	return nil
