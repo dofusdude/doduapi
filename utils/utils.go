@@ -65,6 +65,7 @@ type VersionT struct {
 func WriteCacheHeader(w *http.ResponseWriter) {
 	(*w).Header().Set("Cache-Control", "max-age:300, public")
 	(*w).Header().Set("Last-Modified", CurrentConfig.LastUpdate.Format(http.TimeFormat))
+	(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
 }
 
 func ReadEnvs() (string, string) {
