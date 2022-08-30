@@ -52,8 +52,10 @@ func Router() chi.Router {
 
 	r.Route("/dofus2", func(r chi.Router) {
 
-		imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))
-		FileServer(r, "/img", imagesDir)
+		if utils.FileServer {
+			imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))
+			FileServer(r, "/img", imagesDir)
+		}
 
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
 			r.Route("/items", func(r chi.Router) {

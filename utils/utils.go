@@ -25,6 +25,7 @@ var (
 	MeiliHost           string
 	MeiliKey            string
 	PrometheusEnabled   bool
+	FileServer          bool
 )
 
 var currentWd string
@@ -121,6 +122,13 @@ func ReadEnvs() (string, string) {
 	}
 
 	PrometheusEnabled = strings.ToLower(promEnables) == "true"
+
+	fileServer, ok := os.LookupEnv("FILESERVER")
+	if !ok {
+		fileServer = "true"
+	}
+
+	FileServer = strings.ToLower(fileServer) == "true"
 
 	return ApiHostName, ApiPort
 }
