@@ -47,10 +47,8 @@ func Router() chi.Router {
 	r.Use(middleware.Timeout(10 * time.Second))
 
 	workDir, _ := os.Getwd()
-	docsDir := http.Dir(filepath.Join(workDir, "docs"))
-	FileServer(r, "/docs", docsDir)
 
-	r.Route("/dofus2", func(r chi.Router) {
+	r.With(useCors).Route("/dofus2", func(r chi.Router) {
 
 		if utils.FileServer {
 			imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))

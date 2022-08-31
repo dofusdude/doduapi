@@ -50,6 +50,15 @@ func paginate(next http.Handler) http.Handler {
 	})
 }
 
+func useCors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
+		ctx := context.WithValue(r.Context(), "cors", true)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func languageChecker(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := strings.ToLower(chi.URLParam(r, "lang"))
