@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 type ImageContainerResult struct {
@@ -140,6 +141,9 @@ func RenderVectorImages(done chan bool, imgOutSubdirName string) {
 
 	var origPaths [][]string
 
+	var imageMutex sync.Mutex
+	var pathsMutex sync.Mutex
+
 	if utils.ImgWithResExists == nil {
 		utils.ImgWithResExists = utils.NewSet()
 	}
@@ -158,19 +162,31 @@ func RenderVectorImages(done chan bool, imgOutSubdirName string) {
 			}
 			return
 		case imgPath := <-yieldChan1:
+			imageMutex.Lock()
 			utils.ImgWithResExists.Add(imgPath)
+			imageMutex.Unlock()
 		case imgPath := <-yieldChan2:
+			imageMutex.Lock()
 			utils.ImgWithResExists.Add(imgPath)
+			imageMutex.Unlock()
 		case imgPath := <-yieldChan3:
+			imageMutex.Lock()
 			utils.ImgWithResExists.Add(imgPath)
+			imageMutex.Unlock()
 		case res1 := <-resChan1:
+			pathsMutex.Lock()
 			origPaths = append(origPaths, res1)
+			pathsMutex.Unlock()
 			worker1Done = true
 		case res2 := <-resChan2:
+			pathsMutex.Lock()
 			origPaths = append(origPaths, res2)
+			pathsMutex.Unlock()
 			worker2Done = true
 		case res3 := <-resChan3:
+			pathsMutex.Lock()
 			origPaths = append(origPaths, res3)
+			pathsMutex.Unlock()
 			worker3Done = true
 		}
 	}
