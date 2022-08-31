@@ -62,7 +62,12 @@ type VersionT struct {
 	MemDb  bool
 }
 
+func SetJsonHeader(w *http.ResponseWriter) {
+	(*w).Header().Set("Content-Type", "application/json")
+}
+
 func WriteCacheHeader(w *http.ResponseWriter) {
+	SetJsonHeader(w)
 	(*w).Header().Set("Cache-Control", "max-age:300, public")
 	(*w).Header().Set("Last-Modified", CurrentConfig.LastUpdate.Format(http.TimeFormat))
 	(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
