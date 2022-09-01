@@ -2,10 +2,11 @@ package gen
 
 import (
 	"fmt"
-	"github.com/dofusdude/api/utils"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/dofusdude/api/utils"
 )
 
 func DeleteDamageFormatter(input string) string {
@@ -17,14 +18,9 @@ func DeleteDamageFormatter(input string) string {
 	input = strings.ReplaceAll(input, "#1{~1~2 -}#2", "#1{~1~2 - }#2") // bug from ankama
 	input = regex.ReplaceAllString(input, "")
 
-	numRegex := regexp.MustCompile(" ?#1")
-	input = numRegex.ReplaceAllString(input, "")
-
-	sideRegex := regexp.MustCompile(" ?#2")
-	input = sideRegex.ReplaceAllString(input, "")
-
-	valueRegex := regexp.MustCompile(" ?#3")
-	input = valueRegex.ReplaceAllString(input, "")
+	input = strings.ReplaceAll(input, "{~1~2 to }", "")
+	input = utils.DeleteReplacer(input)
+	input = strings.ReplaceAll(input, "  ", " ")
 
 	input = strings.TrimSpace(input)
 	return input
@@ -123,6 +119,22 @@ func ConditionWithOperator(input string, operator string, langs *map[string]Lang
 	out.Value, _ = strconv.Atoi(partSplit[1])
 	for _, lang := range utils.Languages {
 		langStr := (*langs)[lang].Texts[rawElement]
+
+		if lang == "en" {
+			if langStr == "()" {
+				return false
+			}
+
+			keySanitized := utils.DeleteReplacer(langStr)
+
+			key, foundKey := utils.PersistedElements.Entries.GetKey(keySanitized)
+			if foundKey {
+				out.ElementId = key.(int)
+			} else {
+				utils.PersistedElements.Entries.Put(utils.PersistedElements.NextId, keySanitized)
+				utils.PersistedElements.NextId++
+			}
+		}
 
 		switch rawElement {
 		case 837224: // %1 replace

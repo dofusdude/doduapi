@@ -3,12 +3,15 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/emirpasic/gods/maps/treebidimap"
+	gutils "github.com/emirpasic/gods/utils"
 	"github.com/meilisearch/meilisearch-go"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +31,7 @@ var (
 	PrometheusEnabled   bool
 	FileServer          bool
 	CurrentConfig       Config
+	PersistedElements   PersistentElementsMap
 )
 
 var currentWd string
@@ -212,9 +216,72 @@ func CreateDataDirectoryStructure() {
 
 }
 
+func DeleteReplacer(input string) string {
+	replacer := []string{
+		"#",
+		"%",
+	}
+
+	for i := 1; i < 6; i++ {
+		for _, replace := range replacer {
+			numRegex := regexp.MustCompile(fmt.Sprintf(" ?%s%d", replace, i))
+			input = numRegex.ReplaceAllString(input, "")
+		}
+	}
+	return input
+}
+
 type Config struct {
 	CurrentVersion string    `json:"currentDofusVersion"`
 	LastUpdate     time.Time `json:"lastUpdate"`
+}
+
+type PersistentElementsMap struct {
+	Entries *treebidimap.Map `json:"entries"`
+	NextId  int              `json:"next_id"`
+}
+
+func LoadPersistedElements(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var elements []string
+	err = json.Unmarshal(data, &elements)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	PersistedElements = PersistentElementsMap{
+		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
+		NextId:  0,
+	}
+
+	for _, entry := range elements {
+		PersistedElements.Entries.Put(PersistedElements.NextId, entry)
+		PersistedElements.NextId++
+	}
+
+	return nil
+}
+
+func PersistElements(path string) error {
+	elements := make([]string, PersistedElements.NextId)
+	it := PersistedElements.Entries.Iterator()
+	for it.Next() {
+		elements[it.Key().(int)] = it.Value().(string)
+	}
+
+	elementsJson, err := json.MarshalIndent(elements, "", "    ")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path, elementsJson, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetConfig(path string) Config {
