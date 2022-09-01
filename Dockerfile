@@ -12,6 +12,7 @@ COPY gen ./gen
 COPY server ./server
 COPY utils ./utils
 COPY update ./update
+COPY db ./db
 COPY main.go ./
 
 RUN GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /api
