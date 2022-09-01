@@ -194,7 +194,7 @@ func main() {
 
 	if all || *parseFlag {
 		if !*updateFlag { // need hashfile first for mount images
-			config := utils.GetConfig("config.json")
+			config := utils.GetConfig("db/config.json")
 			_, err := utils.GetFileHashesJson(config.CurrentVersion)
 			if err != nil {
 				log.Fatal(err)

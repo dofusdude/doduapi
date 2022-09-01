@@ -55,6 +55,10 @@ func Router() chi.Router {
 			FileServer(r, "/img", imagesDir)
 		}
 
+		r.Route("/meta", func(r chi.Router) {
+			r.Get("/elements", ListEffectConditionElements)
+		})
+
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
 			r.Route("/items", func(r chi.Router) {
 				r.Route("/consumables", func(r chi.Router) {

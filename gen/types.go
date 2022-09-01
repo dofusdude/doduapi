@@ -20,8 +20,14 @@ type SearchIndexedSet struct {
 	Level int    `json:"highest_equipment_level"`
 }
 
+type EffectConditionDbEntry struct {
+	Id   int
+	Name string
+}
+
 type MappedMultiangCondition struct {
 	Element   string            `json:"element"`
+	ElementId int               `json:"element_id"`
 	Operator  string            `json:"operator"`
 	Value     int               `json:"value"`
 	Templated map[string]string `json:"templated"`
@@ -65,6 +71,7 @@ type MappedMultilangEffect struct {
 	Type             map[string]string `json:"type"`
 	MinMaxIrrelevant int               `json:"min_max_irrelevant"`
 	Templated        map[string]string `json:"templated"`
+	ElementId        int               `json:"element_id"`
 }
 
 type MappedMultilangItemType struct {

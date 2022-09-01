@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/docker/docker v20.10.17+incompatible
+	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/meilisearch/meilisearch-go v0.20.1

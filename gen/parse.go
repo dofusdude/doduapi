@@ -31,6 +31,11 @@ func Parse() {
 	log.Println("mapping...")
 	startMapping := time.Now()
 
+	err := utils.LoadPersistedElements("db/elements.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// ----
 	mappedItems := MapItems(gameData, languageData)
 	out, err := os.Create("data/MAPPED_ITEMS.json")
@@ -94,6 +99,11 @@ func Parse() {
 	}
 
 	outRecipes.Write(outRecipeBytes)
+
+	err = utils.PersistElements("db/elements.json")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	wg.Wait() // mount images
 	log.Println("... completed mapping in", time.Since(startMapping))
@@ -206,11 +216,26 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 					break
 				}
 
+				if lang != "en" {
+					continue
+				}
+
+				if effectName == "()" {
+					continue
+				}
+
+				key, foundKey := utils.PersistedElements.Entries.GetKey(effectName)
+				if foundKey {
+					mappedEffect.ElementId = key.(int)
+				} else {
+					utils.PersistedElements.Entries.Put(utils.PersistedElements.NextId, effectName)
+					utils.PersistedElements.NextId++
+				}
 			}
 
 			mappedEffect.MinMaxIrrelevant = minMaxRemove
 
-			if mappedEffect.Type["en"] != "" {
+			if mappedEffect.Type["en"] != "" && mappedEffect.Type["en"] != "()" {
 				mappedEffects = append(mappedEffects, mappedEffect)
 			}
 		}

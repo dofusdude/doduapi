@@ -33,7 +33,7 @@ func DownloadUpdatesIfAvailable(force bool) error {
 		log.Fatal(err)
 	}
 
-	configPath := fmt.Sprintf("%s/config.json", path)
+	configPath := fmt.Sprintf("%s/db/config.json", path)
 
 	config := utils.GetConfig(configPath)
 	versions := GetVersion("https://launcher.cdn.ankama.com/cytrus.json")

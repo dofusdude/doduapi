@@ -255,6 +255,16 @@ func GetMemDBSchema() *memdb.DBSchema {
 					},
 				},
 			},
+			"effect-condition-elements": &memdb.TableSchema{
+				Name: "effect-condition-elements",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": &memdb.IndexSchema{
+						Name:    "id",
+						Unique:  true,
+						Indexer: &memdb.IntFieldIndex{Field: "Id"},
+					},
+				},
+			},
 		},
 	}
 }
@@ -390,6 +400,16 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	}
 
 	txn := db.Txn(true)
+
+	persIt := utils.PersistedElements.Entries.Iterator()
+	for persIt.Next() {
+		if err := txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
+			Id:   persIt.Key().(int),
+			Name: persIt.Value().(string),
+		}); err != nil {
+			panic(err)
+		}
+	}
 
 	langItems := make(map[string]map[int][]SearchIndexedItem)
 	for _, lang := range utils.Languages {
