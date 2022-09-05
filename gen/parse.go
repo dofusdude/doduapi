@@ -169,9 +169,6 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 
 			var mappedEffect MappedMultilangEffect
 			currentEffect := data.effects[effect.EffectId]
-			//if !current_effect.Active {
-			//	continue
-			//}
 
 			numIsSpell := false
 			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
@@ -197,20 +194,30 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 					effectName = strings.ReplaceAll(effectName, "{~ps}{~zs}", "") // german has error in template
 				}
 
-				templatedName := effectName
-				templatedName, minMaxRemove = NumSpellFormatter(templatedName, lang, data, langs, &diceNum, &diceSide, &value, currentEffect.DescriptionId, numIsSpell, currentEffect.UseDice)
-				if templatedName == "" { // found effect that should be discarded for now
-					break
+				if effectName == "#1" { // is spell description from dicenum 1
+					effectName = "-special spell-"
+					mappedEffect.Min = 0
+					mappedEffect.Max = 0
+					mappedEffect.Type[lang] = effectName
+					mappedEffect.Templated[lang] = (*langs)[lang].Texts[data.spells[diceNum].DescriptionId]
+					mappedEffect.IsMeta = true
+				} else {
+					templatedName := effectName
+					templatedName, minMaxRemove = NumSpellFormatter(templatedName, lang, data, langs, &diceNum, &diceSide, &value, currentEffect.DescriptionId, numIsSpell, currentEffect.UseDice)
+					if templatedName == "" { // found effect that should be discarded for now
+						break
+					}
+					templatedName = SingularPluralFormatter(templatedName, effect.MinimumValue, lang)
+
+					effectName = DeleteDamageFormatter(effectName)
+					effectName = SingularPluralFormatter(effectName, effect.MinimumValue, lang)
+
+					mappedEffect.Min = diceNum
+					mappedEffect.Max = diceSide
+					mappedEffect.Type[lang] = effectName
+					mappedEffect.Templated[lang] = templatedName
+					mappedEffect.IsMeta = false
 				}
-				templatedName = SingularPluralFormatter(templatedName, effect.MinimumValue, lang)
-
-				effectName = DeleteDamageFormatter(effectName)
-				effectName = SingularPluralFormatter(effectName, effect.MinimumValue, lang)
-
-				mappedEffect.Min = diceNum
-				mappedEffect.Max = diceSide
-				mappedEffect.Type[lang] = effectName
-				mappedEffect.Templated[lang] = templatedName
 
 				if lang == "en" && mappedEffect.Type[lang] == "" {
 					break

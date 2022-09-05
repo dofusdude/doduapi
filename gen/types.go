@@ -72,6 +72,7 @@ type MappedMultilangEffect struct {
 	MinMaxIrrelevant int               `json:"min_max_irrelevant"`
 	Templated        map[string]string `json:"templated"`
 	ElementId        int               `json:"element_id"`
+	IsMeta           bool              `json:"is_meta"`
 }
 
 type MappedMultilangItemType struct {

@@ -50,11 +50,12 @@ func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffec
 		retEffects = append(retEffects, ApiEffect{
 			MinInt:       effect.Min,
 			MaxInt:       effect.Max,
-			IgnoreMinInt: effect.MinMaxIrrelevant == -2,
-			IgnoreMaxInt: effect.MinMaxIrrelevant <= -1,
+			IgnoreMinInt: effect.IsMeta || effect.MinMaxIrrelevant == -2,
+			IgnoreMaxInt: effect.IsMeta || effect.MinMaxIrrelevant <= -1,
 			Type: ApiEffectConditionType{
-				Name: effect.Type[lang],
-				Id:   effect.ElementId,
+				Name:   effect.Type[lang],
+				Id:     effect.ElementId,
+				IsMeta: effect.IsMeta,
 			},
 			Formatted: effect.Templated[lang],
 		})
@@ -210,8 +211,9 @@ type ApiType struct {
 }
 
 type ApiEffectConditionType struct {
-	Name string `json:"name"`
-	Id   int    `json:"id"`
+	Name   string `json:"name"`
+	Id     int    `json:"id"`
+	IsMeta bool   `json:"is_meta"`
 }
 
 type APIListItem struct {
