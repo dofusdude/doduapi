@@ -111,13 +111,12 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	mountImagesDone := false
 	allDone := false
 	go func() {
 		for !allDone {
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
-			case mountImagesDone = <-updateMountImagesDone:
+			case <-updateMountImagesDone:
 				fmt.Println("mount images done")
 				<-updateItemImagesDone
 				fmt.Println("item images done")
