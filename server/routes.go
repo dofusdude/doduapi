@@ -48,7 +48,14 @@ func Router() chi.Router {
 
 	workDir, _ := os.Getwd()
 
-	r.With(useCors).Route("/dofus2", func(r chi.Router) {
+	var routePrefix string
+	if utils.IsBeta {
+		routePrefix = "/dofus2beta"
+	} else {
+		routePrefix = "/dofus2"
+	}
+
+	r.With(useCors).Route(routePrefix, func(r chi.Router) {
 
 		if utils.FileServer {
 			imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))

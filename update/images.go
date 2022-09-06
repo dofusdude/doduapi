@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func DownloadImagesLauncher(hashJson map[string]interface{}) {
+func DownloadImagesLauncher(hashJson map[string]interface{}) error {
 	main := hashJson["main"].(map[string]interface{})
 	files := main["files"].(map[string]interface{})
 
@@ -22,7 +22,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		DownloadHashImageFileInJson(files, itemImages0)
+		if err := DownloadHashImageFileInJson(files, itemImages0); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages1 HashFile
@@ -32,7 +34,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		DownloadHashImageFileInJson(files, itemImages1)
+		if err := DownloadHashImageFileInJson(files, itemImages1); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages2 HashFile
@@ -42,7 +46,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		DownloadHashImageFileInJson(files, itemImages2)
+		if err := DownloadHashImageFileInJson(files, itemImages2); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages3 HashFile
@@ -52,7 +58,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		DownloadHashImageFileInJson(files, itemImages3)
+		if err := DownloadHashImageFileInJson(files, itemImages3); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages4 HashFile
@@ -62,7 +70,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		DownloadHashImageFileInJson(files, itemImages4)
+		if err := DownloadHashImageFileInJson(files, itemImages4); err != nil {
+			log.Fatal(err)
+		}
 	}()
 	/*
 		// monsters images
@@ -103,13 +113,15 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wg.Wait()
 	path, err := os.Getwd()
 	if err != nil {
-		log.Println(err)
+		return err
 	}
 
 	inPath := fmt.Sprintf("%s/data/tmp", path)
 	outPath := fmt.Sprintf("%s/data/img/item", path)
 	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", path, "d2p")
-	exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run()
+	if err := exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run(); err != nil {
+		return err
+	}
 
 	// item vectors
 	var itemImages0Vector HashFile
@@ -121,18 +133,21 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wgVectors.Add(1)
 	go func() {
 		defer wgVectors.Done()
-		DownloadHashImageFileInJson(files, itemImages0Vector)
+		if err := DownloadHashImageFileInJson(files, itemImages0Vector); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages1Vector HashFile
 	itemImages1Vector.Filename = "content/gfx/items/vector0_1.d2p"
 	itemImages1Vector.FriendlyName = "data/tmp/vector/vector_1.d2p"
-	DownloadHashImageFileInJson(files, itemImages1Vector)
 
 	wgVectors.Add(1)
 	go func() {
 		defer wgVectors.Done()
-		DownloadHashImageFileInJson(files, itemImages1Vector)
+		if err := DownloadHashImageFileInJson(files, itemImages1Vector); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages2Vector HashFile
@@ -142,7 +157,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wgVectors.Add(1)
 	go func() {
 		defer wgVectors.Done()
-		DownloadHashImageFileInJson(files, itemImages2Vector)
+		if err := DownloadHashImageFileInJson(files, itemImages2Vector); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages3Vector HashFile
@@ -152,7 +169,9 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wgVectors.Add(1)
 	go func() {
 		defer wgVectors.Done()
-		DownloadHashImageFileInJson(files, itemImages3Vector)
+		if err := DownloadHashImageFileInJson(files, itemImages3Vector); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	var itemImages4Vector HashFile
@@ -162,12 +181,18 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) {
 	wgVectors.Add(1)
 	go func() {
 		defer wgVectors.Done()
-		DownloadHashImageFileInJson(files, itemImages4Vector)
+		if err := DownloadHashImageFileInJson(files, itemImages4Vector); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	wgVectors.Wait()
 
 	inPath = fmt.Sprintf("%s/data/tmp/vector", path)
 	outPath = fmt.Sprintf("%s/data/vector/item", path)
-	exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run()
+	if err := exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run(); err != nil {
+		return err
+	}
+
+	return nil
 }

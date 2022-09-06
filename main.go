@@ -118,10 +118,12 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
 			case mountImagesDone = <-updateMountImagesDone:
+				fmt.Println("mount images done")
 				if itemImagesDone {
 					updaterImagesRunning <- true
 				}
 			case itemImagesDone = <-updateItemImagesDone:
+				fmt.Println("item images done")
 				if mountImagesDone {
 					updaterImagesRunning <- true
 				}
@@ -170,8 +172,14 @@ func main() {
 	updateFlag := flag.Bool("update", false, "Update the data")
 	genFlag := flag.Bool("gen", false, "Generate API datastructure")
 	serveFlag := flag.Bool("serve", false, "No processing, just serveFlag")
+	cleanFlag := flag.Bool("clean", false, "Remove all temporary and generatable files.")
 	flag.Parse()
 	utils.ReadEnvs()
+
+	if *cleanFlag {
+		update.CleanUp()
+		return
+	}
 
 	all := !*parseFlag && !*updateFlag && !*genFlag && !*serveFlag
 
@@ -192,10 +200,9 @@ func main() {
 		log.Println("... took", time.Since(startHashes))
 	}
 
-	if all || *parseFlag {
-		if !*updateFlag { // need hashfile first for mount images
-			config := utils.GetConfig("db/config.json")
-			_, err := utils.GetFileHashesJson(config.CurrentVersion)
+	if all || *parseFlag || *genFlag {
+		if !*updateFlag || *genFlag { // need hashfile first for mount images
+			_, err := utils.GetDofusFileHashesJson(utils.GetCurrentVersion())
 			if err != nil {
 				log.Fatal(err)
 			}
