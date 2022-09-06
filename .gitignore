@@ -19,7 +19,6 @@ data.ms/*
 
 api
 
-db/config.json
 .idea/*
 
 .env
