@@ -20,5 +20,6 @@ data.ms/*
 api
 
 .idea/*
+redis-volume/*
 
 .env
