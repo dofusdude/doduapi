@@ -41,6 +41,7 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 
 			// send data to main thread
 			updateDb <- db
+			log.Println("updated db")
 
 			nowOldItemsTable := fmt.Sprintf("%s-all_items", utils.CurrentRedBlueVersionStr(version.MemDb))
 			nowOldSetsTable := fmt.Sprintf("%s-sets", utils.CurrentRedBlueVersionStr(version.MemDb))
@@ -48,6 +49,7 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 			nowOldRecipesTable := fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(version.MemDb))
 
 			version.MemDb = !version.MemDb // atomic version switch
+			log.Println("updated db version")
 
 			delOldTxn := db.Txn(true)
 			_, err = delOldTxn.DeleteAll(nowOldItemsTable, "id")
@@ -109,27 +111,17 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	updaterImagesRunning := make(chan bool)
-	itemImagesDone := false
-	mountImagesDone := false
 	allDone := false
 	go func() {
 		for !allDone {
 			select {
 			case server.Db = <-updateDb: // override main memory with updated data
-			case mountImagesDone = <-updateMountImagesDone:
+			case <-updateMountImagesDone:
 				fmt.Println("mount images done")
-				if itemImagesDone {
-					updaterImagesRunning <- true
-				}
-			case itemImagesDone = <-updateItemImagesDone:
+				<-updateItemImagesDone
 				fmt.Println("item images done")
-				if mountImagesDone {
-					updaterImagesRunning <- true
-				}
-			case server.Indexes = <-updateSearchIndex:
-			case <-updaterImagesRunning:
 				fmt.Println("all image conversions done")
+			case server.Indexes = <-updateSearchIndex:
 			case sig := <-sigs:
 				fmt.Println(sig)
 
