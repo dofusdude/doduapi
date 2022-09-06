@@ -109,8 +109,6 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	updaterImagesRunning := make(chan bool)
-	itemImagesDone := false
 	mountImagesDone := false
 	allDone := false
 	go func() {
@@ -119,17 +117,10 @@ func Hook(updaterRunning bool, updaterDone chan bool, updateDb chan *memdb.MemDB
 			case server.Db = <-updateDb: // override main memory with updated data
 			case mountImagesDone = <-updateMountImagesDone:
 				fmt.Println("mount images done")
-				if itemImagesDone {
-					updaterImagesRunning <- true
-				}
-			case itemImagesDone = <-updateItemImagesDone:
+				<-updateItemImagesDone
 				fmt.Println("item images done")
-				if mountImagesDone {
-					updaterImagesRunning <- true
-				}
-			case server.Indexes = <-updateSearchIndex:
-			case <-updaterImagesRunning:
 				fmt.Println("all image conversions done")
+			case server.Indexes = <-updateSearchIndex:
 			case sig := <-sigs:
 				fmt.Println(sig)
 
