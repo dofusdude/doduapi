@@ -41,6 +41,7 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 
 			// send data to main thread
 			updateDb <- db
+			log.Println("updated db")
 
 			nowOldItemsTable := fmt.Sprintf("%s-all_items", utils.CurrentRedBlueVersionStr(version.MemDb))
 			nowOldSetsTable := fmt.Sprintf("%s-sets", utils.CurrentRedBlueVersionStr(version.MemDb))
@@ -48,6 +49,7 @@ func AutoUpdate(done chan bool, indexed *bool, version *utils.VersionT, ticker *
 			nowOldRecipesTable := fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(version.MemDb))
 
 			version.MemDb = !version.MemDb // atomic version switch
+			log.Println("updated db version")
 
 			delOldTxn := db.Txn(true)
 			_, err = delOldTxn.DeleteAll(nowOldItemsTable, "id")
