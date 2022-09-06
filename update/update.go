@@ -1,19 +1,15 @@
 package update
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/dofusdude/api/utils"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/dofusdude/api/utils"
 )
 
 type GameVersions struct {
@@ -28,22 +24,16 @@ type HashFile struct {
 }
 
 func DownloadUpdatesIfAvailable(force bool) error {
-	path, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
+	currentVersion := utils.GetCurrentVersion()
+	version := utils.GetLatestLauncherVersion()
 
-	configPath := fmt.Sprintf("%s/db/config.json", path)
-
-	config := utils.GetConfig(configPath)
-	versions := GetVersion("https://launcher.cdn.ankama.com/cytrus.json")
-
-	if !force && config.CurrentVersion == versions.main {
+	if !force && currentVersion == version {
 		return fmt.Errorf("no updates available")
 	}
-	cleanUp()
+	CleanUp()
+	utils.CreateDataDirectoryStructure()
 
-	hashJson, err := utils.GetFileHashesJson(versions.main)
+	hashJson, err := utils.GetDofusFileHashesJson(version)
 	if err != nil {
 		return err
 	}
@@ -72,40 +62,12 @@ func DownloadUpdatesIfAvailable(force bool) error {
 
 	os.RemoveAll("data/tmp")
 
-	config.CurrentVersion = versions.main
-	config.LastUpdate = time.Now()
-	utils.SaveConfig(config, configPath)
+	err = utils.NewVersion(version)
+	if err != nil {
+		return err
+	}
 
 	return nil
-}
-
-func GetVersion(path string) GameVersions {
-	versionResponse, err := http.Get(path)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	versionBody, err := ioutil.ReadAll(versionResponse.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	var versionJson map[string]interface{}
-	err = json.Unmarshal(versionBody, &versionJson)
-	if err != nil {
-		fmt.Println("error:", err)
-	}
-
-	games := versionJson["games"].(map[string]interface{})
-	dofus := games["dofus"].(map[string]interface{})
-	platform := dofus["platforms"].(map[string]interface{})
-	windows := platform["windows"].(map[string]interface{})
-
-	var gameVersions GameVersions
-	gameVersions.beta = windows["beta"].(string)
-	gameVersions.main = windows["main"].(string)
-
-	return gameVersions
 }
 
 func DownloadFile(filepath string, url string) error {
@@ -130,7 +92,7 @@ func DownloadHashFile(file HashFile) error {
 	return DownloadFile(file.FriendlyName, url)
 }
 
-func cleanUp() {
+func CleanUp() {
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -161,6 +123,10 @@ func cleanUp() {
 		"data/create_bone_overrides.json",
 		"data/evol_effects.json",
 		"data/bonus_criterions.json",
+		"data/mounts.json",
+		"data/bonuses.json",
+		"data/breeds.json",
+		"data/creature_bone_types.json",
 
 		"data/MAPPED_ITEMS.json",
 		"data/MAPPED_SETS.json",
@@ -220,10 +186,14 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	outFile := strings.Replace(filename, fileType, "json", 1)
 	finalOutPath := fmt.Sprintf("%s/%s/%s", path, destDirRel, outFile)
 
-	exec.Command("/usr/local/bin/python3", absConvertCmd, absFilePath).Run()
+	err = exec.Command("/usr/local/bin/python3", absConvertCmd, absFilePath).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	err = os.Rename(absOutPath, finalOutPath)
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 }
 

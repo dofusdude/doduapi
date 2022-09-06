@@ -19,7 +19,7 @@ data.ms/*
 
 api
 
-db/config.json
 .idea/*
+redis-volume/*
 
 .env

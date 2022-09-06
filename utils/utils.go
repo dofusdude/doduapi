@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/emirpasic/gods/maps/treebidimap"
 	gutils "github.com/emirpasic/gods/utils"
+	"github.com/go-redis/redis/v9"
 	"github.com/meilisearch/meilisearch-go"
 	"io"
 	"log"
@@ -30,14 +32,23 @@ var (
 	MeiliKey            string
 	PrometheusEnabled   bool
 	FileServer          bool
-	CurrentConfig       Config
 	PersistedElements   PersistentElementsMap
+	IsBeta              bool
+	LastUpdate          time.Time
+	RedisHost           string
+	RedisPassword       string
 )
 
 var currentWd string
 
-func GetFileHashesJson(version string) (map[string]interface{}, error) {
-	gameHashesUrl := fmt.Sprintf("https://launcher.cdn.ankama.com/dofus/releases/main/windows/%s.json", version)
+func GetDofusFileHashesJson(version string) (map[string]interface{}, error) {
+	var gameVersionType string
+	if IsBeta {
+		gameVersionType = "beta"
+	} else {
+		gameVersionType = "main"
+	}
+	gameHashesUrl := fmt.Sprintf("https://launcher.cdn.ankama.com/dofus/releases/%s/windows/%s.json", gameVersionType, version)
 	hashResponse, err := http.Get(gameHashesUrl)
 	if err != nil {
 		log.Println(err)
@@ -73,11 +84,11 @@ func SetJsonHeader(w *http.ResponseWriter) {
 func WriteCacheHeader(w *http.ResponseWriter) {
 	SetJsonHeader(w)
 	(*w).Header().Set("Cache-Control", "max-age:300, public")
-	(*w).Header().Set("Last-Modified", CurrentConfig.LastUpdate.Format(http.TimeFormat))
+	(*w).Header().Set("Last-Modified", LastUpdate.Format(http.TimeFormat))
 	(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
 }
 
-func ReadEnvs() (string, string) {
+func ReadEnvs() {
 	apiScheme, ok := os.LookupEnv("API_SCHEME")
 	if !ok {
 		apiScheme = "http"
@@ -147,11 +158,34 @@ func ReadEnvs() (string, string) {
 
 	FileServer = strings.ToLower(fileServer) == "true"
 
-	return ApiHostName, ApiPort
+	isBeta, ok := os.LookupEnv("IS_BETA")
+	if !ok {
+		isBeta = "false"
+	}
+
+	IsBeta = strings.ToLower(isBeta) == "true"
+
+	redisHost, ok := os.LookupEnv("REDIS_HOST")
+	if !ok {
+		redisHost = "127.0.0.1"
+	}
+
+	RedisHost = redisHost
+
+	redisPassword, ok := os.LookupEnv("REDIS_PASSWORD")
+	if !ok {
+		redisPassword = "secret"
+	}
+
+	RedisPassword = redisPassword
 }
 
 func ImageUrls(iconId int, apiType string) []string {
-	baseUrl := fmt.Sprintf("%s://%s/dofus2/img/%s", ApiScheme, ApiHostName, apiType)
+	betaImage := ""
+	if IsBeta {
+		betaImage = "beta"
+	}
+	baseUrl := fmt.Sprintf("%s://%s/dofus2%s/img/%s", ApiScheme, ApiHostName, betaImage, apiType)
 	var urls []string
 	urls = append(urls, fmt.Sprintf("%s/%d.png", baseUrl, iconId))
 
@@ -231,11 +265,6 @@ func DeleteReplacer(input string) string {
 	return input
 }
 
-type Config struct {
-	CurrentVersion string    `json:"currentDofusVersion"`
-	LastUpdate     time.Time `json:"lastUpdate"`
-}
-
 type PersistentElementsMap struct {
 	Entries *treebidimap.Map `json:"entries"`
 	NextId  int              `json:"next_id"`
@@ -284,33 +313,96 @@ func PersistElements(path string) error {
 	return nil
 }
 
-func GetConfig(path string) Config {
-	data, err := os.ReadFile(path)
+func GetLatestLauncherVersion() string {
+	versionResponse, err := http.Get("https://launcher.cdn.ankama.com/cytrus.json")
 	if err != nil {
-		return Config{}
+		log.Fatalln(err)
 	}
 
-	var config Config
-	err = json.Unmarshal(data, &config)
+	versionBody, err := io.ReadAll(versionResponse.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 	}
 
-	CurrentConfig = config
+	var versionJson map[string]interface{}
+	err = json.Unmarshal(versionBody, &versionJson)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
 
-	return config
+	games := versionJson["games"].(map[string]interface{})
+	dofus := games["dofus"].(map[string]interface{})
+	platform := dofus["platforms"].(map[string]interface{})
+	windows := platform["windows"].(map[string]interface{})
+
+	if IsBeta {
+		return windows["beta"].(string)
+	} else {
+		return windows["main"].(string)
+	}
 }
 
-func SaveConfig(config Config, path string) error {
-	configJson, err := json.Marshal(config)
+func NewVersion(version string) error {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:6379", RedisHost),
+		Password: RedisPassword,
+		DB:       0, // use default DB
+	})
+
+	var ctx = context.Background()
+
+	var versionPrefix string
+	if IsBeta {
+		versionPrefix = "Beta"
+	} else {
+		versionPrefix = "Main"
+	}
+
+	err := rdb.Set(ctx, fmt.Sprintf("dofus2%sVersion", versionPrefix), version, 0).Err()
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(path, configJson, 0644)
+
+	err = rdb.Set(ctx, fmt.Sprintf("dofus2%sVersionUpdated", versionPrefix), time.Now().Format(http.TimeFormat), 0).Err()
 	if err != nil {
 		return err
 	}
+
 	return nil
+}
+
+func GetCurrentVersion() string {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:6379", RedisHost),
+		Password: RedisPassword,
+		DB:       0, // use default DB
+	})
+
+	var ctx = context.Background()
+
+	var versionPrefix string
+	if IsBeta {
+		versionPrefix = "Beta"
+	} else {
+		versionPrefix = "Main"
+	}
+
+	val, err := rdb.Get(ctx, fmt.Sprintf("dofus2%sVersion", versionPrefix)).Result()
+	if err != nil {
+		return ""
+	}
+
+	changedTime, err := rdb.Get(ctx, fmt.Sprintf("dofus2%sVersionUpdated", versionPrefix)).Result()
+	if err != nil {
+		return ""
+	}
+
+	LastUpdate, err = http.ParseTime(changedTime)
+	if err != nil {
+		return ""
+	}
+
+	return val
 }
 
 func CurrentRedBlueVersionStr(redBlueValue bool) string {

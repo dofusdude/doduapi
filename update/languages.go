@@ -6,14 +6,14 @@ import (
 	"sync"
 )
 
-func DownloadLanguages(hashJson map[string]interface{}) {
+func DownloadLanguages(hashJson map[string]interface{}) error {
 	var wg sync.WaitGroup
-	wg.Add(6)
 
 	var deLangFile HashFile
 	deLangFile.Filename = "data/i18n/i18n_de.d2i"
 	deLangFile.FriendlyName = "data/tmp/lang_de.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -21,12 +21,15 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		deFiles := langDe["files"].(map[string]interface{})
 		deD2i := deFiles[deLangFile.Filename].(map[string]interface{})
 		deLangFile.Hash = deD2i["hash"].(string)
-		DownloadHashFile(deLangFile)
+
+		if err := DownloadHashFile(deLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(deLangFile.FriendlyName, "data/languages", "d2i")
 		err := os.Remove(deLangFile.FriendlyName)
 		if err != nil {
-			log.Println(err)
+			log.Fatal(err)
 		}
 	}()
 
@@ -34,6 +37,7 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	enLangFile.Filename = "data/i18n/i18n_en.d2i"
 	enLangFile.FriendlyName = "data/tmp/lang_en.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -41,12 +45,13 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		enFiles := langEn["files"].(map[string]interface{})
 		enD2i := enFiles[enLangFile.Filename].(map[string]interface{})
 		enLangFile.Hash = enD2i["hash"].(string)
-		DownloadHashFile(enLangFile)
+		if err := DownloadHashFile(enLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(enLangFile.FriendlyName, "data/languages", "d2i")
-		err := os.Remove(enLangFile.FriendlyName)
-		if err != nil {
-			log.Println(err)
+		if err := os.Remove(enLangFile.FriendlyName); err != nil {
+			log.Fatal(err)
 		}
 	}()
 
@@ -54,6 +59,7 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	esLangFile.Filename = "data/i18n/i18n_es.d2i"
 	esLangFile.FriendlyName = "data/tmp/lang_es.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -61,7 +67,9 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		esFiles := langEs["files"].(map[string]interface{})
 		esD2i := esFiles[esLangFile.Filename].(map[string]interface{})
 		esLangFile.Hash = esD2i["hash"].(string)
-		DownloadHashFile(esLangFile)
+		if err := DownloadHashFile(esLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(esLangFile.FriendlyName, "data/languages", "d2i")
 		err := os.Remove(esLangFile.FriendlyName)
@@ -74,6 +82,7 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	frLangFile.Filename = "data/i18n/i18n_fr.d2i"
 	frLangFile.FriendlyName = "data/tmp/lang_fr.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -81,7 +90,9 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		frFiles := langFr["files"].(map[string]interface{})
 		frD2i := frFiles[frLangFile.Filename].(map[string]interface{})
 		frLangFile.Hash = frD2i["hash"].(string)
-		DownloadHashFile(frLangFile)
+		if err := DownloadHashFile(frLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(frLangFile.FriendlyName, "data/languages", "d2i")
 		err := os.Remove(frLangFile.FriendlyName)
@@ -94,6 +105,7 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	itLangFile.Filename = "data/i18n/i18n_it.d2i"
 	itLangFile.FriendlyName = "data/tmp/lang_it.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -101,7 +113,9 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		itFiles := langIt["files"].(map[string]interface{})
 		itD2i := itFiles[itLangFile.Filename].(map[string]interface{})
 		itLangFile.Hash = itD2i["hash"].(string)
-		DownloadHashFile(itLangFile)
+		if err := DownloadHashFile(itLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(itLangFile.FriendlyName, "data/languages", "d2i")
 		err := os.Remove(itLangFile.FriendlyName)
@@ -114,6 +128,7 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	ptLangFile.Filename = "data/i18n/i18n_pt.d2i"
 	ptLangFile.FriendlyName = "data/tmp/lang_pt.d2i"
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
@@ -121,7 +136,9 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 		ptFiles := langPt["files"].(map[string]interface{})
 		ptD2i := ptFiles[ptLangFile.Filename].(map[string]interface{})
 		ptLangFile.Hash = ptD2i["hash"].(string)
-		DownloadHashFile(ptLangFile)
+		if err := DownloadHashFile(ptLangFile); err != nil {
+			log.Fatal(err)
+		}
 
 		Unpack(ptLangFile.FriendlyName, "data/languages", "d2i")
 		err := os.Remove(ptLangFile.FriendlyName)
@@ -131,4 +148,5 @@ func DownloadLanguages(hashJson map[string]interface{}) {
 	}()
 
 	wg.Wait()
+	return nil
 }
