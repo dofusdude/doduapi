@@ -127,11 +127,20 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 			mappedItem.Effects = allEffectResult[0]
 		}
 		mappedItem.Range = item.Range
+		mappedItem.MinRange = item.MinRange
 		mappedItem.CriticalHitProbability = item.CriticalHitProbability
 		mappedItem.CriticalHitBonus = item.CriticalHitBonus
 		mappedItem.ApCost = item.ApCost
 		mappedItem.TwoHanded = item.TwoHanded
 		mappedItem.MaxCastPerTurn = item.MaxCastPerTurn
+		mappedItem.HasParentSet = item.ItemSetId != -1
+		if mappedItem.HasParentSet {
+			mappedItem.ParentSet.Id = item.ItemSetId
+			mappedItem.ParentSet.Name = make(map[string]string)
+			for _, lang := range utils.Languages {
+				mappedItem.ParentSet.Name[lang] = (*langs)[lang].Texts[data.Sets[item.ItemSetId].NameId]
+			}
+		}
 		/*
 			if item.Range != 0 {
 				var mappedRange MappedMultilangCharacteristic

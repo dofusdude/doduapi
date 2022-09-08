@@ -44,6 +44,11 @@ type MappedMultilangRecipeEntry struct {
 	//ItemType map[string]string `json:"item_type"`
 }
 
+type MappedMultilangSetReverseLink struct {
+	Id   int               `json:"id"`
+	Name map[string]string `json:"name"`
+}
+
 type MappedMultilangSet struct {
 	AnkamaId int                       `json:"ankama_id"`
 	Name     map[string]string         `json:"name"`
@@ -99,9 +104,12 @@ type MappedMultilangItem struct {
 	MaxCastPerTurn         int                             `json:"maxCastPerTurn"`
 	ApCost                 int                             `json:"apCost"`
 	Range                  int                             `json:"range"`
+	MinRange               int                             `json:"minRange"`
 	CriticalHitProbability int                             `json:"criticalHitProbability"`
 	Pods                   int                             `json:"pods"`
 	IconId                 int                             `json:"iconId"`
+	ParentSet              MappedMultilangSetReverseLink   `json:"parentSet"`
+	HasParentSet           bool                            `json:"hasParentSet"`
 }
 
 type JSONGameSpellType struct {
@@ -229,6 +237,7 @@ type JSONGameItem struct {
 	MaxCastPerTurn         int                          `json:"maxCastPerTurn"`
 	ApCost                 int                          `json:"apCost"`
 	Range                  int                          `json:"range"`
+	MinRange               int                          `json:"minRange"`
 	CriticalHitProbability int                          `json:"criticalHitProbability"`
 }
 
