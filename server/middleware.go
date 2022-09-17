@@ -11,8 +11,6 @@ import (
 
 func paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		maxPageSize := 32
-
 		pageNumStr := r.URL.Query().Get("page[number]")
 		var pageNum int
 
@@ -36,15 +34,11 @@ func paginate(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if pageSize > maxPageSize || pageSize <= 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
 		} else {
-			pageSize = maxPageSize / 2
+			pageSize = 16
 		}
 
-		ctx := context.WithValue(r.Context(), "pagination", fmt.Sprintf("%d,%d,%d", pageNum, pageSize, maxPageSize))
+		ctx := context.WithValue(r.Context(), "pagination", fmt.Sprintf("%d,%d", pageNum, pageSize))
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

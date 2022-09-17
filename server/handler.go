@@ -223,6 +223,27 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
 
+	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
+	expansions := utils.NewSet()
+	supportedFields := utils.NewSet()
+	supportedFields.Add("recipe")
+
+	expansionContainsDiv := strings.Contains(expansionsParam, ",")
+	if len(expansionsParam) != 0 && expansionContainsDiv {
+		expansionsArr := strings.Split(expansionsParam, ",")
+		for _, expansion := range expansionsArr {
+			expansions.Add(expansion)
+		}
+	}
+	if len(expansionsParam) != 0 && !expansionContainsDiv {
+		expansions.Add(expansionsParam)
+	}
+
+	if expansions.Difference(supportedFields).Size() != 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterTypeName := strings.ToLower(r.URL.Query().Get("filter[type_name]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
@@ -267,8 +288,17 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		consumable := RenderItemListEntry(p, lang)
-		items = append(items, consumable)
+		item := RenderItemListEntry(p, lang)
+		if expansions.Has("recipe") {
+			recipe, exists := GetRecipeIfExists(item.Id, txn)
+			item.HasRecipe = &exists
+			if exists {
+				item.Recipe = RenderRecipe(recipe, Db)
+			} else {
+				item.Recipe = nil
+			}
+		}
+		items = append(items, item)
 	}
 
 	if len(items) == 0 {

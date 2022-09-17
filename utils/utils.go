@@ -422,31 +422,30 @@ func NextRedBlueVersionStr(redBlueValue bool) string {
 type Pagination struct {
 	PageNumber int
 	PageSize   int
-
-	BiggestPageSize int
 }
 
 func PageninationWithState(paginationStr string) Pagination {
 	vals := strings.Split(paginationStr, ",")
 	num, _ := strconv.Atoi(vals[0])
 	size, _ := strconv.Atoi(vals[1])
-	max, _ := strconv.Atoi(vals[2])
 	return Pagination{
-		PageNumber:      num,
-		PageSize:        size,
-		BiggestPageSize: max,
+		PageNumber: num,
+		PageSize:   size,
 	}
 }
 
 type PaginationLinks struct {
-	First string `json:"first"`
-	Prev  string `json:"prev"`
-	Next  string `json:"next"`
-	Last  string `json:"last"`
+	First *string `json:"first"`
+	Prev  *string `json:"prev"`
+	Next  *string `json:"next"`
+	Last  *string `json:"last"`
 }
 
-func (p Pagination) ValidatePagination(listSize int) int {
-	if p.PageSize > p.BiggestPageSize {
+func (p *Pagination) ValidatePagination(listSize int) int {
+	if p.PageSize == -1 {
+		p.PageSize = listSize
+	}
+	if p.PageSize > listSize || p.PageSize < -1 || p.PageSize == 0 {
 		return -1
 	}
 	if (p.PageSize * p.PageNumber) >= listSize+p.PageSize {
@@ -455,7 +454,7 @@ func (p Pagination) ValidatePagination(listSize int) int {
 	return 0
 }
 
-func (p Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, bool) {
+func (p *Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, bool) {
 	firstPage := 1
 	var lastPage int
 
@@ -483,22 +482,33 @@ func (p Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, 
 	nextUrl := fmt.Sprintf("%s?%s", baseUrl, nextUrlStr)
 	lastUrl := fmt.Sprintf("%s?%s", baseUrl, lastUrlStr)
 
+	finalFirstUrl := &firstUrl
+	finalPrevUrl := &prevUrl
+	finalNextUrl := &nextUrl
+	finalLastUrl := &lastUrl
+
 	if p.PageNumber == firstPage {
-		prevUrl = ""
+		finalPrevUrl = nil
 	}
+
 	if p.PageNumber == lastPage {
-		nextUrl = ""
+		finalNextUrl = nil
+	}
+
+	if lastPage == firstPage {
+		finalLastUrl = nil
+		finalFirstUrl = nil
 	}
 
 	return PaginationLinks{
-		First: firstUrl,
-		Prev:  prevUrl,
-		Next:  nextUrl,
-		Last:  lastUrl,
+		First: finalFirstUrl,
+		Prev:  finalPrevUrl,
+		Next:  finalNextUrl,
+		Last:  finalLastUrl,
 	}, firstUrlStr == lastUrlStr
 }
 
-func (p Pagination) CalculateStartEndIndex(listSize int) (int, int) {
+func (p *Pagination) CalculateStartEndIndex(listSize int) (int, int) {
 	startIndex := (p.PageNumber * p.PageSize) - p.PageSize
 	endIndex := startIndex + p.PageSize
 

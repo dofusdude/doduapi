@@ -326,6 +326,10 @@ type APIListItem struct {
 	Type      ApiType      `json:"type"`
 	Level     int          `json:"level"`
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
+
+	// extra fields
+	HasRecipe *bool       `json:"has_recipe,omitempty"`
+	Recipe    []APIRecipe `json:"recipe,omitempty"`
 }
 
 func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem {
@@ -389,7 +393,7 @@ func RenderRecipe(recipe gen.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe
 		return nil
 	}
 
-	txn := Db.Txn(false)
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	var apiRecipes []APIRecipe
@@ -411,17 +415,17 @@ func RenderRecipe(recipe gen.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe
 }
 
 type APIPageItem struct {
-	Links utils.PaginationLinks `json:"_links"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
 	Items []APIListItem         `json:"items"`
 }
 
 type APIPageMount struct {
-	Links utils.PaginationLinks `json:"_links"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
 	Items []APIListMount        `json:"mounts"`
 }
 
 type APIPageSet struct {
-	Links utils.PaginationLinks `json:"_links"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
 	Items []APIListSet          `json:"sets"`
 }
 

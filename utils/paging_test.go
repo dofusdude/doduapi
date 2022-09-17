@@ -6,15 +6,14 @@ import (
 )
 
 func TestPaginationSet(t *testing.T) {
-	pagination := PageninationWithState("30,3,32")
+	pagination := PageninationWithState("30,3")
 
 	assert.Equal(t, 3, pagination.PageSize)
 	assert.Equal(t, 30, pagination.PageNumber)
-	assert.Equal(t, 32, pagination.BiggestPageSize)
 }
 
 func TestPaginationValidation(t *testing.T) {
-	pagination := PageninationWithState("31,3,32")
+	pagination := PageninationWithState("31,3")
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
@@ -27,7 +26,7 @@ func TestPaginationValidation(t *testing.T) {
 }
 
 func TestPaginationValidationFail(t *testing.T) {
-	pagination := PageninationWithState("32,3,32")
+	pagination := PageninationWithState("32,3")
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
@@ -35,7 +34,7 @@ func TestPaginationValidationFail(t *testing.T) {
 }
 
 func TestPaginationValidation1(t *testing.T) {
-	pagination := PageninationWithState("1,6,32")
+	pagination := PageninationWithState("1,6")
 	listSize := 6
 
 	valid := pagination.ValidatePagination(listSize)
@@ -48,7 +47,7 @@ func TestPaginationValidation1(t *testing.T) {
 }
 
 func TestPaginationLastSite(t *testing.T) {
-	pagination := PageninationWithState("30,3,32")
+	pagination := PageninationWithState("30,3")
 	listSize := 90
 	valid := pagination.ValidatePagination(listSize)
 	assert.Equal(t, 0, valid)
@@ -60,7 +59,7 @@ func TestPaginationLastSite(t *testing.T) {
 }
 
 func TestPaginationFirstSite(t *testing.T) {
-	pagination := PageninationWithState("1,3,32")
+	pagination := PageninationWithState("1,3")
 	listSize := 266
 	valid := pagination.ValidatePagination(listSize)
 	assert.Equal(t, 0, valid)
