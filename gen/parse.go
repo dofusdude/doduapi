@@ -256,7 +256,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 	return mappedAllEffects
 }
 
-func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGameData) []MappedMultiangCondition {
+func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGameData) []MappedMultilangCondition {
 	if condition == "" || (!strings.Contains(condition, "&") && !strings.Contains(condition, "<") && !strings.Contains(condition, ">")) {
 		return nil
 	}
@@ -265,7 +265,7 @@ func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGame
 
 	lower := strings.ToLower(condition)
 
-	var outs []MappedMultiangCondition
+	var outs []MappedMultilangCondition
 
 	var parts []string
 	if strings.Contains(lower, "&") {
@@ -277,13 +277,13 @@ func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGame
 	operators := []string{"<", ">", "=", "!"}
 
 	for _, part := range parts {
-		var out MappedMultiangCondition
+		var out MappedMultilangCondition
 		out.Templated = make(map[string]string)
 
 		foundCond := false
 		for _, operator := range operators { // try every known operator against it
 			if strings.Contains(part, operator) {
-				var outTmp MappedMultiangCondition
+				var outTmp MappedMultilangCondition
 				outTmp.Templated = make(map[string]string)
 				foundConditionElement := ConditionWithOperator(part, operator, langs, &out, data)
 				if foundConditionElement {

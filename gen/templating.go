@@ -109,7 +109,7 @@ func ElementFromCode(code string) int {
 	return -1
 }
 
-func ConditionWithOperator(input string, operator string, langs *map[string]LangDict, out *MappedMultiangCondition, data *JSONGameData) bool {
+func ConditionWithOperator(input string, operator string, langs *map[string]LangDict, out *MappedMultilangCondition, data *JSONGameData) bool {
 	partSplit := strings.Split(input, operator)
 	rawElement := ElementFromCode(partSplit[0])
 	if rawElement == -1 {

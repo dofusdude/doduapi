@@ -127,6 +127,7 @@ func CleanUp() {
 		"data/bonuses.json",
 		"data/breeds.json",
 		"data/creature_bone_types.json",
+		"data/monster_races.json",
 
 		"data/MAPPED_ITEMS.json",
 		"data/MAPPED_SETS.json",

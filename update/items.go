@@ -140,6 +140,16 @@ func DownloadItems(hashJson map[string]interface{}) {
 		DownloadHashFileInJson(files, monsters, "data", "d2o")
 	}()
 
+	var monsterRaces HashFile
+	monsterRaces.Filename = "data/common/MonsterRaces.d2o"
+	monsterRaces.FriendlyName = "data/tmp/monster_races.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, monsterRaces, "data", "d2o")
+	}()
+
 	var almanax HashFile
 	almanax.Filename = "data/common/AlmanaxCalendars.d2o"
 	almanax.FriendlyName = "data/tmp/almanax.d2o"

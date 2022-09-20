@@ -361,6 +361,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		_, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"super_type",
 			"type_name",
+			"level",
 		})
 		if err != nil {
 			log.Println(err)
@@ -453,6 +454,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				Description: itemCp.Description[lang],
 				SuperType:   insertCategoryTable,
 				TypeName:    strings.ToLower(itemCp.Type.Name[lang]),
+				Level:       itemCp.Level,
 			}
 
 			itemIndexBatch[lang] = append(itemIndexBatch[lang], object)

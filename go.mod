@@ -6,6 +6,7 @@ require (
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.7
+	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/meilisearch/meilisearch-go v0.20.1
 	github.com/prometheus/client_golang v1.13.0
@@ -22,7 +23,6 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/go-redis/redis/v9 v9.0.0-beta.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/protobuf v1.5.2 // indirect

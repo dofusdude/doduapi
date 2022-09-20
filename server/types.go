@@ -290,7 +290,7 @@ type MappedMultilangCondition struct {
 	Templated map[string]string `json:"templated"`
 }
 
-func RenderConditions(conditions *[]gen.MappedMultiangCondition, lang string) []ApiCondition {
+func RenderConditions(conditions *[]gen.MappedMultilangCondition, lang string) []ApiCondition {
 	var retConditions []ApiCondition
 	for _, condition := range *conditions {
 		retConditions = append(retConditions, ApiCondition{

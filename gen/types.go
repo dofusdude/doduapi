@@ -6,6 +6,7 @@ type SearchIndexedItem struct {
 	Description string `json:"description"`
 	SuperType   string `json:"super_type"`
 	TypeName    string `json:"type_name"`
+	Level       int    `json:"level"`
 }
 
 type SearchIndexedMount struct {
@@ -25,7 +26,7 @@ type EffectConditionDbEntry struct {
 	Name string
 }
 
-type MappedMultiangCondition struct {
+type MappedMultilangCondition struct {
 	Element   string            `json:"element"`
 	ElementId int               `json:"element_id"`
 	Operator  string            `json:"operator"`
@@ -93,7 +94,7 @@ type MappedMultilangItem struct {
 	Description            map[string]string               `json:"description"`
 	Name                   map[string]string               `json:"name"`
 	Image                  string                          `json:"image"`
-	Conditions             []MappedMultiangCondition       `json:"conditions"`
+	Conditions             []MappedMultilangCondition      `json:"conditions"`
 	Level                  int                             `json:"level"`
 	UsedInRecipes          []int                           `json:"used_in_recipes"`
 	Characteristics        []MappedMultilangCharacteristic `json:"characteristics"`
