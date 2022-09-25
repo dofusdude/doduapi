@@ -75,19 +75,16 @@ type ApiCondition struct {
 }
 
 type APIResource struct {
-	Id            int            `json:"ankama_id"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	Type          ApiType        `json:"type"`
-	Level         int            `json:"level"`
-	Pods          int            `json:"pods"`
-	ImageUrls     ApiImageUrls   `json:"image_urls,omitempty"`
-	HasEffects    bool           `json:"has_effects"`
-	Effects       []ApiEffect    `json:"effects,omitempty"`
-	HasConditions bool           `json:"has_conditions"`
-	Conditions    []ApiCondition `json:"conditions,omitempty"`
-	HasRecipe     bool           `json:"has_recipe"`
-	Recipe        []APIRecipe    `json:"recipe,omitempty"`
+	Id          int            `json:"ankama_id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Type        ApiType        `json:"type"`
+	Level       int            `json:"level"`
+	Pods        int            `json:"pods"`
+	ImageUrls   ApiImageUrls   `json:"image_urls,omitempty"`
+	Effects     []ApiEffect    `json:"effects,omitempty"`
+	Conditions  []ApiCondition `json:"conditions,omitempty"`
+	Recipe      []APIRecipe    `json:"recipe,omitempty"`
 }
 
 func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
@@ -102,24 +99,19 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 		Pods:        item.Pods,
 		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
 		Recipe:      nil,
-		HasRecipe:   false,
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
-		resource.HasConditions = false
 		resource.Conditions = nil
 	} else {
-		resource.HasConditions = true
 		resource.Conditions = conditions
 	}
 
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
-		resource.HasEffects = false
 		resource.Effects = nil
 	} else {
-		resource.HasEffects = true
 		resource.Effects = effects
 	}
 
@@ -127,22 +119,18 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 }
 
 type APIEquipment struct {
-	Id            int                `json:"ankama_id"`
-	Name          string             `json:"name"`
-	Description   string             `json:"description"`
-	Type          ApiType            `json:"type"`
-	IsWeapon      bool               `json:"is_weapon"`
-	Level         int                `json:"level"`
-	Pods          int                `json:"pods"`
-	ImageUrls     ApiImageUrls       `json:"image_urls,omitempty"`
-	HasEffects    bool               `json:"has_effects"`
-	Effects       []ApiEffect        `json:"effects,omitempty"`
-	HasConditions bool               `json:"has_conditions"`
-	Conditions    []ApiCondition     `json:"conditions,omitempty"`
-	HasRecipe     bool               `json:"has_recipe"`
-	Recipe        []APIRecipe        `json:"recipe,omitempty"`
-	HasParentSet  bool               `json:"has_parent_set"`
-	ParentSet     *APISetReverseLink `json:"parent_set,omitempty"`
+	Id          int                `json:"ankama_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Type        ApiType            `json:"type"`
+	IsWeapon    bool               `json:"is_weapon"`
+	Level       int                `json:"level"`
+	Pods        int                `json:"pods"`
+	ImageUrls   ApiImageUrls       `json:"image_urls,omitempty"`
+	Effects     []ApiEffect        `json:"effects,omitempty"`
+	Conditions  []ApiCondition     `json:"conditions,omitempty"`
+	Recipe      []APIRecipe        `json:"recipe,omitempty"`
+	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
 func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
@@ -160,32 +148,26 @@ func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 		Type: ApiType{
 			Name: item.Type.Name[lang],
 		},
-		Description:  item.Description[lang],
-		Level:        item.Level,
-		Pods:         item.Pods,
-		ImageUrls:    RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
-		IsWeapon:     false,
-		HasRecipe:    false,
-		Recipe:       nil,
-		HasParentSet: item.HasParentSet,
-		ParentSet:    setLink,
+		Description: item.Description[lang],
+		Level:       item.Level,
+		Pods:        item.Pods,
+		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		IsWeapon:    false,
+		Recipe:      nil,
+		ParentSet:   setLink,
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
-		equip.HasConditions = false
 		equip.Conditions = nil
 	} else {
-		equip.HasConditions = true
 		equip.Conditions = conditions
 	}
 
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
-		equip.HasEffects = false
 		equip.Effects = nil
 	} else {
-		equip.HasEffects = true
 		equip.Effects = effects
 	}
 
@@ -211,9 +193,7 @@ type APIWeapon struct {
 	Level                  int                `json:"level"`
 	Pods                   int                `json:"pods"`
 	ImageUrls              ApiImageUrls       `json:"image_urls,omitempty"`
-	HasEffects             bool               `json:"has_effects"`
 	Effects                []ApiEffect        `json:"effects,omitempty"`
-	HasConditions          bool               `json:"has_conditions"`
 	Conditions             []ApiCondition     `json:"conditions,omitempty"`
 	CriticalHitProbability int                `json:"critical_hit_probability"`
 	CriticalHitBonus       int                `json:"critical_hit_bonus"`
@@ -221,9 +201,7 @@ type APIWeapon struct {
 	MaxCastPerTurn         int                `json:"max_cast_per_turn"`
 	ApCost                 int                `json:"ap_cost"`
 	Range                  APIRange           `json:"range"`
-	HasRecipe              bool               `json:"has_recipe"`
 	Recipe                 []APIRecipe        `json:"recipe,omitempty"`
-	HasParentSet           bool               `json:"has_parent_set"`
 	ParentSet              *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
@@ -256,27 +234,21 @@ func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
 			Min: item.MinRange,
 			Max: item.Range,
 		},
-		IsWeapon:     true,
-		HasParentSet: item.HasParentSet,
-		ParentSet:    setLink,
-		HasRecipe:    false,
+		IsWeapon:  true,
+		ParentSet: setLink,
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
-		weapon.HasConditions = false
 		weapon.Conditions = nil
 	} else {
-		weapon.HasConditions = true
 		weapon.Conditions = conditions
 	}
 
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
-		weapon.HasEffects = false
 		weapon.Effects = nil
 	} else {
-		weapon.HasEffects = true
 		weapon.Effects = effects
 	}
 
@@ -328,8 +300,7 @@ type APIListItem struct {
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
 
 	// extra fields
-	HasRecipe *bool       `json:"has_recipe,omitempty"`
-	Recipe    []APIRecipe `json:"recipe,omitempty"`
+	Recipe []APIRecipe `json:"recipe,omitempty"`
 }
 
 func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem {
@@ -439,7 +410,6 @@ type APIMount struct {
 	Name       string       `json:"name"`
 	FamilyName string       `json:"family_name"`
 	ImageUrls  ApiImageUrls `json:"image_urls,omitempty"`
-	HasEffects bool         `json:"has_effects"`
 	Effects    []ApiEffect  `json:"effects,omitempty"`
 }
 
@@ -453,10 +423,8 @@ func RenderMount(mount *gen.MappedMultilangMount, lang string) APIMount {
 
 	effects := RenderEffects(&mount.Effects, lang)
 	if len(effects) == 0 {
-		resMount.HasEffects = false
 		resMount.Effects = nil
 	} else {
-		resMount.HasEffects = true
 		resMount.Effects = effects
 	}
 
@@ -480,12 +448,11 @@ func RenderSetListEntry(set *gen.MappedMultilangSet, lang string) APIListSet {
 }
 
 type APISet struct {
-	AnkamaId   int           `json:"ankama_id"`
-	Name       string        `json:"name"`
-	ItemIds    []int         `json:"equipment_ids"`
-	HasEffects bool          `json:"has_effects"`
-	Effects    [][]ApiEffect `json:"effects,omitempty"`
-	Level      int           `json:"highest_equipment_level"`
+	AnkamaId int           `json:"ankama_id"`
+	Name     string        `json:"name"`
+	ItemIds  []int         `json:"equipment_ids"`
+	Effects  [][]ApiEffect `json:"effects,omitempty"`
+	Level    int           `json:"highest_equipment_level"`
 }
 
 func RenderSet(set *gen.MappedMultilangSet, lang string) APISet {
@@ -503,10 +470,8 @@ func RenderSet(set *gen.MappedMultilangSet, lang string) APISet {
 	}
 
 	if len(effects) == 0 {
-		resSet.HasEffects = false
 		resSet.Effects = nil
 	} else {
-		resSet.HasEffects = true
 		resSet.Effects = effects
 	}
 

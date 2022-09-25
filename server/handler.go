@@ -291,7 +291,6 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		item := RenderItemListEntry(p, lang)
 		if expansions.Has("recipe") {
 			recipe, exists := GetRecipeIfExists(item.Id, txn)
-			item.HasRecipe = &exists
 			if exists {
 				item.Recipe = RenderRecipe(recipe, Db)
 			} else {
@@ -720,7 +719,6 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	resource := RenderResource(raw.(*gen.MappedMultilangItem), lang)
 	recipe, exists := GetRecipeIfExists(ankamaId, txn)
 	if exists {
-		resource.HasRecipe = true
 		resource.Recipe = RenderRecipe(recipe, Db)
 	}
 	utils.WriteCacheHeader(&w)
@@ -768,7 +766,6 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		weapon := RenderWeapon(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
-			weapon.HasRecipe = true
 			weapon.Recipe = RenderRecipe(recipe, Db)
 		}
 		utils.WriteCacheHeader(&w)
@@ -781,7 +778,6 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		equipment := RenderEquipment(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
-			equipment.HasRecipe = true
 			equipment.Recipe = RenderRecipe(recipe, Db)
 		}
 		utils.WriteCacheHeader(&w)
