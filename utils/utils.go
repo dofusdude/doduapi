@@ -77,6 +77,11 @@ type VersionT struct {
 	MemDb  bool
 }
 
+func Concat[T any](first []T, second []T) []T {
+	n := len(first)
+	return append(first[:n:n], second...)
+}
+
 func SetJsonHeader(w *http.ResponseWriter) {
 	(*w).Header().Set("Content-Type", "application/json")
 }
