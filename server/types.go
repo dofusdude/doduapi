@@ -300,7 +300,23 @@ type APIListItem struct {
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
 
 	// extra fields
-	Recipe []APIRecipe `json:"recipe,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Recipe      []APIRecipe    `json:"recipe,omitempty"`
+	Conditions  []ApiCondition `json:"conditions,omitempty"`
+	Effects     []ApiEffect    `json:"effects,omitempty"`
+
+	// extra equipment
+	IsWeapon  *bool              `json:"is_weapon,omitempty"`
+	Pods      *int               `json:"pods,omitempty"`
+	ParentSet *APISetReverseLink `json:"parent_set,omitempty"`
+
+	// extra weapon
+	CriticalHitProbability *int      `json:"critical_hit_probability,omitempty"`
+	CriticalHitBonus       *int      `json:"critical_hit_bonus,omitempty"`
+	TwoHanded              *bool     `json:"is_two_handed,omitempty"`
+	MaxCastPerTurn         *int      `json:"max_cast_per_turn,omitempty"`
+	ApCost                 *int      `json:"ap_cost,omitempty"`
+	Range                  *APIRange `json:"range,omitempty"`
 }
 
 func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem {
@@ -342,6 +358,9 @@ type APIListMount struct {
 	Name       string       `json:"name"`
 	FamilyName string       `json:"family_name"`
 	ImageUrls  ApiImageUrls `json:"image_urls,omitempty"`
+
+	// extra fields
+	Effects []ApiEffect `json:"effects,omitempty"`
 }
 
 func RenderMountListEntry(mount *gen.MappedMultilangMount, lang string) APIListMount {
@@ -400,11 +419,6 @@ type APIPageSet struct {
 	Items []APIListSet          `json:"sets"`
 }
 
-type APICharacteristic struct {
-	Value string `json:"value"`
-	Name  string `json:"name"`
-}
-
 type APIMount struct {
 	Id         int          `json:"ankama_id"`
 	Name       string       `json:"name"`
@@ -436,6 +450,10 @@ type APIListSet struct {
 	Name  string `json:"name"`
 	Items int    `json:"items"`
 	Level int    `json:"level"`
+
+	// extra fields
+	Effects [][]ApiEffect `json:"effects,omitempty"`
+	ItemIds []int         `json:"equipment_ids,omitempty"`
 }
 
 func RenderSetListEntry(set *gen.MappedMultilangSet, lang string) APIListSet {

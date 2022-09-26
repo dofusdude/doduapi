@@ -70,30 +70,35 @@ func Router() chi.Router {
 			r.Route("/items", func(r chi.Router) {
 				r.Route("/consumables", func(r chi.Router) {
 					r.With(paginate).Get("/", ListConsumables)
+					r.With(disablePaginate).Get("/all", ListAllConsumables)
 					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleConsumableHandler)
 					r.Get("/search", SearchConsumables)
 				})
 
 				r.Route("/resources", func(r chi.Router) {
 					r.With(paginate).Get("/", ListResources)
+					r.With(disablePaginate).Get("/all", ListAllResources)
 					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleResourceHandler)
 					r.Get("/search", SearchResources)
 				})
 
 				r.Route("/equipment", func(r chi.Router) {
 					r.With(paginate).Get("/", ListEquipment)
+					r.With(disablePaginate).Get("/all", ListAllEquipment)
 					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleEquipmentHandler)
 					r.Get("/search", SearchEquipment)
 				})
 
 				r.Route("/quest", func(r chi.Router) {
 					r.With(paginate).Get("/", ListQuestItems)
+					r.With(disablePaginate).Get("/all", ListAllQuestItems)
 					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleQuestItemHandler)
 					r.Get("/search", SearchQuestItems)
 				})
 
 				r.Route("/cosmetics", func(r chi.Router) {
 					r.With(paginate).Get("/", ListCosmetics)
+					r.With(disablePaginate).Get("/all", ListAllCosmetics)
 					r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleCosmeticHandler)
 					r.Get("/search", SearchCosmetics)
 				})
@@ -104,12 +109,14 @@ func Router() chi.Router {
 
 			r.Route("/mounts", func(r chi.Router) {
 				r.With(paginate).Get("/", ListMounts)
+				r.With(disablePaginate).Get("/all", ListAllMounts)
 				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleMountHandler)
 				r.Get("/search", SearchMounts)
 			})
 
 			r.Route("/sets", func(r chi.Router) {
 				r.With(paginate).Get("/", ListSets)
+				r.With(disablePaginate).Get("/all", ListAllSets)
 				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleSetHandler)
 				r.Get("/search", SearchSets)
 			})

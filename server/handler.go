@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -13,6 +12,13 @@ import (
 	"github.com/dofusdude/api/utils"
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
+)
+
+var (
+	mountAllowedExpandFields     = []string{"effects"}
+	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
+	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
+	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "is_two_handed", "max_cast_per_turn", "ap_cost"})
 )
 
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (gen.MappedMultilangRecipe, bool) {
@@ -74,11 +80,63 @@ func MinMaxLevelMeiliFilterFromParams(filterMinLevel string, filterMaxLevel stri
 
 // listings
 
+// all
+
+func createAllQueryParams(fieldType string, allowedExpandFields []string, r *http.Request) {
+	var currentQuery = r.URL.Query()
+	currentQuery.Add(fmt.Sprintf("fields[%s]", fieldType), strings.Join(allowedExpandFields, ","))
+	r.URL.RawQuery = currentQuery.Encode()
+}
+
+func ListAllMounts(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("mount", mountAllowedExpandFields, r)
+	ListMounts(w, r)
+}
+
+func ListAllSets(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("set", setAllowedExpandFields, r)
+	ListSets(w, r)
+}
+
+func ListAllConsumables(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("item", itemAllowedExpandFields, r)
+	ListConsumables(w, r)
+}
+
+func ListAllEquipment(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("item", equipmentAllowedExpandFields, r)
+	ListEquipment(w, r)
+}
+
+func ListAllResources(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("item", itemAllowedExpandFields, r)
+	ListResources(w, r)
+}
+
+func ListAllQuestItems(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("item", itemAllowedExpandFields, r)
+	ListQuestItems(w, r)
+}
+
+func ListAllCosmetics(w http.ResponseWriter, r *http.Request) {
+	createAllQueryParams("item", itemAllowedExpandFields, r)
+	ListCosmetics(w, r)
+}
+
+// paginated
+
 func ListMounts(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
 
 	filterFamilyName := r.URL.Query().Get("filter[family_name]")
+	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[mount]"))
+	var expansions *utils.Set
+	expansions = parseFields(expansionsParam)
+	if !validateFields(expansions, mountAllowedExpandFields) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	txn := Db.Txn(false)
 	defer txn.Abort()
@@ -101,6 +159,13 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		mount := RenderMountListEntry(p, lang)
+
+		if expansions.Has("effects") {
+			effects := RenderEffects(&p.Effects, lang)
+			if len(effects) != 0 {
+				mount.Effects = effects
+			}
+		}
 		mounts = append(mounts, mount)
 	}
 
@@ -118,7 +183,6 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
 	links, _ := pagination.BuildLinks(*r.URL, total)
 	paginatedMounts := mounts[startIdx:endIdx]
-	log.Println(len(paginatedMounts), startIdx, endIdx)
 
 	response := APIPageMount{
 		Items: paginatedMounts,
@@ -137,6 +201,13 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
 
+	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[set]"))
+	var expansions *utils.Set
+	expansions = parseFields(expansionsParam)
+	if !validateFields(expansions, setAllowedExpandFields) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
@@ -174,8 +245,19 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		mount := RenderSetListEntry(p, lang)
-		sets = append(sets, mount)
+		set := RenderSetListEntry(p, lang)
+
+		if expansions.Has("effects") {
+			for _, effect := range p.Effects {
+				set.Effects = append(set.Effects, RenderEffects(&effect, lang))
+			}
+		}
+
+		if expansions.Has("equipment_ids") {
+			set.ItemIds = p.ItemIds
+		}
+
+		sets = append(sets, set)
 	}
 
 	total := len(sets)
@@ -219,15 +301,8 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
-	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
-
-	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
+func parseFields(expansionsParam string) *utils.Set {
 	expansions := utils.NewSet()
-	supportedFields := utils.NewSet()
-	supportedFields.Add("recipe")
-
 	expansionContainsDiv := strings.Contains(expansionsParam, ",")
 	if len(expansionsParam) != 0 && expansionContainsDiv {
 		expansionsArr := strings.Split(expansionsParam, ",")
@@ -239,9 +314,36 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		expansions.Add(expansionsParam)
 	}
 
-	if expansions.Difference(supportedFields).Size() != 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	return expansions
+}
+
+func validateFields(expansions *utils.Set, list []string) bool {
+	allowedFields := utils.NewSet()
+	for _, expansion := range list {
+		allowedFields.Add(expansion)
+	}
+
+	return expansions.Difference(allowedFields).Size() == 0
+}
+
+func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
+	lang := r.Context().Value("lang").(string)
+	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+
+	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
+	var expansions *utils.Set
+	if itemType == "equipment" {
+		expansions = parseFields(expansionsParam)
+		if !validateFields(expansions, equipmentAllowedExpandFields) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	} else {
+		expansions = parseFields(expansionsParam)
+		if !validateFields(expansions, itemAllowedExpandFields) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
@@ -289,6 +391,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		}
 
 		item := RenderItemListEntry(p, lang)
+		// items extra fields
 		if expansions.Has("recipe") {
 			recipe, exists := GetRecipeIfExists(item.Id, txn)
 			if exists {
@@ -297,6 +400,76 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 				item.Recipe = nil
 			}
 		}
+
+		if expansions.Has("description") {
+			description := p.Description[lang]
+			item.Description = &description
+		}
+
+		if expansions.Has("conditions") {
+			if p.Conditions != nil {
+				item.Conditions = RenderConditions(&p.Conditions, lang)
+			}
+		}
+
+		if expansions.Has("effects") {
+			if p.Effects != nil {
+				renderedEffects := RenderEffects(&p.Effects, lang)
+				if len(renderedEffects) != 0 {
+					item.Effects = renderedEffects
+				}
+			}
+		}
+
+		// equipment extra fields
+		mIsWeapon := p.Type.SuperTypeId == 2 // is weapon
+		if expansions.Has("is_weapon") {
+			item.IsWeapon = &mIsWeapon
+		}
+
+		if expansions.Has("pods") {
+			item.Pods = &p.Pods
+		}
+
+		if expansions.Has("parent_set") {
+			if p.HasParentSet {
+				item.ParentSet = &APISetReverseLink{
+					Id:   p.ParentSet.Id,
+					Name: p.ParentSet.Name[lang],
+				}
+			}
+		}
+
+		// weapon extra fields
+		if mIsWeapon {
+			if expansions.Has("critical_hit_probability") {
+				item.CriticalHitProbability = &p.CriticalHitProbability
+			}
+
+			if expansions.Has("critical_hit_bonus") {
+				item.CriticalHitBonus = &p.CriticalHitBonus
+			}
+
+			if expansions.Has("is_two_handed") {
+				item.TwoHanded = &p.TwoHanded
+			}
+
+			if expansions.Has("max_cast_per_turn") {
+				item.MaxCastPerTurn = &p.MaxCastPerTurn
+			}
+
+			if expansions.Has("ap_cost") {
+				item.ApCost = &p.ApCost
+			}
+
+			if expansions.Has("range") {
+				item.Range = &APIRange{
+					Min: p.MinRange,
+					Max: p.Range,
+				}
+			}
+		}
+
 		items = append(items, item)
 	}
 
@@ -651,6 +824,7 @@ func SearchAllItems(w http.ResponseWriter, r *http.Request) {
 // single
 
 func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("GetSingleSetHandler")
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 

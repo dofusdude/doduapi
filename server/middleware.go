@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+func disablePaginate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), "pagination", "1,-1")
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageNumStr := r.URL.Query().Get("page[number]")
