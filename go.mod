@@ -3,7 +3,7 @@ module github.com/dofusdude/api
 go 1.19
 
 require (
-	github.com/docker/docker v20.10.18+incompatible
+	github.com/docker/docker v20.10.20+incompatible
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
