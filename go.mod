@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/meilisearch/meilisearch-go v0.21.0
 	github.com/prometheus/client_golang v1.13.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 )
 
 require (
