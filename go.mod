@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/hashicorp/go-memdb v1.3.3
-	github.com/meilisearch/meilisearch-go v0.20.1
+	github.com/meilisearch/meilisearch-go v0.21.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/stretchr/testify v1.8.0
 )
@@ -24,7 +24,7 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
