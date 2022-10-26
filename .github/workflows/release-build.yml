@@ -25,3 +25,4 @@ jobs:
         goarch: ${{ matrix.goarch }}
         goversion: "https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz"
         binary_name: "dofus-api"
+        ldflags: "-w -s"
