@@ -53,6 +53,22 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
+	mappedMonsters := MapMonster(gameData, languageData)
+	out, err = os.Create("data/MAPPED_MONSTER.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer out.Close()
+
+	outBytes, err = json.MarshalIndent(*mappedMonsters, "", "    ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	out.Write(outBytes)
+
+	// ----
 	mappedMounts := MapMounts(gameData, languageData)
 	out, err = os.Create("data/MAPPED_MOUNTS.json")
 	if err != nil {
@@ -168,7 +184,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 		for _, effect := range effects {
 
 			var mappedEffect MappedMultilangEffect
-			currentEffect := data.effects[effect.EffectId]
+			currentEffect := data.Effects[effect.EffectId]
 
 			numIsSpell := false
 			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
@@ -199,7 +215,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 					mappedEffect.Min = 0
 					mappedEffect.Max = 0
 					mappedEffect.Type[lang] = effectName
-					mappedEffect.Templated[lang] = (*langs)[lang].Texts[data.spells[diceNum].DescriptionId]
+					mappedEffect.Templated[lang] = (*langs)[lang].Texts[data.Spells[diceNum].DescriptionId]
 					mappedEffect.IsMeta = true
 				} else {
 					templatedName := effectName
@@ -319,12 +335,112 @@ func ParseRawData() *JSONGameData {
 	spellsChan := make(chan map[int]JSONGameSpell)
 	spellTypesChan := make(chan map[int]JSONGameSpellType)
 	areasChan := make(chan map[int]JSONGameArea)
+	subAreasChan := make(chan map[int]JSONGameSubArea)
+	superAreasChan := make(chan map[int]JSONGameSuperArea)
 	mountsChan := make(chan map[int]JSONGameMount)
-	breedsChan := make(chan map[int]JSONGameBreed)
+	breedsChan := make(chan map[int]JSONGameClass)
 	mountFamilyChan := make(chan map[int]JSONGameMountFamily)
 	npcsChan := make(chan map[int]JSONGameNPC)
+	monstersChan := make(chan map[int]JSONGameMonster)
+	monstersRacesChan := make(chan map[int]JSONGameMonsterRace)
+	monstersSuperRacesChan := make(chan map[int]JSONGameMonsterSuperRace)
 
 	dataPath := fmt.Sprintf("%s/data", path)
+
+	// monsters
+	go func() {
+		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "monsters.json"))
+		if err != nil {
+			fmt.Print(err)
+		}
+		fileStr := utils.CleanJSON(string(file))
+		var fileJson []JSONGameMonster
+		err = json.Unmarshal([]byte(fileStr), &fileJson)
+		if err != nil {
+			fmt.Println(err)
+		}
+		items := make(map[int]JSONGameMonster)
+		for _, item := range fileJson {
+			items[item.Id] = item
+		}
+		monstersChan <- items
+	}()
+
+	// monster super races
+	go func() {
+		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "monster_super_races.json"))
+		if err != nil {
+			fmt.Print(err)
+		}
+		fileStr := utils.CleanJSON(string(file))
+		var fileJson []JSONGameMonsterSuperRace
+		err = json.Unmarshal([]byte(fileStr), &fileJson)
+		if err != nil {
+			fmt.Println(err)
+		}
+		items := make(map[int]JSONGameMonsterSuperRace)
+		for _, item := range fileJson {
+			items[item.Id] = item
+		}
+		monstersSuperRacesChan <- items
+	}()
+
+	// monster races
+	go func() {
+		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "monster_races.json"))
+		if err != nil {
+			fmt.Print(err)
+		}
+		fileStr := utils.CleanJSON(string(file))
+		var fileJson []JSONGameMonsterRace
+		err = json.Unmarshal([]byte(fileStr), &fileJson)
+		if err != nil {
+			fmt.Println(err)
+		}
+		items := make(map[int]JSONGameMonsterRace)
+		for _, item := range fileJson {
+			items[item.Id] = item
+		}
+		monstersRacesChan <- items
+	}()
+
+	// subareas
+	go func() {
+		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "sub_areas.json"))
+		if err != nil {
+			fmt.Print(err)
+		}
+		fileStr := utils.CleanJSON(string(file))
+		var fileJson []JSONGameSubArea
+		err = json.Unmarshal([]byte(fileStr), &fileJson)
+		if err != nil {
+			fmt.Println(err)
+		}
+		items := make(map[int]JSONGameSubArea)
+		for _, item := range fileJson {
+			items[item.Id] = item
+		}
+		subAreasChan <- items
+	}()
+
+	// super areas
+	go func() {
+		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "super_areas.json"))
+		if err != nil {
+			fmt.Print(err)
+		}
+		fileStr := utils.CleanJSON(string(file))
+		var fileJson []JSONGameSuperArea
+		err = json.Unmarshal([]byte(fileStr), &fileJson)
+		if err != nil {
+			fmt.Println(err)
+		}
+		items := make(map[int]JSONGameSuperArea)
+		for _, item := range fileJson {
+			items[item.Id] = item
+		}
+		superAreasChan <- items
+	}()
 
 	// npcs
 	go func() {
@@ -371,12 +487,12 @@ func ParseRawData() *JSONGameData {
 			fmt.Print(err)
 		}
 		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameBreed
+		var fileJson []JSONGameClass
 		err = json.Unmarshal([]byte(fileStr), &fileJson)
 		if err != nil {
 			fmt.Println(err)
 		}
-		items := make(map[int]JSONGameBreed)
+		items := make(map[int]JSONGameClass)
 		for _, item := range fileJson {
 			items[item.Id] = item
 		}
@@ -574,13 +690,26 @@ func ParseRawData() *JSONGameData {
 		itemEffectsChan <- effects
 	}()
 
+	data.Monsters = <-monstersChan
+	close(monstersChan)
+
+	data.ItemMonsterDrops = make(map[int][]int)
+	for _, monster := range data.Monsters {
+		for _, drop := range monster.Drops {
+			if _, ok := data.ItemMonsterDrops[drop.ObjectId]; !ok {
+				data.ItemMonsterDrops[drop.ObjectId] = []int{}
+			}
+			data.ItemMonsterDrops[drop.ObjectId] = append(data.ItemMonsterDrops[drop.ObjectId], monster.Id)
+		}
+	}
+
 	data.Items = <-itemChan
 	close(itemChan)
 
-	data.bonuses = <-itemBonusesChan
+	data.Bonuses = <-itemBonusesChan
 	close(itemBonusesChan)
 
-	data.effects = <-itemEffectsChan
+	data.Effects = <-itemEffectsChan
 	close(itemEffectsChan)
 
 	data.ItemTypes = <-itemTypeChan
@@ -592,26 +721,38 @@ func ParseRawData() *JSONGameData {
 	data.Recipes = <-itemRecipesChang
 	close(itemRecipesChang)
 
-	data.spells = <-spellsChan
+	data.Spells = <-spellsChan
 	close(spellsChan)
 
-	data.spellTypes = <-spellTypesChan
+	data.SpellTypes = <-spellTypesChan
 	close(spellTypesChan)
 
-	data.areas = <-areasChan
+	data.Areas = <-areasChan
 	close(areasChan)
 
 	data.Mounts = <-mountsChan
 	close(mountsChan)
 
-	data.classes = <-breedsChan
+	data.Classes = <-breedsChan
 	close(breedsChan)
 
-	data.Mount_familys = <-mountFamilyChan
+	data.MountFamilys = <-mountFamilyChan
 	close(mountFamilyChan)
 
-	data.npcs = <-npcsChan
+	data.Npcs = <-npcsChan
 	close(npcsChan)
+
+	data.MonsterRaces = <-monstersRacesChan
+	close(monstersRacesChan)
+
+	data.MonsterSuperRaces = <-monstersSuperRacesChan
+	close(monstersSuperRacesChan)
+
+	data.SubAreas = <-subAreasChan
+	close(subAreasChan)
+
+	data.SuperAreas = <-superAreasChan
+	close(superAreasChan)
 
 	return &data
 }

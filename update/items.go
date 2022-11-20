@@ -140,6 +140,36 @@ func DownloadItems(hashJson map[string]interface{}) {
 		DownloadHashFileInJson(files, monsters, "data", "d2o")
 	}()
 
+	var monsterSuperRaces HashFile
+	monsterSuperRaces.Filename = "data/common/MonsterSuperRaces.d2o"
+	monsterSuperRaces.FriendlyName = "data/tmp/monster_super_races.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, monsterSuperRaces, "data", "d2o")
+	}()
+
+	var subAreas HashFile
+	subAreas.Filename = "data/common/SubAreas.d2o"
+	subAreas.FriendlyName = "data/tmp/sub_areas.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, subAreas, "data", "d2o")
+	}()
+
+	var superAreas HashFile
+	superAreas.Filename = "data/common/SuperAreas.d2o"
+	superAreas.FriendlyName = "data/tmp/super_areas.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, superAreas, "data", "d2o")
+	}()
+
 	var monsterRaces HashFile
 	monsterRaces.Filename = "data/common/MonsterRaces.d2o"
 	monsterRaces.FriendlyName = "data/tmp/monster_races.d2o"
@@ -190,6 +220,16 @@ func DownloadItems(hashJson map[string]interface{}) {
 		DownloadHashFileInJson(files, breeds, "data", "d2o")
 	}()
 
+	var breedRoles HashFile
+	breedRoles.Filename = "data/common/BreedRoles.d2o"
+	breedRoles.FriendlyName = "data/tmp/breed_roles.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, breedRoles, "data", "d2o")
+	}()
+
 	var spellTypes HashFile
 	spellTypes.Filename = "data/common/SpellTypes.d2o"
 	spellTypes.FriendlyName = "data/tmp/spell_types.d2o"
@@ -208,6 +248,56 @@ func DownloadItems(hashJson map[string]interface{}) {
 	go func() {
 		defer wg.Done()
 		DownloadHashFileInJson(files, spells, "data", "d2o")
+	}()
+
+	var spellLevels HashFile
+	spellLevels.Filename = "data/common/SpellLevels.d2o"
+	spellLevels.FriendlyName = "data/tmp/spell_levels.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, spellLevels, "data", "d2o")
+	}()
+
+	var spellConversions HashFile
+	spellConversions.Filename = "data/common/SpellConversions.d2o"
+	spellConversions.FriendlyName = "data/tmp/spell_conversions.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, spellConversions, "data", "d2o")
+	}()
+
+	var spellBombs HashFile
+	spellBombs.Filename = "data/common/SpellBombs.d2o"
+	spellBombs.FriendlyName = "data/tmp/spell_bombs.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, spellBombs, "data", "d2o")
+	}()
+
+	var spellPairs HashFile
+	spellPairs.Filename = "data/common/SpellPairs.d2o"
+	spellPairs.FriendlyName = "data/tmp/spell_pairs.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, spellPairs, "data", "d2o")
+	}()
+
+	var spellStates HashFile
+	spellStates.Filename = "data/common/SpellStates.d2o"
+	spellStates.FriendlyName = "data/tmp/spell_states.d2o"
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DownloadHashFileInJson(files, spellStates, "data", "d2o")
 	}()
 
 	var recipes HashFile

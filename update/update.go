@@ -128,11 +128,22 @@ func CleanUp() {
 		"data/breeds.json",
 		"data/creature_bone_types.json",
 		"data/monster_races.json",
+		"data/monster_super_races.json",
+		"data/super_areas.json",
+		"data/sub_areas.json",
+		"data/breed_roles.json",
+
+		"data/spell_levels.json",
+		"data/spell_conversions.json",
+		"data/spell_states.json",
+		"data/spell_pairs.json",
+		"data/spell_bombs.json",
 
 		"data/MAPPED_ITEMS.json",
 		"data/MAPPED_SETS.json",
 		"data/MAPPED_RECIPES.json",
 		"data/MAPPED_MOUNTS.json",
+		"data/MAPPED_MONSTER.json",
 	}
 	for _, lang := range utils.Languages {
 		langJson := fmt.Sprintf("data/languages/lang_%s.json", lang)

@@ -74,41 +74,6 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) error {
 			log.Fatal(err)
 		}
 	}()
-	/*
-		// monsters images
-		wg.Add(1)
-		var images_1 HashFile
-		images_1.Filename = "content/gfx/monsters/monsters0.d2p"
-		images_1.friendly_name = "data/tmp/monsters_0.d2p"
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			DownloadHashImageFileInJson(files, images_1, "data", "d2p")
-		}()
-
-		// item images 2
-		var images_2 HashFile
-		images_2.Filename = "content/gfx/monsters/monsters0_1.d2p"
-		images_2.friendly_name = "data/tmp/monsters_1.d2p"
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			DownloadHashImageFileInJson(files, images_2, "data", "d2p")
-		}()
-
-		// item images 3
-		var images_3 HashFile
-		images_3.Filename = "content/gfx/monsters/monsters0_2.d2p"
-		images_3.friendly_name = "data/tmp/monsters_2.d2p"
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			DownloadHashImageFileInJson(files, images_3, "data", "d2p")
-		}()
-	*/
 
 	wg.Wait()
 	path, err := os.Getwd()
@@ -119,6 +84,49 @@ func DownloadImagesLauncher(hashJson map[string]interface{}) error {
 	inPath := fmt.Sprintf("%s/data/tmp", path)
 	outPath := fmt.Sprintf("%s/data/img/item", path)
 	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", path, "d2p")
+	if err := exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run(); err != nil {
+		return err
+	}
+
+	// monsters bitmaps
+	wgMonsters := sync.WaitGroup{}
+
+	wg.Add(1)
+	var monsterImages0 HashFile
+	monsterImages0.Filename = "content/gfx/monsters/monsters0.d2p"
+	monsterImages0.FriendlyName = "data/tmp/monster/monsters_0.d2p"
+
+	wgMonsters.Add(1)
+	go func() {
+		defer wgMonsters.Done()
+		DownloadHashImageFileInJson(files, monsterImages0)
+	}()
+
+	var monsterImages1 HashFile
+	monsterImages1.Filename = "content/gfx/monsters/monsters0_1.d2p"
+	monsterImages1.FriendlyName = "data/tmp/monster/monsters_1.d2p"
+
+	wgMonsters.Add(1)
+	go func() {
+		defer wgMonsters.Done()
+		DownloadHashImageFileInJson(files, monsterImages1)
+	}()
+
+	var monsterImages2 HashFile
+	monsterImages2.Filename = "content/gfx/monsters/monsters0_2.d2p"
+	monsterImages2.FriendlyName = "data/tmp/monster/monsters_2.d2p"
+
+	wgMonsters.Add(1)
+	go func() {
+		defer wgMonsters.Done()
+		DownloadHashImageFileInJson(files, monsterImages2)
+	}()
+
+	wgMonsters.Wait()
+
+	inPath = fmt.Sprintf("%s/data/tmp/monster", path)
+	outPath = fmt.Sprintf("%s/data/img/monster", path)
+	absConvertCmd = fmt.Sprintf("%s/PyDofus/%s_unpack.py", path, "d2p")
 	if err := exec.Command("/usr/local/bin/python3", absConvertCmd, inPath, outPath).Run(); err != nil {
 		return err
 	}

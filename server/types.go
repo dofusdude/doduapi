@@ -74,6 +74,21 @@ type ApiCondition struct {
 	Element  ApiEffectConditionType `json:"element"`
 }
 
+func renderApiDrops(drops []gen.MappedMultilangDrops) []APIDrop {
+	if drops == nil || len(drops) == 0 {
+		return nil
+	}
+	var outDrops []APIDrop
+	for _, drop := range drops {
+		outDrops = append(outDrops, APIDrop{
+			AnkamaId: drop.AnkamaId,
+			Type:     drop.Type,
+		})
+	}
+
+	return outDrops
+}
+
 type APIResource struct {
 	Id          int            `json:"ankama_id"`
 	Name        string         `json:"name"`
@@ -85,6 +100,7 @@ type APIResource struct {
 	Effects     []ApiEffect    `json:"effects,omitempty"`
 	Conditions  []ApiCondition `json:"conditions,omitempty"`
 	Recipe      []APIRecipe    `json:"recipe,omitempty"`
+	DroppedBy   []APIDrop      `json:"dropped_by,omitempty"`
 }
 
 func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
@@ -99,6 +115,7 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 		Pods:        item.Pods,
 		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
 		Recipe:      nil,
+		DroppedBy:   renderApiDrops(item.DroppedBy),
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
@@ -131,6 +148,7 @@ type APIEquipment struct {
 	Conditions  []ApiCondition     `json:"conditions,omitempty"`
 	Recipe      []APIRecipe        `json:"recipe,omitempty"`
 	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
+	DroppedBy   []APIDrop          `json:"dropped_by,omitempty"`
 }
 
 func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
@@ -155,6 +173,7 @@ func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 		IsWeapon:    false,
 		Recipe:      nil,
 		ParentSet:   setLink,
+		DroppedBy:   renderApiDrops(item.DroppedBy),
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
@@ -203,6 +222,7 @@ type APIWeapon struct {
 	Range                  APIRange           `json:"range"`
 	Recipe                 []APIRecipe        `json:"recipe,omitempty"`
 	ParentSet              *APISetReverseLink `json:"parent_set,omitempty"`
+	DroppedBy              []APIDrop          `json:"dropped_by,omitempty"`
 }
 
 func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
@@ -236,6 +256,7 @@ func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
 		},
 		IsWeapon:  true,
 		ParentSet: setLink,
+		DroppedBy: renderApiDrops(item.DroppedBy),
 	}
 
 	conditions := RenderConditions(&item.Conditions, lang)
@@ -298,6 +319,7 @@ type APIListItem struct {
 	Type      ApiType      `json:"type"`
 	Level     int          `json:"level"`
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
+	DroppedBy []APIDrop    `json:"dropped_by,omitempty"`
 
 	// extra fields
 	Description *string        `json:"description,omitempty"`
@@ -328,6 +350,7 @@ func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem
 		},
 		Level:     item.Level,
 		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		DroppedBy: renderApiDrops(item.DroppedBy),
 	}
 }
 
@@ -414,6 +437,11 @@ type APIPageMount struct {
 	Items []APIListMount        `json:"mounts"`
 }
 
+type APIPageMonster struct {
+	Links utils.PaginationLinks `json:"_links,omitempty"`
+	Items []APIMonster          `json:"monster"`
+}
+
 type APIPageSet struct {
 	Links utils.PaginationLinks `json:"_links,omitempty"`
 	Items []APIListSet          `json:"sets"`
@@ -425,6 +453,175 @@ type APIMount struct {
 	FamilyName string       `json:"family_name"`
 	ImageUrls  ApiImageUrls `json:"image_urls,omitempty"`
 	Effects    []ApiEffect  `json:"effects,omitempty"`
+}
+
+type APIMonsterSuperRace struct {
+	Id   int    `json:"ankama_id"`
+	Name string `json:"name"`
+}
+
+type APIMonsterRace struct {
+	Id                  int                 `json:"ankama_id"`
+	Name                string              `json:"name"`
+	SuperRace           APIMonsterSuperRace `json:"super_race"`
+	AggressiveZoneSize  int                 `json:"aggressiveZoneSize"`
+	AggressiveLevelDiff int                 `json:"aggressiveLevelDiff"`
+}
+
+type APIMonsterGrade struct {
+	Grade             int `json:"grade"`
+	Level             int `json:"level"`
+	LifePoints        int `json:"life_points"`
+	ActionPoints      int `json:"action_points"`
+	MovementPoints    int `json:"movement_points"`
+	GradeXp           int `json:"grade_xp"`
+	EarthResistance   int `json:"earth_resistance"`
+	FireResistance    int `json:"fire_resistance"`
+	WaterResistance   int `json:"water_resistance"`
+	AirResistance     int `json:"air_resistance"`
+	NeutralResistance int `json:"neutral_resistance"`
+}
+
+type APIMonsterDrops struct {
+	ItemId               int     `json:"item_id"`
+	ItemType             string  `json:"item_type"`
+	PercentDropForGrade1 float64 `json:"percent_drop_for_grade_1"`
+	PercentDropForGrade2 float64 `json:"percent_drop_for_grade_2"`
+	PercentDropForGrade3 float64 `json:"percent_drop_for_grade_3"`
+	PercentDropForGrade4 float64 `json:"percent_drop_for_grade_4"`
+	PercentDropForGrade5 float64 `json:"percent_drop_for_grade_5"`
+	HasCriteria          bool    `json:"hasCriteria"`
+}
+
+type APIMonsterSuperArea struct {
+	Id   int    `json:"ankama_id"`
+	Name string `json:"name"`
+}
+
+type APIMonsterArea struct {
+	Id              int                 `json:"id"`
+	Name            string              `json:"name"`
+	SuperArea       APIMonsterSuperArea `json:"super_area"`
+	ContainHouses   bool                `json:"contain_houses"`
+	ContainPaddocks bool                `json:"contain_paddocks"`
+}
+
+type APIMonsterSubArea struct {
+	Id                   int            `json:"id"`
+	Name                 string         `json:"name"`
+	Area                 APIMonsterArea `json:"area"`
+	Level                int            `json:"level"`
+	IsConquestVillage    bool           `json:"is_conquest_village"`
+	SubscriberOnly       bool           `json:"subscriber_only"`
+	MountAutoTripAllowed bool           `json:"mount_auto_trip_allowed"`
+	IsFavorite           bool           `json:"is_favorite"`
+}
+
+type APIMonster struct {
+	Id                  int                 `json:"ankama_id"`
+	Name                string              `json:"name"`
+	ImageUrls           ApiImageUrls        `json:"image_urls,omitempty"`
+	Race                APIMonsterRace      `json:"race"`
+	IsBoss              bool                `json:"is_boss"`
+	IsMiniBoss          bool                `json:"is_mini_boss"`
+	IsQuestMonster      bool                `json:"is_quest_monster"`
+	CanBePushed         bool                `json:"can_be_pushed"`
+	CanTackle           bool                `json:"can_tackle"`
+	CanSwitchPos        bool                `json:"can_switch_pos"`
+	CanUsePortal        bool                `json:"can_use_portal"`
+	AllIdolsDisabled    bool                `json:"all_idols_disabled"`
+	Grades              []APIMonsterGrade   `json:"grades"`
+	Drops               []APIMonsterDrops   `json:"drops"`
+	AggressiveZoneSize  int                 `json:"aggressive_zone_size"`
+	AggressiveLevelDiff int                 `json:"aggressive_level_diff"`
+	UseRaceValues       bool                `json:"use_race_values"`
+	SubAreas            []APIMonsterSubArea `json:"sub_areas"`
+}
+
+func RenderMonster(monster *gen.MappedMultilangMonster, lang string) APIMonster {
+	var grades []APIMonsterGrade
+	for _, grade := range monster.Grades {
+		grades = append(grades, APIMonsterGrade{
+			Grade:             grade.Grade,
+			Level:             grade.Level,
+			LifePoints:        grade.LifePoints,
+			ActionPoints:      grade.ActionPoints,
+			MovementPoints:    grade.MovementPoints,
+			GradeXp:           grade.GradeXp,
+			EarthResistance:   grade.EarthResistance,
+			FireResistance:    grade.FireResistance,
+			WaterResistance:   grade.WaterResistance,
+			AirResistance:     grade.AirResistance,
+			NeutralResistance: grade.NeutralResistance,
+		})
+	}
+
+	var drops []APIMonsterDrops
+	for _, drop := range monster.Drops {
+		drops = append(drops, APIMonsterDrops{
+			ItemId:               drop.ItemId,
+			ItemType:             drop.ItemType,
+			PercentDropForGrade1: drop.PercentDropForGrade1,
+			PercentDropForGrade2: drop.PercentDropForGrade2,
+			PercentDropForGrade3: drop.PercentDropForGrade3,
+			PercentDropForGrade4: drop.PercentDropForGrade4,
+			PercentDropForGrade5: drop.PercentDropForGrade5,
+			HasCriteria:          drop.HasCriteria,
+		})
+	}
+
+	var subAreas []APIMonsterSubArea
+	for _, subArea := range monster.SubAreas {
+		subAreas = append(subAreas, APIMonsterSubArea{
+			Id:   subArea.Id,
+			Name: subArea.Name[lang],
+			Area: APIMonsterArea{
+				Id:   subArea.Area.Id,
+				Name: subArea.Area.Name[lang],
+				SuperArea: APIMonsterSuperArea{
+					Id:   subArea.Area.SuperArea.Id,
+					Name: subArea.Area.SuperArea.Name[lang],
+				},
+				ContainHouses:   subArea.Area.ContainHouses,
+				ContainPaddocks: subArea.Area.ContainPaddocks,
+			},
+			Level:                subArea.Level,
+			IsConquestVillage:    subArea.IsConquestVillage,
+			SubscriberOnly:       subArea.SubscriberOnly,
+			MountAutoTripAllowed: subArea.MountAutoTripAllowed,
+			IsFavorite:           subArea.IsFavorite,
+		})
+	}
+
+	return APIMonster{
+		Id:        monster.AnkamaId,
+		Name:      monster.Name[lang],
+		ImageUrls: RenderImageUrls(utils.ImageUrls(monster.AnkamaId, "monsters")),
+		Race: APIMonsterRace{
+			Id:   monster.Race.Id,
+			Name: monster.Race.Name[lang],
+			SuperRace: APIMonsterSuperRace{
+				Id:   monster.Race.SuperRace.Id,
+				Name: monster.Race.SuperRace.Name[lang],
+			},
+			AggressiveZoneSize:  monster.Race.AggressiveZoneSize,
+			AggressiveLevelDiff: monster.Race.AggressiveLevelDiff,
+		},
+		IsBoss:              monster.IsBoss,
+		IsMiniBoss:          monster.IsMiniBoss,
+		IsQuestMonster:      monster.IsQuestMonster,
+		CanBePushed:         monster.CanBePushed,
+		CanTackle:           monster.CanTackle,
+		CanSwitchPos:        monster.CanSwitchPos,
+		CanUsePortal:        monster.CanUsePortal,
+		AllIdolsDisabled:    monster.AllIdolsDisabled,
+		Grades:              grades,
+		Drops:               drops,
+		AggressiveZoneSize:  monster.AggressiveZoneSize,
+		AggressiveLevelDiff: monster.AggressiveLevelDiff,
+		UseRaceValues:       monster.UseRaceValues,
+		SubAreas:            subAreas,
+	}
 }
 
 func RenderMount(mount *gen.MappedMultilangMount, lang string) APIMount {
@@ -463,6 +660,11 @@ func RenderSetListEntry(set *gen.MappedMultilangSet, lang string) APIListSet {
 		Items: len(set.ItemIds),
 		Level: set.Level,
 	}
+}
+
+type APIDrop struct {
+	AnkamaId int    `json:"ankama_id"`
+	Type     string `json:"type"`
 }
 
 type APISet struct {

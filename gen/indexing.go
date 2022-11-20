@@ -19,6 +19,7 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 	var sets []MappedMultilangSet
 	var recipes []MappedMultilangRecipe
 	var mounts []MappedMultilangMount
+	var monster []MappedMultilangMonster
 
 	log.Println("generating Database and search index ...")
 	// --
@@ -65,8 +66,19 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 		fmt.Println(err)
 	}
 
+	// --
+	file, err = os.ReadFile("data/MAPPED_MONSTER.json")
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	err = json.Unmarshal(file, &monster)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	startDatabaseIndex := time.Now()
-	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, indexed, version, done)
+	db, indexes := GenerateDatabase(&monster, &items, &sets, &recipes, &mounts, indexed, version, done)
 	log.Println("... completed indexing in", time.Since(startDatabaseIndex))
 
 	return db, indexes
@@ -75,6 +87,26 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 func GetMemDBSchema() *memdb.DBSchema {
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
+			"red-monster": &memdb.TableSchema{
+				Name: "red-monster",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": &memdb.IndexSchema{
+						Name:    "id",
+						Unique:  true,
+						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
+					},
+				},
+			},
+			"blue-monster": &memdb.TableSchema{
+				Name: "blue-monster",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": &memdb.IndexSchema{
+						Name:    "id",
+						Unique:  true,
+						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
+					},
+				},
+			},
 			"red-equipment": &memdb.TableSchema{
 				Name: "red-equipment",
 				Indexes: map[string]*memdb.IndexSchema{
@@ -285,9 +317,10 @@ type SearchIndexes struct {
 	AllItems *meilisearch.Index
 	Sets     *meilisearch.Index
 	Mounts   *meilisearch.Index
+	Monster  *meilisearch.Index
 }
 
-func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, recipes *[]MappedMultilangRecipe, mounts *[]MappedMultilangMount, indexed *bool, version *utils.VersionT, done chan bool) (*memdb.MemDB, map[string]SearchIndexes) {
+func GenerateDatabase(monster *[]MappedMultilangMonster, items *[]MappedMultilangItem, sets *[]MappedMultilangSet, recipes *[]MappedMultilangRecipe, mounts *[]MappedMultilangMount, indexed *bool, version *utils.VersionT, done chan bool) (*memdb.MemDB, map[string]SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -308,8 +341,21 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		itemIndexUid := fmt.Sprintf("%s-all_items-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		setIndexUid := fmt.Sprintf("%s-sets-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.NextRedBlueVersionStr(version.Search), lang)
+		monsterIndexUid := fmt.Sprintf("%s-monster-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 
 		// creation
+		createMonsterIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        monsterIndexUid,
+			PrimaryKey: "id",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = client.WaitForTask(createMonsterIdxTask.TaskUID)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		createItemsIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
 			Uid:        itemIndexUid,
 			PrimaryKey: "id",
@@ -343,6 +389,10 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 
 		// wait for creation end
+		_, err = client.WaitForTask(createMonsterIdxTask.TaskUID)
+		if err != nil {
+			log.Fatal(err)
+		}
 		_, err = client.WaitForTask(createItemsIdxTask.TaskUID)
 		if err != nil {
 			log.Fatal(err)
@@ -357,6 +407,17 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 
 		// add filters
+		allMonsterIdx := client.Index(monsterIndexUid)
+		_, err = allMonsterIdx.UpdateFilterableAttributes(&[]string{
+			"race",
+			"super_race",
+			"is_boss",
+		})
+		if err != nil {
+			log.Println(err)
+			return nil, nil
+		}
+
 		allItemsIdx := client.Index(itemIndexUid)
 		_, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"super_type",
@@ -390,6 +451,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			AllItems: allItemsIdx,
 			Sets:     setsIdx,
 			Mounts:   mountsIdx,
+			Monster:  allMonsterIdx,
 		}
 	}
 
@@ -423,11 +485,41 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
 	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
 	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
+	monsterIndexBatch := make(map[string][]SearchIndexedMonster)
+	monsterTable := fmt.Sprintf("%s-monster", utils.NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
 		recipeCt := recipe
 		if err := txn.Insert(recipesTable, &recipeCt); err != nil {
 			panic(err)
+		}
+	}
+
+	for _, singleMonster := range *monster {
+		singleMonsterCp := singleMonster
+
+		if err := txn.Insert(monsterTable, &singleMonsterCp); err != nil {
+			panic(err)
+		}
+
+		for _, lang := range utils.Languages {
+			object := SearchIndexedMonster{
+				Id:        singleMonsterCp.AnkamaId,
+				Name:      singleMonsterCp.Name[lang],
+				Race:      strings.ToLower(singleMonsterCp.Race.Name[lang]),
+				SuperRace: strings.ToLower(singleMonsterCp.Race.SuperRace.Name[lang]),
+				IsBoss:    singleMonsterCp.IsBoss,
+			}
+
+			monsterIndexBatch[lang] = append(monsterIndexBatch[lang], object)
+			if len(monsterIndexBatch[lang]) >= maxBatchSize {
+				taskInfo, err := multilangSearchIndexes[lang].Monster.AddDocuments(monsterIndexBatch[lang])
+				if err != nil {
+					log.Println(err)
+				}
+				indexTasks = append(indexTasks, taskInfo)
+				monsterIndexBatch[lang] = nil
+			}
 		}
 	}
 
@@ -543,6 +635,13 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 		if len(mountIndexBatch[lang]) > 0 {
 			taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
+			if err != nil {
+				log.Println(err)
+			}
+			indexTasks = append(indexTasks, taskInfo)
+		}
+		if len(monsterIndexBatch[lang]) > 0 {
+			taskInfo, err := multilangSearchIndexes[lang].Monster.AddDocuments(monsterIndexBatch[lang])
 			if err != nil {
 				log.Println(err)
 			}

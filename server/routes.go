@@ -114,6 +114,13 @@ func Router() chi.Router {
 				r.Get("/search", SearchMounts)
 			})
 
+			r.Route("/monsters", func(r chi.Router) {
+				r.With(paginate).Get("/", ListMonster)
+				r.With(disablePaginate).Get("/all", ListMonster)
+				r.With(ankamaIdExtractor).Get("/{ankamaId}", GetSingleMonsterHandler)
+				r.Get("/search", SearchMonster)
+			})
+
 			r.Route("/sets", func(r chi.Router) {
 				r.With(paginate).Get("/", ListSets)
 				r.With(disablePaginate).Get("/all", ListAllSets)

@@ -125,6 +125,86 @@ func ListAllCosmetics(w http.ResponseWriter, r *http.Request) {
 
 // paginated
 
+func ListMonster(w http.ResponseWriter, r *http.Request) {
+	lang := r.Context().Value("lang").(string)
+	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+
+	filterRace := r.URL.Query().Get("filter[race]")
+	filterRace = strings.ToLower(filterRace)
+	filterSuperRace := r.URL.Query().Get("filter[super_race]")
+	filterSuperRace = strings.ToLower(filterSuperRace)
+	filterIsBossStr := r.URL.Query().Get("filter[is_boss]")
+	filterIsBossStr = strings.ToLower(filterIsBossStr)
+	if filterIsBossStr != "" {
+		if filterIsBossStr != "true" && filterIsBossStr != "false" {
+			http.Error(w, "filter[is_boss] must be true or false", http.StatusBadRequest)
+			return
+		}
+	}
+	filterIsBoss := filterIsBossStr == "true"
+
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "monster"), "id")
+	if err != nil || it == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsMonsterList.Inc()
+
+	var monster []APIMonster
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		p := obj.(*gen.MappedMultilangMonster)
+		if filterIsBossStr != "" {
+			if p.IsBoss != filterIsBoss {
+				continue
+			}
+		}
+		if filterRace != "" {
+			if strings.ToLower(p.Race.Name[lang]) != filterRace {
+				continue
+			}
+		}
+		if filterSuperRace != "" {
+			if strings.ToLower(p.Race.SuperRace.Name[lang]) != strings.ToLower(filterSuperRace) {
+				continue
+			}
+		}
+		mount := RenderMonster(p, lang)
+		monster = append(monster, mount)
+	}
+
+	total := len(monster)
+	if total == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if pagination.ValidatePagination(total) != 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
+	links, _ := pagination.BuildLinks(*r.URL, total)
+	paginatedMonsters := monster[startIdx:endIdx]
+
+	response := APIPageMonster{
+		Items: paginatedMonsters,
+		Links: links,
+	}
+
+	utils.WriteCacheHeader(&w)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 func ListMounts(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
@@ -537,7 +617,8 @@ func ListCosmetics(w http.ResponseWriter, r *http.Request) {
 
 // search
 
-func SearchMounts(w http.ResponseWriter, r *http.Request) {
+func SearchMonster(w http.ResponseWriter, r *http.Request) {
+	var err error
 	client := utils.CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
@@ -545,10 +626,139 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	raceName := strings.ToLower(r.URL.Query().Get("filter[race]"))
+	superRaceName := strings.ToLower(r.URL.Query().Get("filter[super_race]"))
+	isBoss := r.URL.Query().Get("filter[is_boss]")
+	isBoss = strings.ToLower(isBoss)
+	if isBoss != "" {
+		if isBoss != "true" && isBoss != "false" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	lang := r.Context().Value("lang").(string)
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "8"
+	}
+	var limit int
+	if limit, err = strconv.Atoi(limitStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if limit > 100 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	var maxSearchResults int64 = int64(limit)
+
+	index := client.Index(fmt.Sprintf("%s-monster-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	var request *meilisearch.SearchRequest
+	filterString := ""
+	if isBoss == "" {
+		if raceName != "" && superRaceName == "" {
+			filterString = fmt.Sprintf("race=%s", raceName)
+		}
+		if raceName == "" && superRaceName != "" {
+			filterString = fmt.Sprintf("super_race=%s", superRaceName)
+		}
+		if raceName != "" && superRaceName != "" {
+			filterString = fmt.Sprintf("race=%s and super_race=%s", raceName, superRaceName)
+		}
+	} else {
+		if raceName != "" && superRaceName == "" {
+			filterString = fmt.Sprintf("race=%s and is_boss=%s", raceName, isBoss)
+		}
+		if raceName == "" && superRaceName != "" {
+			filterString = fmt.Sprintf("super_race=%s and is_boss=%s", superRaceName, isBoss)
+		}
+		if raceName != "" && superRaceName != "" {
+			filterString = fmt.Sprintf("race=%s and super_race=%s and is_boss=%s", raceName, superRaceName, isBoss)
+		}
+		if filterString == "" {
+			filterString = fmt.Sprintf("is_boss=%s", isBoss)
+		}
+	}
+
+	if filterString == "" {
+		request = &meilisearch.SearchRequest{
+			Limit: maxSearchResults,
+		}
+	} else {
+		request = &meilisearch.SearchRequest{
+			Limit:  maxSearchResults,
+			Filter: filterString,
+		}
+	}
+
+	searchResp, err := index.Search(query, request)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsMonsterSearch.Inc()
+
+	if searchResp.EstimatedTotalHits == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	var monster []APIMonster
+	for _, hit := range searchResp.Hits {
+		indexed := hit.(map[string]interface{})
+		itemId := int(indexed["id"].(float64))
+
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "monster"), "id", itemId)
+		if err != nil || raw == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		item := raw.(*gen.MappedMultilangMonster)
+		monster = append(monster, RenderMonster(item, lang))
+	}
+
+	utils.WriteCacheHeader(&w)
+	err = json.NewEncoder(w).Encode(monster)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func SearchMounts(w http.ResponseWriter, r *http.Request) {
+	var err error
+	client := utils.CreateMeiliClient()
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "8"
+	}
+	var limit int
+	if limit, err = strconv.Atoi(limitStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if limit > 100 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	familyName := strings.ToLower(r.URL.Query().Get("filter[family_name]"))
 
 	lang := r.Context().Value("lang").(string)
-	var maxSearchResults int64 = 8
+	var maxSearchResults int64 = int64(limit)
 
 	index := client.Index(fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -625,7 +835,21 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var maxSearchResults int64 = 8
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "8"
+	}
+	var limit int
+	if limit, err = strconv.Atoi(limitStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if limit > 100 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var maxSearchResults int64 = int64(limit)
 
 	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -703,7 +927,22 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	}
 
 	lang := r.Context().Value("lang").(string)
-	var maxSearchResults int64 = 8
+
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "8"
+	}
+	var limit int
+	if limit, err = strconv.Atoi(limitStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if limit > 100 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var maxSearchResults int64 = int64(limit)
 
 	index := client.Index(fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -822,6 +1061,31 @@ func SearchAllItems(w http.ResponseWriter, r *http.Request) {
 }
 
 // single
+
+func GetSingleMonsterHandler(w http.ResponseWriter, r *http.Request) {
+	lang := r.Context().Value("lang").(string)
+	ankamaId := r.Context().Value("ankamaId").(int)
+
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "monster"), "id", ankamaId)
+	if err != nil || raw == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsMonsterSingle.Inc()
+
+	monster := RenderMonster(raw.(*gen.MappedMultilangMonster), lang)
+	utils.WriteCacheHeader(&w)
+	err = json.NewEncoder(w).Encode(monster)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
 
 func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("GetSingleSetHandler")

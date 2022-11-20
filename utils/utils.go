@@ -232,8 +232,10 @@ func touchFileIfNotExists(fileName string) error {
 
 func CreateDataDirectoryStructure() {
 	os.MkdirAll("data/tmp/vector", os.ModePerm)
+	os.MkdirAll("data/tmp/monster", os.ModePerm)
 	os.MkdirAll("data/img/item", os.ModePerm)
 	os.MkdirAll("data/img/mount", os.ModePerm)
+	os.MkdirAll("data/img/monster", os.ModePerm)
 
 	os.MkdirAll("data/vector/item", os.ModePerm)
 	os.MkdirAll("data/vector/mount", os.ModePerm)
@@ -450,7 +452,7 @@ func (p *Pagination) ValidatePagination(listSize int) int {
 	if p.PageSize == -1 {
 		p.PageSize = listSize
 	}
-	if p.PageSize > listSize || p.PageSize < -1 || p.PageSize == 0 {
+	if p.PageSize < -1 || p.PageSize == 0 {
 		return -1
 	}
 	if (p.PageSize * p.PageNumber) >= listSize+p.PageSize {

@@ -3,6 +3,7 @@ package gen
 import (
 	"fmt"
 	"github.com/dofusdude/api/utils"
+	"math"
 )
 
 func MapSets(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangSet {
@@ -70,7 +71,7 @@ func MapMounts(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilan
 
 		for _, lang := range utils.Languages {
 			mappedMount.Name[lang] = (*langs)[lang].Texts[mount.NameId]
-			mappedMount.FamilyName[lang] = (*langs)[lang].Texts[data.Mount_familys[mount.FamilyId].NameId]
+			mappedMount.FamilyName[lang] = (*langs)[lang].Texts[data.MountFamilys[mount.FamilyId].NameId]
 		}
 
 		allEffectResult := ParseEffects(data, [][]JSONGameItemPossibleEffect{mount.Effects}, langs)
@@ -101,6 +102,17 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 		mappedItem.Description = make(map[string]string)
 		mappedItem.Type.Name = make(map[string]string)
 		mappedItem.IconId = item.IconId
+		if data.ItemMonsterDrops[item.Id] != nil && len(data.ItemMonsterDrops[item.Id]) > 0 {
+			mappedItem.DroppedBy = []MappedMultilangDrops{}
+			for _, drop := range data.ItemMonsterDrops[item.Id] {
+				mappedItem.DroppedBy = append(mappedItem.DroppedBy, MappedMultilangDrops{
+					AnkamaId: drop,
+					Type:     "monsters",
+				})
+			}
+		} else {
+			mappedItem.DroppedBy = nil
+		}
 
 		// skip unnamed and hidden items
 		if (*langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 {
@@ -197,4 +209,161 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 	}
 
 	return &mappedItems
+}
+
+func roundToDecimals(f float64, decimals int) float64 {
+	shift := math.Pow(10, float64(decimals))
+	return math.Floor(f*shift+.5) / shift
+}
+
+func MapClasses(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangClass {
+	var mappedClasses []MappedMultilangClass
+
+	for _, class := range data.Classes {
+		var mappedClass MappedMultilangClass
+		mappedClass.Id = class.Id
+		mappedClass.ShortName = make(map[string]string)
+		mappedClass.LongName = make(map[string]string)
+		mappedClass.Description = make(map[string]string)
+		mappedClass.GameplayDescription = make(map[string]string)
+		mappedClass.GameplayClassDescription = make(map[string]string)
+
+		for _, lang := range utils.Languages {
+			mappedClass.ShortName[lang] = (*langs)[lang].Texts[class.ShortNameId]
+			mappedClass.LongName[lang] = (*langs)[lang].Texts[class.LongNameId]
+			mappedClass.Description[lang] = (*langs)[lang].Texts[class.DescriptionId]
+			mappedClass.GameplayDescription[lang] = (*langs)[lang].Texts[class.GameplayDescriptionId]
+			mappedClass.GameplayClassDescription[lang] = (*langs)[lang].Texts[class.GameplayClassDescriptionId]
+		}
+
+		mappedClass.Spells = []MappedMultilangSpell{}
+		for _, spellId := range class.BreedSpellsId {
+			var mappedSpell MappedMultilangSpell
+
+			mappedSpell.Id = spellId
+			mappedSpell.Name = make(map[string]string)
+			mappedSpell.Description = make(map[string]string)
+			mappedSpell.ImageUrls = []string{} // TODO render
+			for _, lang := range utils.Languages {
+				mappedSpell.Name[lang] = (*langs)[lang].Texts[data.Spells[spellId].NameId]
+				mappedSpell.Description[lang] = (*langs)[lang].Texts[data.Spells[spellId].DescriptionId]
+			}
+
+			mappedClass.Spells = append(mappedClass.Spells, mappedSpell)
+		}
+
+		mappedClasses = append(mappedClasses, mappedClass)
+	}
+
+	return &mappedClasses
+}
+
+func MapMonster(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangMonster {
+	var mappedMonsters []MappedMultilangMonster
+
+	for _, monster := range data.Monsters {
+		var mappedDrops []MappedMultilangMonsterDrops
+		for _, drop := range monster.Drops {
+			var insertCategoryTable string
+			if data.ItemTypes[data.Items[drop.ObjectId].TypeId].CategoryId == 4 {
+				//log.Println("Item not found for monster drop")
+				continue
+			}
+			insertCategoryTable = utils.CategoryIdMapping(data.ItemTypes[data.Items[drop.ObjectId].TypeId].CategoryId)
+			if insertCategoryTable == "quest_items" {
+				insertCategoryTable = "quest"
+			}
+
+			decimals := 6
+			mappedDrops = append(mappedDrops, MappedMultilangMonsterDrops{
+				ItemId:               drop.ObjectId,
+				ItemType:             insertCategoryTable,
+				HasCriteria:          drop.HasCriteria,
+				PercentDropForGrade1: roundToDecimals(drop.PercentDropForGrade1, decimals),
+				PercentDropForGrade2: roundToDecimals(drop.PercentDropForGrade2, decimals),
+				PercentDropForGrade3: roundToDecimals(drop.PercentDropForGrade3, decimals),
+				PercentDropForGrade4: roundToDecimals(drop.PercentDropForGrade4, decimals),
+				PercentDropForGrade5: roundToDecimals(drop.PercentDropForGrade5, decimals),
+			})
+		}
+
+		var subareas []MappedMultilangMonsterSubArea
+		for _, subAreaId := range monster.Subareas {
+			var subArea MappedMultilangMonsterSubArea
+			subArea.IsFavorite = monster.FavoriteSubareaId == subAreaId
+			subArea.Id = subAreaId
+			subArea.Level = data.SubAreas[subAreaId].Level
+			subArea.IsConquestVillage = data.SubAreas[subAreaId].IsConquestVillage
+			subArea.SubscriberOnly = !data.SubAreas[subAreaId].BasicAccountAllowed
+			subArea.MountAutoTripAllowed = data.SubAreas[subAreaId].MountAutoTripAllowed
+
+			var area MappedMultilangArea
+			area.Id = data.SubAreas[subAreaId].AreaId
+			area.ContainHouses = data.Areas[data.SubAreas[subAreaId].AreaId].ContainHouses
+			area.ContainPaddocks = data.Areas[data.SubAreas[subAreaId].AreaId].ContainPaddocks
+
+			var superArea MappedMultilangSuperArea
+			superArea.Id = data.Areas[data.SubAreas[subAreaId].AreaId].SuperAreaId
+
+			subArea.Name = make(map[string]string)
+			area.Name = make(map[string]string)
+			superArea.Name = make(map[string]string)
+			for _, lang := range utils.Languages {
+				subArea.Name[lang] = (*langs)[lang].Texts[data.SubAreas[subAreaId].NameId]
+				area.Name[lang] = (*langs)[lang].Texts[data.Areas[data.SubAreas[subAreaId].AreaId].NameId]
+				superArea.Name[lang] = (*langs)[lang].Texts[data.SuperAreas[data.Areas[data.SubAreas[subAreaId].AreaId].SuperAreaId].NameId]
+			}
+
+			area.SuperArea = superArea
+			subArea.Area = area
+
+			subareas = append(subareas, subArea)
+		}
+
+		var mappedMonster MappedMultilangMonster
+		mappedMonster.Name = make(map[string]string)
+		mappedMonster.AnkamaId = monster.Id
+		mappedMonster.IsQuestMonster = monster.IsQuestMonster
+		mappedMonster.IsBoss = monster.IsBoss
+		mappedMonster.IsMiniBoss = monster.IsMiniBoss
+		mappedMonster.CanTackle = monster.CanTackle
+		mappedMonster.CanSwitchPos = monster.CanSwitchPos
+		mappedMonster.CanUsePortal = monster.CanUsePortal
+		mappedMonster.CanBePushed = monster.CanBePushed
+		mappedMonster.AllIdolsDisabled = monster.AllIdolsDisabled
+		mappedMonster.AggressiveZoneSize = monster.AggressiveZoneSize
+		mappedMonster.AggressiveLevelDiff = monster.AggressiveLevelDiff
+		mappedMonster.Grades = monster.Grades
+		mappedMonster.SubAreas = subareas
+		mappedMonster.Drops = mappedDrops
+		mappedMonster.UseRaceValues = monster.UseRaceValues
+
+		if (*langs)["fr"].Texts[monster.NameId] == "" {
+			continue
+		}
+
+		var superRace MappedMultilangMonsterSuperRace
+		superRace.Name = make(map[string]string)
+		superRace.Id = data.MonsterSuperRaces[data.MonsterRaces[monster.Race].SuperRaceId].Id
+
+		var monsterRace MappedMultilangMonsterRace
+		monsterRace.Id = data.MonsterRaces[monster.Race].Id
+		monsterRace.Name = make(map[string]string)
+		monsterRace.AggressiveLevelDiff = monster.AggressiveLevelDiff
+		monsterRace.AggressiveZoneSize = monster.AggressiveZoneSize
+
+		for _, lang := range utils.Languages {
+			mappedMonster.Name[lang] = (*langs)[lang].Texts[monster.NameId]
+			superRace.Name[lang] = (*langs)[lang].Texts[data.MonsterSuperRaces[data.MonsterRaces[monster.Race].SuperRaceId].NameId]
+			monsterRace.Name[lang] = (*langs)[lang].Texts[data.MonsterRaces[monster.Race].NameId]
+		}
+
+		monsterRace.SuperRace = superRace
+
+		mappedMonster.Race = monsterRace
+
+		mappedMonsters = append(mappedMonsters, mappedMonster)
+	}
+
+	return &mappedMonsters
 }

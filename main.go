@@ -177,7 +177,7 @@ func main() {
 
 	server.Indexed = false
 
-	updaterDone := make(chan bool)
+	//updaterDone := make(chan bool)
 	indexWaiterDone := make(chan bool)
 
 	utils.CreateDataDirectoryStructure()
@@ -208,10 +208,12 @@ func main() {
 		server.Version.MemDb = !server.Version.MemDb
 	}
 
-	updateDb := make(chan *memdb.MemDB)
-	updateMountImagesDone := make(chan bool)
-	updateItemImagesDone := make(chan bool)
-	updateSearchIndex := make(chan map[string]gen.SearchIndexes)
+	/*
+		updateDb := make(chan *memdb.MemDB)
+		updateMountImagesDone := make(chan bool)
+		updateItemImagesDone := make(chan bool)
+		updateSearchIndex := make(chan map[string]gen.SearchIndexes)
+	*/
 	if all || *serveFlag {
 
 		if !all && !*genFlag {
@@ -239,24 +241,25 @@ func main() {
 			}()
 		}
 
-		go func() {
-			log.Printf("listen on port %s\n", utils.ApiPort)
-			if err := httpDataServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatal(err)
-			}
-		}()
-
-		if all || *updateFlag {
-			ticker := time.NewTicker(1 * time.Minute)
-			go AutoUpdate(updaterDone, &server.Indexed, &server.Version, ticker, updateDb, updateSearchIndex)
-
-			go server.RenderVectorImages(updateMountImagesDone, "mount")
-			go server.RenderVectorImages(updateItemImagesDone, "item")
+		//go func() {
+		log.Printf("listen on port %s\n", utils.ApiPort)
+		if err := httpDataServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
 		}
+		//}()
+		/*
+			if all || *updateFlag {
+				ticker := time.NewTicker(1 * time.Minute)
+				go AutoUpdate(updaterDone, &server.Indexed, &server.Version, ticker, updateDb, updateSearchIndex)
+
+				go server.RenderVectorImages(updateMountImagesDone, "mount")
+				go server.RenderVectorImages(updateItemImagesDone, "item")
+			}
+		*/
 	}
 
 	if all || *serveFlag {
-		Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex, updateMountImagesDone, updateItemImagesDone) // block and wait for signal, handle db updates
+		//Hook(all || *updateFlag, updaterDone, updateDb, updateSearchIndex, updateMountImagesDone, updateItemImagesDone) // block and wait for signal, handle db updates
 	}
 
 	if !*serveFlag && *genFlag {
