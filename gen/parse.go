@@ -3,6 +3,7 @@ package gen
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/dofusdude/ankabuffer"
 	"github.com/dofusdude/api/update"
 	"github.com/dofusdude/api/utils"
 	"log"
@@ -111,7 +112,7 @@ func Parse() {
 	mappedItems = nil
 }
 
-func DownloadMountImageWorker(files map[string]interface{}, workerSlice []JSONGameMount) {
+func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JSONGameMount) {
 	wg := sync.WaitGroup{}
 
 	for _, mount := range workerSlice {
@@ -143,9 +144,8 @@ func DownloadMountImageWorker(files map[string]interface{}, workerSlice []JSONGa
 	wg.Wait()
 }
 
-func DownloadMountsImages(mounts *JSONGameData, hashJson map[string]interface{}, worker int) {
-	main := hashJson["main"].(map[string]interface{})
-	files := main["files"].(map[string]interface{})
+func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, worker int) {
+	files := hashJson.Fragments["main"].Files
 
 	arr := utils.Values(mounts.Mounts)
 	workerSlices := utils.PartitionSlice(arr, worker)

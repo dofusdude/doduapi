@@ -2,6 +2,7 @@ package update
 
 import (
 	"fmt"
+	"github.com/dofusdude/ankabuffer"
 	"github.com/dofusdude/api/utils"
 	"io"
 	"log"
@@ -198,14 +199,13 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	}
 }
 
-func DownloadHashImageFileInJson(files map[string]interface{}, hashFile HashFile) error {
-	file := files[hashFile.Filename].(map[string]interface{})
-	hashFile.Hash = file["hash"].(string)
+func DownloadHashImageFileInJson(files map[string]ankabuffer.File, hashFile HashFile) error {
+	hashFile.Hash = files[hashFile.Filename].Hash
 	err := DownloadHashFile(hashFile)
 	return err
 }
 
-func DownloadHashFileInJson(files map[string]interface{}, hashFile HashFile, destDirRel string, fileType string) error {
+func DownloadHashFileInJson(files map[string]ankabuffer.File, hashFile HashFile, destDirRel string, fileType string) error {
 	err := DownloadHashImageFileInJson(files, hashFile)
 	if err != nil {
 		return err

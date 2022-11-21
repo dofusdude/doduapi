@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/dofusdude/ankabuffer"
 	"github.com/emirpasic/gods/maps/treebidimap"
 	gutils "github.com/emirpasic/gods/utils"
 	"github.com/go-redis/redis/v9"
@@ -27,7 +28,7 @@ var (
 	ApiPort             string
 	ApiScheme           string
 	DockerMountDataPath string
-	FileHashes          map[string]interface{}
+	FileHashes          *ankabuffer.Manifest
 	MeiliHost           string
 	MeiliKey            string
 	PrometheusEnabled   bool
@@ -41,35 +42,28 @@ var (
 
 var currentWd string
 
-func GetDofusFileHashesJson(version string) (map[string]interface{}, error) {
+func GetDofusFileHashesJson(version string) (*ankabuffer.Manifest, error) {
 	var gameVersionType string
 	if IsBeta {
 		gameVersionType = "beta"
 	} else {
 		gameVersionType = "main"
 	}
-	gameHashesUrl := fmt.Sprintf("https://launcher.cdn.ankama.com/dofus/releases/%s/windows/%s.json", gameVersionType, version)
+	gameHashesUrl := fmt.Sprintf("https://cytrus.cdn.ankama.com/dofus/releases/%s/windows/%s.manifest", gameVersionType, version)
 	hashResponse, err := http.Get(gameHashesUrl)
 	if err != nil {
 		log.Println(err)
-		return map[string]interface{}{}, err
+		return nil, err
 	}
 
 	hashBody, err := io.ReadAll(hashResponse.Body)
 	if err != nil {
 		log.Println(err)
-		return map[string]interface{}{}, err
+		return nil, err
 	}
 
-	var hashJson map[string]interface{}
-	err = json.Unmarshal(hashBody, &hashJson)
-	if err != nil {
-		log.Println(err)
-		return map[string]interface{}{}, err
-	}
-
-	FileHashes = hashJson
-	return hashJson, nil
+	FileHashes = ankabuffer.ParseManifest(hashBody)
+	return FileHashes, nil
 }
 
 type VersionT struct {
@@ -319,7 +313,7 @@ func PersistElements(path string) error {
 }
 
 func GetLatestLauncherVersion() string {
-	versionResponse, err := http.Get("https://launcher.cdn.ankama.com/cytrus.json")
+	versionResponse, err := http.Get("https://cytrus.cdn.ankama.com/cytrus.json")
 	if err != nil {
 		log.Fatalln(err)
 	}

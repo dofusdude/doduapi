@@ -2,15 +2,15 @@ package update
 
 import (
 	"fmt"
+	"github.com/dofusdude/ankabuffer"
 	"log"
 	"os"
 	"os/exec"
 	"sync"
 )
 
-func DownloadImagesLauncher(hashJson map[string]interface{}) error {
-	main := hashJson["main"].(map[string]interface{})
-	files := main["files"].(map[string]interface{})
+func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
+	files := hashJson.Fragments["main"].Files
 
 	wg := sync.WaitGroup{}
 

@@ -1,12 +1,12 @@
 package update
 
 import (
+	"github.com/dofusdude/ankabuffer"
 	"sync"
 )
 
-func DownloadItems(hashJson map[string]interface{}) {
-	main := hashJson["main"].(map[string]interface{})
-	files := main["files"].(map[string]interface{})
+func DownloadItems(hashJson *ankabuffer.Manifest) {
+	files := hashJson.Fragments["main"].Files
 
 	var wg sync.WaitGroup
 
