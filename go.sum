@@ -73,6 +73,14 @@ github.com/docker/go-units v0.4.0 h1:3uh0PgVws3nIA0Q+MwDC8yjEPf9zjRfZZWXZYDct3Tw
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/dofusdude/ankabuffer v0.0.0-20221121100545-a2857706d25c h1:KHgg64gksQ1ZXqP8FawCeNDek5mKeIaY5mtblp17tdE=
 github.com/dofusdude/ankabuffer v0.0.0-20221121100545-a2857706d25c/go.mod h1:kopikjHiR4OOhNtjAFYuNkEouYEh2I+9ZftDI9/UGhA=
+github.com/dofusdude/ankabuffer v0.0.1 h1:CHTxFvYIT5KykzHgqw/DHRwbOGHSaWoR8cT+MMerR1o=
+github.com/dofusdude/ankabuffer v0.0.1/go.mod h1:kopikjHiR4OOhNtjAFYuNkEouYEh2I+9ZftDI9/UGhA=
+github.com/dofusdude/ankabuffer v0.0.2 h1:w6WoBC43H9YVsz1SF+Aq0MNWuGcEM0wwqyHfXqlJYL0=
+github.com/dofusdude/ankabuffer v0.0.2/go.mod h1:kopikjHiR4OOhNtjAFYuNkEouYEh2I+9ZftDI9/UGhA=
+github.com/dofusdude/ankabuffer v0.0.3 h1:KGRzFpJOgFJ6fUk0yPFV/nVPGjqYzCrYoOJYavkpp3g=
+github.com/dofusdude/ankabuffer v0.0.3/go.mod h1:thGiWt9q3jQ9HXF4toodro2t9cPSECFALSeVq2CEphg=
+github.com/dofusdude/ankabuffer v0.0.4 h1:H2hRDdGIELxj2k1wY/cMzdT8tA0nrg46Ot2BO299H8Q=
+github.com/dofusdude/ankabuffer v0.0.4/go.mod h1:thGiWt9q3jQ9HXF4toodro2t9cPSECFALSeVq2CEphg=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=

@@ -112,7 +112,7 @@ func Parse() {
 	mappedItems = nil
 }
 
-func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JSONGameMount) {
+func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
 	wg := sync.WaitGroup{}
 
 	for _, mount := range workerSlice {
@@ -122,10 +122,7 @@ func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JS
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.png", mountId)
 			image.FriendlyName = fmt.Sprintf("data/img/mount/%d.png", mountId)
-			err := update.DownloadHashImageFileInJson(files, image)
-			if err != nil {
-				fmt.Println(err)
-			}
+			update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "", false)
 		}(mount.Id, &wg)
 
 		wg.Add(1)
@@ -134,10 +131,7 @@ func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JS
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.swf", mountId)
 			image.FriendlyName = fmt.Sprintf("data/vector/mount/%d.swf", mountId)
-			err := update.DownloadHashImageFileInJson(files, image)
-			if err != nil {
-				fmt.Println(err)
-			}
+			update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "", false)
 		}(mount.Id, &wg)
 	}
 
@@ -145,8 +139,6 @@ func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JS
 }
 
 func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, worker int) {
-	files := hashJson.Fragments["main"].Files
-
 	arr := utils.Values(mounts.Mounts)
 	workerSlices := utils.PartitionSlice(arr, worker)
 
@@ -155,7 +147,7 @@ func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, w
 		wg.Add(1)
 		go func(workerSlice []JSONGameMount) {
 			defer wg.Done()
-			DownloadMountImageWorker(files, workerSlice)
+			DownloadMountImageWorker(hashJson, "main", workerSlice)
 		}(workerSlice)
 	}
 	wg.Wait()

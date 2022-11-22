@@ -38,11 +38,12 @@ var (
 	LastUpdate          time.Time
 	RedisHost           string
 	RedisPassword       string
+	PythonPath          string
 )
 
 var currentWd string
 
-func GetDofusFileHashesJson(version string) (*ankabuffer.Manifest, error) {
+func GetReleaseManifest(version string) (*ankabuffer.Manifest, error) {
 	var gameVersionType string
 	if IsBeta {
 		gameVersionType = "beta"
@@ -63,6 +64,10 @@ func GetDofusFileHashesJson(version string) (*ankabuffer.Manifest, error) {
 	}
 
 	FileHashes = ankabuffer.ParseManifest(hashBody)
+
+	marshalledBytes, _ := json.MarshalIndent(FileHashes, "", "  ")
+	os.WriteFile("data/manifest.json", marshalledBytes, os.ModePerm)
+
 	return FileHashes, nil
 }
 
@@ -148,6 +153,13 @@ func ReadEnvs() {
 		promEnables = ""
 	}
 
+	pythonPath, ok := os.LookupEnv("PYTHON_PATH")
+	if !ok {
+		pythonPath = "/usr/bin/python3"
+	}
+
+	PythonPath = pythonPath
+
 	PrometheusEnabled = strings.ToLower(promEnables) == "true"
 
 	fileServer, ok := os.LookupEnv("FILESERVER")
@@ -159,7 +171,7 @@ func ReadEnvs() {
 
 	isBeta, ok := os.LookupEnv("IS_BETA")
 	if !ok {
-		isBeta = "false"
+		isBeta = "true" // TODO default to "false"
 	}
 
 	IsBeta = strings.ToLower(isBeta) == "true"

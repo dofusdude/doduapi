@@ -194,7 +194,7 @@ func main() {
 
 	if all || *parseFlag || *genFlag {
 		if !*updateFlag || *genFlag { // need hashfile first for mount images
-			_, err := utils.GetDofusFileHashesJson(utils.GetCurrentVersion())
+			_, err := utils.GetReleaseManifest(utils.GetCurrentVersion())
 			if err != nil {
 				log.Fatal(err)
 			}

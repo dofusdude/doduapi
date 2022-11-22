@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -34,7 +36,7 @@ func DownloadUpdatesIfAvailable(force bool) error {
 	CleanUp()
 	utils.CreateDataDirectoryStructure()
 
-	hashJson, err := utils.GetDofusFileHashesJson(version)
+	hashJson, err := utils.GetReleaseManifest(version)
 	if err != nil {
 		return err
 	}
@@ -69,6 +71,26 @@ func DownloadUpdatesIfAvailable(force bool) error {
 	}
 
 	return nil
+}
+
+func DownloadBundle(bundleHash string) ([]byte, error) {
+	url := fmt.Sprintf("https://cytrus.cdn.ankama.com/dofus/bundles/%s/%s", bundleHash[0:2], bundleHash)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("bundle %s status %d", bundleHash, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func DownloadFile(filepath string, url string) error {
@@ -188,7 +210,7 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	outFile := strings.Replace(filename, fileType, "json", 1)
 	finalOutPath := fmt.Sprintf("%s/%s/%s", path, destDirRel, outFile)
 
-	err = exec.Command("/usr/local/bin/python3", absConvertCmd, absFilePath).Run()
+	err = exec.Command(utils.PythonPath, absConvertCmd, absFilePath).Run()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -199,18 +221,117 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	}
 }
 
-func DownloadHashImageFileInJson(files map[string]ankabuffer.File, hashFile HashFile) error {
-	hashFile.Hash = files[hashFile.Filename].Hash
-	err := DownloadHashFile(hashFile)
-	return err
-}
-
-func DownloadHashFileInJson(files map[string]ankabuffer.File, hashFile HashFile, destDirRel string, fileType string) error {
-	err := DownloadHashImageFileInJson(files, hashFile)
-	if err != nil {
-		return err
+func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) {
+	var filesToDownload []ankabuffer.File
+	for i, file := range toDownload {
+		filesToDownload = append(filesToDownload, manifest.Fragments[fragment].Files[file.Filename])
+		toDownload[i].Hash = manifest.Fragments[fragment].Files[file.Filename].Hash
 	}
-	Unpack(hashFile.FriendlyName, destDirRel, fileType)
 
-	return nil
+	bundles := ankabuffer.GetNeededBundles(filesToDownload)
+
+	if len(bundles) == 0 {
+		log.Println("No files to download")
+		return
+	}
+
+	bundlesMap := ankabuffer.GetBundleHashMap(manifest)
+
+	type DownloadedBundle struct {
+		BundleHash string
+		Data       []byte
+	}
+
+	bundleData := make(chan DownloadedBundle, len(bundles))
+
+	for _, bundle := range bundles {
+		go func(bundleHash string, data chan DownloadedBundle) {
+			bundleData, err := DownloadBundle(bundleHash)
+			if err != nil {
+				log.Fatal(err)
+				return
+			}
+			res := DownloadedBundle{BundleHash: bundleHash, Data: bundleData}
+			data <- res
+		}(bundle, bundleData)
+	}
+
+	bundlesBuffer := make(map[string]DownloadedBundle)
+
+	for i := 0; i < len(bundles); i++ {
+		bundle := <-bundleData
+		bundlesBuffer[bundle.BundleHash] = <-bundleData
+	}
+
+	var wg sync.WaitGroup
+	for i, file := range filesToDownload {
+		wg.Add(1)
+		go func(file ankabuffer.File, bundlesBuffer map[string]DownloadedBundle, relDir string, i int) {
+			defer wg.Done()
+			var fileData []byte
+
+			if file.Chunks == nil { // file is not chunked
+				for _, bundle := range bundlesBuffer {
+					for _, chunk := range bundlesMap[bundle.BundleHash].Chunks {
+						if chunk.Hash == file.Hash {
+							fileData = bundle.Data[chunk.Offset : chunk.Offset+chunk.Size]
+							break
+						}
+					}
+					if fileData != nil {
+						break
+					}
+				}
+			} else { // file is chunked
+				type ChunkData struct {
+					Data   []byte
+					Offset int64
+					Size   int64
+				}
+				var chunksData []ChunkData
+				for _, chunk := range file.Chunks { // all chunks of the file
+					for _, bundle := range bundlesBuffer { // search in downloaded bundles for the chunk
+						foundChunk := false
+						for _, bundleChunk := range bundlesMap[bundle.BundleHash].Chunks { // each chunk of the searched bundle could be a chunk of the file
+							if bundleChunk.Hash == chunk.Hash {
+								foundChunk = true
+								if len(bundle.Data) < int(bundleChunk.Offset+bundleChunk.Size) {
+									log.Fatal("bundle data is too small", bundleChunk.Offset, bundleChunk.Size, len(bundle.Data), bundle.BundleHash, bundleChunk.Hash)
+									//bundle data is too small 24842 21742063 243 6630b4be6b4bb75b5094153ad11e1db3047dc6 c59256166a885120574637785df120d2273a95c4
+									//  bundle data is too small 67999 0 243 2d202014979e1b18f7eb328c3c90c025fc37cee 9e1930b6481e6064b059a1e821bb793ee1d2b9d2
+									return
+								}
+
+								chunksData = append(chunksData, ChunkData{Data: bundle.Data[bundleChunk.Offset : bundleChunk.Offset+bundleChunk.Size], Offset: chunk.Offset, Size: chunk.Size})
+							}
+						}
+						if foundChunk {
+							break
+						}
+					}
+				}
+				sort.Slice(chunksData, func(i, j int) bool {
+					return chunksData[i].Offset < chunksData[j].Offset
+				})
+				for _, chunk := range chunksData {
+					fileData = append(fileData, chunk.Data...)
+				}
+			}
+
+			if err := os.WriteFile(fmt.Sprintf("%s/%s", relDir, toDownload[i].Filename), fileData, 0644); err != nil {
+				log.Println(err)
+				return
+			}
+
+			if unpack {
+				Unpack(toDownload[i].FriendlyName, relDir, filepath.Ext(toDownload[i].FriendlyName)[1:])
+				err := os.Remove(toDownload[i].FriendlyName)
+				if err != nil {
+					log.Println(err)
+				}
+			}
+		}(file, bundlesBuffer, relDir, i)
+	}
+
+	wg.Wait()
 }
