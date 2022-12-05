@@ -122,16 +122,17 @@ func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, wo
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.png", mountId)
 			image.FriendlyName = fmt.Sprintf("data/img/mount/%d.png", mountId)
-			update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "", false)
+			_ = update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "data/img/mount", true)
 		}(mount.Id, &wg)
 
+		//  Missing bundle for content/gfx/mounts/162.swf
 		wg.Add(1)
 		go func(mountId int, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.swf", mountId)
 			image.FriendlyName = fmt.Sprintf("data/vector/mount/%d.swf", mountId)
-			update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "", false)
+			_ = update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "data/vector/mount", false)
 		}(mount.Id, &wg)
 	}
 

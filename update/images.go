@@ -18,7 +18,9 @@ func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
 		{Filename: "content/gfx/items/bitmap1_2.d2p", FriendlyName: "data/tmp/bitmaps_4.d2p"},
 	}
 
-	DownloadUnpackFiles(hashJson, "main", fileNames, "", false)
+	if err := DownloadUnpackFiles(hashJson, "main", fileNames, "", false); err != nil {
+		return err
+	}
 
 	path, err := os.Getwd()
 	if err != nil {
@@ -40,7 +42,9 @@ func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
 		{Filename: "content/gfx/items/vector1_2.d2p", FriendlyName: "data/tmp/vector/vector_4.d2p"},
 	}
 
-	DownloadUnpackFiles(hashJson, "main", fileNames, "", false)
+	if err := DownloadUnpackFiles(hashJson, "main", fileNames, "", false); err != nil {
+		return err
+	}
 
 	inPath = fmt.Sprintf("%s/data/tmp/vector", path)
 	outPath = fmt.Sprintf("%s/data/vector/item", path)

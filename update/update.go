@@ -46,19 +46,25 @@ func DownloadUpdatesIfAvailable(force bool) error {
 	waitGrp.Add(1)
 	go func() {
 		defer waitGrp.Done()
-		DownloadLanguages(hashJson)
+		if err := DownloadLanguages(hashJson); err != nil {
+			log.Println(err)
+		}
 	}()
 
 	waitGrp.Add(1)
 	go func() {
 		defer waitGrp.Done()
-		DownloadImagesLauncher(hashJson)
+		if err := DownloadImagesLauncher(hashJson); err != nil {
+			log.Println(err)
+		}
 	}()
 
 	waitGrp.Add(1)
 	go func() {
 		defer waitGrp.Done()
-		DownloadItems(hashJson)
+		if err := DownloadItems(hashJson); err != nil {
+			log.Println(err)
+		}
 	}()
 
 	waitGrp.Wait()
@@ -91,28 +97,6 @@ func DownloadBundle(bundleHash string) ([]byte, error) {
 	}
 
 	return body, nil
-}
-
-func DownloadFile(filepath string, url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
-func DownloadHashFile(file HashFile) error {
-	url := fmt.Sprintf("https://launcher.cdn.ankama.com/dofus/hashes/%s/%s", file.Hash[:2], file.Hash)
-	return DownloadFile(file.FriendlyName, url)
 }
 
 func CleanUp() {
@@ -164,10 +148,10 @@ func CleanUp() {
 
 	for _, file := range files {
 		absPath := fmt.Sprintf("%s/%s", path, file)
-		os.Remove(absPath)
+		_ = os.Remove(absPath)
 	}
 
-	//os.RemoveAll("data/img") // keep old images, override with new ones, else they are unavaible while updating
+	//os.RemoveAll("data/img") // keep old images, override with new ones, else they are unavailable while updating
 	//os.Mkdir("data/img", 0755)
 
 	meiliClient := utils.CreateMeiliClient()
@@ -189,14 +173,18 @@ func CleanUp() {
 			log.Println(err)
 		}
 
-		meiliClient.WaitForTask(taskItemsDelete.TaskUID)
-		meiliClient.WaitForTask(taskSetsDelete.TaskUID)
-		meiliClient.WaitForTask(taskMountsDelete.TaskUID)
+		_, _ = meiliClient.WaitForTask(taskItemsDelete.TaskUID)
+		_, _ = meiliClient.WaitForTask(taskSetsDelete.TaskUID)
+		_, _ = meiliClient.WaitForTask(taskMountsDelete.TaskUID)
 	}
 
 }
 
 func Unpack(filepath string, destDirRel string, fileType string) {
+	if fileType == "png" || fileType == "jpg" || fileType == "jpeg" {
+		return // no need to unpack images files
+	}
+
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -212,7 +200,7 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 
 	err = exec.Command(utils.PythonPath, absConvertCmd, absFilePath).Run()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Unpacking failed: %s %s %s with Error %v", utils.PythonPath, absConvertCmd, absFilePath, err)
 	}
 
 	err = os.Rename(absOutPath, finalOutPath)
@@ -221,7 +209,7 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	}
 }
 
-func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) {
+func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) error {
 	var filesToDownload []ankabuffer.File
 	for i, file := range toDownload {
 		filesToDownload = append(filesToDownload, manifest.Fragments[fragment].Files[file.Filename])
@@ -230,9 +218,14 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 
 	bundles := ankabuffer.GetNeededBundles(filesToDownload)
 
+	if len(bundles) == 0 && len(filesToDownload) > 0 {
+		for _, file := range filesToDownload {
+			log.Println("Missing bundle for", file.Name)
+		}
+	}
+
 	if len(bundles) == 0 {
-		log.Println("No files to download")
-		return
+		return nil
 	}
 
 	bundlesMap := ankabuffer.GetBundleHashMap(manifest)
@@ -242,26 +235,25 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 		Data       []byte
 	}
 
-	bundleData := make(chan DownloadedBundle, len(bundles))
-
-	for _, bundle := range bundles {
-		go func(bundleHash string, data chan DownloadedBundle) {
-			bundleData, err := DownloadBundle(bundleHash)
-			if err != nil {
-				log.Fatal(err)
-				return
-			}
-			res := DownloadedBundle{BundleHash: bundleHash, Data: bundleData}
-			data <- res
-		}(bundle, bundleData)
-	}
-
+	//bundleData := make(chan DownloadedBundle, len(bundles))
 	bundlesBuffer := make(map[string]DownloadedBundle)
 
-	for i := 0; i < len(bundles); i++ {
-		bundle := <-bundleData
-		bundlesBuffer[bundle.BundleHash] = <-bundleData
+	for _, bundle := range bundles {
+		//go func(bundleHash string, data chan DownloadedBundle) {
+		bundleData, err := DownloadBundle(bundle)
+		if err != nil {
+			return fmt.Errorf("could not download bundle %s: %s", bundle, err)
+		}
+		res := DownloadedBundle{BundleHash: bundle, Data: bundleData}
+		bundlesBuffer[bundle] = res
+		//}(bundle, bundleData)
 	}
+	/*
+		for i := 0; i < len(bundles); i++ {
+			bundle := <-bundleData
+			log.Println("Downloaded bundle", i, "of", len(bundles))
+			bundlesBuffer[bundle.BundleHash] = <-bundleData
+		}*/
 
 	var wg sync.WaitGroup
 	for i, file := range filesToDownload {
@@ -270,7 +262,7 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 			defer wg.Done()
 			var fileData []byte
 
-			if file.Chunks == nil { // file is not chunked
+			if file.Chunks == nil || len(file.Chunks) == 0 { // file is not chunked
 				for _, bundle := range bundlesBuffer {
 					for _, chunk := range bundlesMap[bundle.BundleHash].Chunks {
 						if chunk.Hash == file.Hash {
@@ -296,10 +288,8 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 							if bundleChunk.Hash == chunk.Hash {
 								foundChunk = true
 								if len(bundle.Data) < int(bundleChunk.Offset+bundleChunk.Size) {
-									log.Fatal("bundle data is too small", bundleChunk.Offset, bundleChunk.Size, len(bundle.Data), bundle.BundleHash, bundleChunk.Hash)
-									//bundle data is too small 24842 21742063 243 6630b4be6b4bb75b5094153ad11e1db3047dc6 c59256166a885120574637785df120d2273a95c4
-									//  bundle data is too small 67999 0 243 2d202014979e1b18f7eb328c3c90c025fc37cee 9e1930b6481e6064b059a1e821bb793ee1d2b9d2
-									return
+									err := fmt.Errorf("bundle data is too small. Bundle offset/size: %d/%d, BundleData length: %d, BundleHash: %s, BundleChunkHash: %s", bundleChunk.Offset, bundleChunk.Size, len(bundle.Data), bundle.BundleHash, bundleChunk.Hash)
+									log.Fatal(err)
 								}
 
 								chunksData = append(chunksData, ChunkData{Data: bundle.Data[bundleChunk.Offset : bundleChunk.Offset+bundleChunk.Size], Offset: chunk.Offset, Size: chunk.Size})
@@ -313,13 +303,27 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 				sort.Slice(chunksData, func(i, j int) bool {
 					return chunksData[i].Offset < chunksData[j].Offset
 				})
+				//if len(chunksData) > 1 {
+				//	log.Println("Chunks data", chunksData[0].Offset, chunksData[len(chunksData)-1].Offset)
+				//}
 				for _, chunk := range chunksData {
 					fileData = append(fileData, chunk.Data...)
 				}
 			}
 
-			if err := os.WriteFile(fmt.Sprintf("%s/%s", relDir, toDownload[i].Filename), fileData, 0644); err != nil {
-				log.Println(err)
+			if fileData == nil || len(fileData) == 0 {
+				err := fmt.Errorf("file data is empty %s", file.Hash)
+				log.Fatal(err)
+			}
+
+			fp, err := os.Create(toDownload[i].FriendlyName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer fp.Close()
+			_, err = fp.Write(fileData)
+			if err != nil {
+				log.Fatal(err)
 				return
 			}
 
@@ -334,4 +338,5 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 	}
 
 	wg.Wait()
+	return nil
 }

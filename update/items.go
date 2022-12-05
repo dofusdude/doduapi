@@ -1,10 +1,8 @@
 package update
 
-import (
-	"github.com/dofusdude/ankabuffer"
-)
+import "github.com/dofusdude/ankabuffer"
 
-func DownloadItems(hashJson *ankabuffer.Manifest) {
+func DownloadItems(hashJson *ankabuffer.Manifest) error {
 	fileNames := []HashFile{
 		{Filename: "data/common/Items.d2o", FriendlyName: "data/tmp/items.d2o"},
 		{Filename: "data/common/ItemTypes.d2o", FriendlyName: "data/tmp/item_types.d2o"},
@@ -34,5 +32,5 @@ func DownloadItems(hashJson *ankabuffer.Manifest) {
 		{Filename: "data/common/BonusesCriterions.d2o", FriendlyName: "data/tmp/bonus_criterions.d2o"},
 	}
 
-	DownloadUnpackFiles(hashJson, "main", fileNames, "data", true)
+	return DownloadUnpackFiles(hashJson, "main", fileNames, "data", true)
 }
