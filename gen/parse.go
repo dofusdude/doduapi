@@ -38,7 +38,9 @@ func Parse() {
 	}
 
 	// ----
+	log.Println("mapping items...")
 	mappedItems := MapItems(gameData, languageData)
+	log.Println("saving items...")
 	out, err := os.Create("data/MAPPED_ITEMS.json")
 	if err != nil {
 		fmt.Println(err)
@@ -54,7 +56,9 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
+	log.Println("\nmapping mounts...")
 	mappedMounts := MapMounts(gameData, languageData)
+	log.Println("saving mounts...")
 	out, err = os.Create("data/MAPPED_MOUNTS.json")
 	if err != nil {
 		fmt.Println(err)
@@ -70,7 +74,9 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
+	log.Println("\nmapping sets...")
 	mappedSets := MapSets(gameData, languageData)
+	log.Println("saving sets...")
 	outSets, err := os.Create("data/MAPPED_SETS.json")
 	if err != nil {
 		fmt.Println(err)
@@ -86,7 +92,9 @@ func Parse() {
 	outSets.Write(outSetsBytes)
 
 	// ----
+	log.Println("\nmapping recipes...")
 	mappedRecipes := MapRecipes(gameData, languageData)
+	log.Println("saving recipes...")
 	outRecipes, err := os.Create("data/MAPPED_RECIPES.json")
 	if err != nil {
 		fmt.Println(err)
