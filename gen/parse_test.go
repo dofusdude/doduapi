@@ -12,8 +12,7 @@ var testingData *JSONGameData
 func setup() {
 	_testingLangs := ParseRawLanguages()
 	testingLangs = &_testingLangs
-	_testingData := ParseRawData()
-	testingData = &_testingData
+	testingData = ParseRawData()
 }
 
 func TestMain(m *testing.M) {
