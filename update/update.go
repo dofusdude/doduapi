@@ -44,28 +44,28 @@ func DownloadUpdatesIfAvailable(force bool) error {
 	var waitGrp sync.WaitGroup
 
 	waitGrp.Add(1)
-	go func() {
+	go func(manifest *ankabuffer.Manifest) {
 		defer waitGrp.Done()
-		if err := DownloadLanguages(hashJson); err != nil {
+		if err := DownloadLanguages(manifest); err != nil {
 			log.Println(err)
 		}
-	}()
+	}(&hashJson)
 
 	waitGrp.Add(1)
-	go func() {
+	go func(manifest *ankabuffer.Manifest) {
 		defer waitGrp.Done()
-		if err := DownloadImagesLauncher(hashJson); err != nil {
+		if err := DownloadImagesLauncher(manifest); err != nil {
 			log.Println(err)
 		}
-	}()
+	}(&hashJson)
 
 	waitGrp.Add(1)
-	go func() {
+	go func(manifest *ankabuffer.Manifest) {
 		defer waitGrp.Done()
-		if err := DownloadItems(hashJson); err != nil {
+		if err := DownloadItems(manifest); err != nil {
 			log.Println(err)
 		}
-	}()
+	}(&hashJson)
 
 	waitGrp.Wait()
 
@@ -209,7 +209,7 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	}
 }
 
-func DownloadUnpackFiles(manifest ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) error {
+func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) error {
 	var filesToDownload []ankabuffer.File
 	for i, file := range toDownload {
 		filesToDownload = append(filesToDownload, manifest.Fragments[fragment].Files[file.Filename])
@@ -228,7 +228,7 @@ func DownloadUnpackFiles(manifest ankabuffer.Manifest, fragment string, toDownlo
 		return nil
 	}
 
-	bundlesMap := ankabuffer.GetBundleHashMap(&manifest)
+	bundlesMap := ankabuffer.GetBundleHashMap(manifest)
 
 	type DownloadedBundle struct {
 		BundleHash string

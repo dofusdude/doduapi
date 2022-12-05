@@ -22,11 +22,11 @@ func Parse() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go func() {
+	go func(data *JSONGameData) {
 		defer wg.Done()
-		DownloadMountsImages(gameData, utils.FileHashes, 6)
-		log.Println("... downloaded mounts images")
-	}()
+		DownloadMountsImages(data, &utils.FileHashes, 6)
+		log.Println("... downloaded mount images")
+	}(gameData)
 
 	languageData := ParseRawLanguages()
 	log.Println("... completed parsing in", time.Since(startParsing))
@@ -125,7 +125,7 @@ func Parse() {
 	mappedItems = nil
 }
 
-func DownloadMountImageWorker(manifest ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
+func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
 	wg := sync.WaitGroup{}
 
 	for _, mount := range workerSlice {
@@ -152,7 +152,7 @@ func DownloadMountImageWorker(manifest ankabuffer.Manifest, fragment string, wor
 	wg.Wait()
 }
 
-func DownloadMountsImages(mounts *JSONGameData, hashJson ankabuffer.Manifest, worker int) {
+func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, worker int) {
 	arr := utils.Values(mounts.Mounts)
 	workerSlices := utils.PartitionSlice(arr, worker)
 

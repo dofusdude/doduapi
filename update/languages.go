@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func DownloadLanguageFiles(hashJson ankabuffer.Manifest, lang string) error {
+func DownloadLanguageFiles(hashJson *ankabuffer.Manifest, lang string) error {
 	var langFile HashFile
 	langFile.Filename = "data/i18n/i18n_" + lang + ".d2i"
 	langFile.FriendlyName = "data/tmp/lang_" + lang + ".d2i"
@@ -15,7 +15,7 @@ func DownloadLanguageFiles(hashJson ankabuffer.Manifest, lang string) error {
 	return nil
 }
 
-func DownloadLanguages(hashJson ankabuffer.Manifest) error {
+func DownloadLanguages(hashJson *ankabuffer.Manifest) error {
 	langs := []string{"fr", "en", "es", "de", "it", "pt"}
 
 	fail := make(chan error)
