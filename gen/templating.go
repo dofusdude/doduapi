@@ -109,7 +109,7 @@ func ElementFromCode(code string) int {
 	return -1
 }
 
-func ConditionWithOperator(input string, operator string, langs map[string]LangDict, out *MappedMultilangCondition, data JSONGameData) bool {
+func ConditionWithOperator(input string, operator string, langs *map[string]LangDict, out *MappedMultilangCondition, data *JSONGameData) bool {
 	partSplit := strings.Split(input, operator)
 	rawElement := ElementFromCode(partSplit[0])
 	if rawElement == -1 {
@@ -118,7 +118,7 @@ func ConditionWithOperator(input string, operator string, langs map[string]LangD
 	out.Element = strings.ToLower(partSplit[0])
 	out.Value, _ = strconv.Atoi(partSplit[1])
 	for _, lang := range utils.Languages {
-		langStr := (langs)[lang].Texts[rawElement]
+		langStr := (*langs)[lang].Texts[rawElement]
 
 		if lang == "en" {
 			if langStr == "()" {
@@ -142,11 +142,11 @@ func ConditionWithOperator(input string, operator string, langs map[string]LangD
 			langStr = strings.ReplaceAll(langStr, "%1", fmt.Sprint(intVal+1))
 			break
 		case 335357: // anderes gebiet als %1
-			langStr = strings.ReplaceAll(langStr, "%1", (langs)[lang].Texts[data.areas[out.Value].NameId])
+			langStr = strings.ReplaceAll(langStr, "%1", (*langs)[lang].Texts[data.areas[out.Value].NameId])
 			break
 		case 637212: // reittier %1
 		case 644231:
-			langStr = strings.ReplaceAll(langStr, "%1", (langs)[lang].Texts[data.Mounts[out.Value].NameId])
+			langStr = strings.ReplaceAll(langStr, "%1", (*langs)[lang].Texts[data.Mounts[out.Value].NameId])
 			break
 		}
 
@@ -156,8 +156,8 @@ func ConditionWithOperator(input string, operator string, langs map[string]LangD
 	return true
 }
 
-// returns info about min max with in. -1 "only_min", -2 "no_min_max"
-func NumSpellFormatter(input string, lang string, gameData JSONGameData, langs map[string]LangDict, diceNum *int, diceSide *int, value *int, effectNameId int, numIsSpell bool, useDice bool) (string, int) {
+// NumSpellFormatter returns info about min max with in. -1 "only_min", -2 "no_min_max"
+func NumSpellFormatter(input string, lang string, gameData *JSONGameData, langs *map[string]LangDict, diceNum *int, diceSide *int, value *int, effectNameId int, numIsSpell bool, useDice bool) (string, int) {
 	diceNumIsSpellId := *diceNum > 12000 || numIsSpell
 	diceSideIsSpellId := *diceSide > 12000
 	valueIsSpellId := *value > 12000
@@ -191,7 +191,7 @@ func NumSpellFormatter(input string, lang string, gameData JSONGameData, langs m
 	for _, extracted := range num1Entries {
 		var diceNumStr string
 		if diceNumIsSpellId {
-			diceNumStr = (langs)[lang].Texts[gameData.spells[*diceNum].NameId]
+			diceNumStr = (*langs)[lang].Texts[gameData.spells[*diceNum].NameId]
 		} else {
 			diceNumStr = fmt.Sprint(*diceNum)
 		}
@@ -203,7 +203,7 @@ func NumSpellFormatter(input string, lang string, gameData JSONGameData, langs m
 	} else {
 		var diceSideStr string
 		if diceSideIsSpellId {
-			diceSideStr = (langs)[lang].Texts[gameData.spells[*diceSide].NameId]
+			diceSideStr = (*langs)[lang].Texts[gameData.spells[*diceSide].NameId]
 			//del_dice_side = true
 		} else {
 			diceSideStr = fmt.Sprint(*diceSide)
@@ -213,7 +213,7 @@ func NumSpellFormatter(input string, lang string, gameData JSONGameData, langs m
 
 	var valueStr string
 	if valueIsSpellId {
-		valueStr = (langs)[lang].Texts[gameData.spells[*value].NameId]
+		valueStr = (*langs)[lang].Texts[gameData.spells[*value].NameId]
 		delValue = true
 	} else {
 		valueStr = fmt.Sprint(*value)

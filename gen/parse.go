@@ -42,9 +42,9 @@ func Parse() {
 	// ----
 	log.Println("mapping items...")
 
-	runtime.GC() // stop the world and clean up
+	runtime.GC()
 
-	mappedItems := MapItems(gameData, languageData)
+	mappedItems := MapItems(&gameData, &languageData)
 	log.Println("saving items...")
 	out, err := os.Create("data/MAPPED_ITEMS.json")
 	if err != nil {
@@ -62,7 +62,7 @@ func Parse() {
 
 	// ----
 	log.Println("mapping mounts...")
-	mappedMounts := MapMounts(gameData, languageData)
+	mappedMounts := MapMounts(&gameData, &languageData)
 	log.Println("saving mounts...")
 	out, err = os.Create("data/MAPPED_MOUNTS.json")
 	if err != nil {
@@ -80,7 +80,7 @@ func Parse() {
 
 	// ----
 	log.Println("mapping sets...")
-	mappedSets := MapSets(gameData, languageData)
+	mappedSets := MapSets(&gameData, &languageData)
 	log.Println("saving sets...")
 	outSets, err := os.Create("data/MAPPED_SETS.json")
 	if err != nil {
@@ -98,7 +98,7 @@ func Parse() {
 
 	// ----
 	log.Println("mapping recipes...")
-	mappedRecipes := MapRecipes(gameData)
+	mappedRecipes := MapRecipes(&gameData)
 	log.Println("saving recipes...")
 	outRecipes, err := os.Create("data/MAPPED_RECIPES.json")
 	if err != nil {
@@ -167,7 +167,7 @@ func DownloadMountsImages(mounts JSONGameData, hashJson ankabuffer.Manifest, wor
 	wg.Wait()
 }
 
-func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs map[string]LangDict) [][]MappedMultilangEffect {
+func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs *map[string]LangDict) [][]MappedMultilangEffect {
 	var mappedAllEffects [][]MappedMultilangEffect
 	for _, effects := range allEffects {
 		var mappedEffects []MappedMultilangEffect
@@ -177,7 +177,7 @@ func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, 
 			currentEffect := data.effects[effect.EffectId]
 
 			numIsSpell := false
-			if strings.Contains((langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
+			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
 				numIsSpell = true
 			}
 
@@ -195,7 +195,7 @@ func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, 
 
 				value = effect.Value
 
-				effectName := (langs)[lang].Texts[currentEffect.DescriptionId]
+				effectName := (*langs)[lang].Texts[currentEffect.DescriptionId]
 				if lang == "de" {
 					effectName = strings.ReplaceAll(effectName, "{~ps}{~zs}", "") // german has error in template
 				}
@@ -205,7 +205,7 @@ func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, 
 					mappedEffect.Min = 0
 					mappedEffect.Max = 0
 					mappedEffect.Type[lang] = effectName
-					mappedEffect.Templated[lang] = (langs)[lang].Texts[data.spells[diceNum].DescriptionId]
+					mappedEffect.Templated[lang] = (*langs)[lang].Texts[data.spells[diceNum].DescriptionId]
 					mappedEffect.IsMeta = true
 				} else {
 					templatedName := effectName
@@ -262,7 +262,7 @@ func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, 
 	return mappedAllEffects
 }
 
-func ParseCondition(condition string, langs map[string]LangDict, data JSONGameData) []MappedMultilangCondition {
+func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGameData) []MappedMultilangCondition {
 	if condition == "" || (!strings.Contains(condition, "&") && !strings.Contains(condition, "<") && !strings.Contains(condition, ">")) {
 		return nil
 	}
@@ -667,54 +667,8 @@ func ParseLangDict(langCode string) LangDict {
 
 func ParseRawLanguages() map[string]LangDict {
 	data := make(map[string]LangDict)
-
-	chanDe := make(chan LangDict)
-	go func() {
-		chanDe <- ParseLangDict("de")
-	}()
-
-	chanEn := make(chan LangDict)
-	go func() {
-		chanEn <- ParseLangDict("en")
-	}()
-
-	chanFr := make(chan LangDict)
-	go func() {
-		chanFr <- ParseLangDict("fr")
-	}()
-
-	chanEs := make(chan LangDict)
-	go func() {
-		chanEs <- ParseLangDict("es")
-	}()
-
-	chanPt := make(chan LangDict)
-	go func() {
-		chanPt <- ParseLangDict("pt")
-	}()
-
-	chanIt := make(chan LangDict)
-	go func() {
-		chanIt <- ParseLangDict("it")
-	}()
-
-	data["de"] = <-chanDe
-	close(chanDe)
-
-	data["en"] = <-chanEn
-	close(chanEn)
-
-	data["fr"] = <-chanFr
-	close(chanFr)
-
-	data["es"] = <-chanEs
-	close(chanEs)
-
-	data["pt"] = <-chanPt
-	close(chanPt)
-
-	data["it"] = <-chanIt
-	close(chanIt)
-
+	for _, lang := range utils.Languages {
+		data[lang] = ParseLangDict(lang)
+	}
 	return data
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testingLangs *map[string]LangDict
-var testingData *JSONGameData
+var testingLangs map[string]LangDict
+var testingData JSONGameData
 
 func setup() {
 	testingLangs = ParseRawLanguages()
