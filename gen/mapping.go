@@ -91,21 +91,20 @@ func MapMounts(data JSONGameData, langs map[string]LangDict) []MappedMultilangMo
 func MapItems(data JSONGameData, langs map[string]LangDict) []MappedMultilangItem {
 	var mappedItems []MappedMultilangItem
 	for _, item := range data.Items {
+		if (langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 || (langs)["de"].Texts[data.ItemTypes[item.TypeId].NameId] == "Hauptquesten" {
+			continue // skip unnamed and hidden items
+		}
+
 		var mappedItem MappedMultilangItem
 		mappedItem.AnkamaId = item.Id
 		mappedItem.Level = item.Level
 		mappedItem.Pods = item.Pods
 		mappedItem.Image = fmt.Sprintf("https://static.ankama.com/dofus/www/game/items/200/%d.png", item.IconId)
 
-		mappedItem.Name = make(map[string]string)
-		mappedItem.Description = make(map[string]string)
-		mappedItem.Type.Name = make(map[string]string)
+		mappedItem.Name = make(map[string]string, len(utils.Languages))
+		mappedItem.Description = make(map[string]string, len(utils.Languages))
+		mappedItem.Type.Name = make(map[string]string, len(utils.Languages))
 		mappedItem.IconId = item.IconId
-
-		// skip unnamed and hidden items
-		if (langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 {
-			continue
-		}
 
 		for _, lang := range utils.Languages {
 			mappedItem.Name[lang] = (langs)[lang].Texts[item.NameId]
@@ -116,10 +115,6 @@ func MapItems(data JSONGameData, langs map[string]LangDict) []MappedMultilangIte
 		mappedItem.Type.Id = item.TypeId
 		mappedItem.Type.SuperTypeId = data.ItemTypes[item.TypeId].SuperTypeId
 		mappedItem.Type.CategoryId = data.ItemTypes[item.TypeId].CategoryId
-
-		if mappedItem.Type.Name["de"] == "Hauptquesten" {
-			continue
-		}
 
 		mappedItem.UsedInRecipes = item.RecipeIds
 		allEffectResult := ParseEffects(data, [][]JSONGameItemPossibleEffect{item.PossibleEffects}, langs)
@@ -136,56 +131,11 @@ func MapItems(data JSONGameData, langs map[string]LangDict) []MappedMultilangIte
 		mappedItem.HasParentSet = item.ItemSetId != -1
 		if mappedItem.HasParentSet {
 			mappedItem.ParentSet.Id = item.ItemSetId
-			mappedItem.ParentSet.Name = make(map[string]string)
+			mappedItem.ParentSet.Name = make(map[string]string, len(utils.Languages))
 			for _, lang := range utils.Languages {
 				mappedItem.ParentSet.Name[lang] = (langs)[lang].Texts[data.Sets[item.ItemSetId].NameId]
 			}
 		}
-		/*
-			if item.Range != 0 {
-				var mappedRange MappedMultilangCharacteristic
-				mappedRange.Element = make(map[string]string)
-				mappedRange.Value = make(map[string]string)
-				for _, lang := range Languages {
-					mappedRange.Element[lang] = (*langs)[lang].Texts[501940] // id effect "range"
-					mappedRange.Value[lang] = fmt.Sprint(item.Range)
-				}
-				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedRange)
-			}
-
-			if item.CriticalHitBonus != 0 {
-				var mappedCrits MappedMultilangCharacteristic
-				mappedCrits.Element = make(map[string]string)
-				mappedCrits.Value = make(map[string]string)
-				for _, lang := range Languages {
-					mappedCrits.Element[lang] = (*langs)[lang].Texts[66291] // id effect "CH"
-					mappedCrits.Value[lang] = fmt.Sprint(item.CriticalHitBonus)
-				}
-				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedCrits)
-			}
-
-			if item.ApCost != 0 {
-				var mappedAp MappedMultilangCharacteristic
-				mappedAp.Element = make(map[string]string)
-				mappedAp.Value = make(map[string]string)
-				for _, lang := range Languages {
-					mappedAp.Element[lang] = (*langs)[lang].Texts[261993] // id effect "AP"
-					mappedAp.Value[lang] = fmt.Sprint(item.ApCost)
-				}
-				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedAp)
-			}
-
-			if item.MaxCastPerTurn != 0 {
-				var mappedCastPerTurn MappedMultilangCharacteristic
-				mappedCastPerTurn.Element = make(map[string]string)
-				mappedCastPerTurn.Value = make(map[string]string)
-				for _, lang := range Languages {
-					mappedCastPerTurn.Element[lang] = (*langs)[lang].Texts[335272] // id effect "use per turn"
-					mappedCastPerTurn.Value[lang] = fmt.Sprint(item.MaxCastPerTurn)
-				}
-				mappedItem.Characteristics = append(mappedItem.Characteristics, mappedCastPerTurn)
-			}
-		*/
 
 		if len(item.Criteria) != 0 && mappedItem.Type.Name["de"] != "Verwendbarer Temporis-Gegenstand" { // TODO Temporis got some weird conditions, need to play to see the items, not in normal game
 			mappedItem.Conditions = ParseCondition(item.Criteria, langs, data)
