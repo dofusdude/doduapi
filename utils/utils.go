@@ -171,7 +171,7 @@ func ReadEnvs() {
 
 	isBeta, ok := os.LookupEnv("IS_BETA")
 	if !ok {
-		isBeta = "true" // TODO default to "false"
+		isBeta = "false"
 	}
 
 	IsBeta = strings.ToLower(isBeta) == "true"
