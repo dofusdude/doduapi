@@ -8,6 +8,7 @@ import (
 	"github.com/dofusdude/api/utils"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ func Parse() {
 	go func() {
 		defer wg.Done()
 		DownloadMountsImages(gameData, utils.FileHashes, 6)
+		log.Println("... downloaded mounts images")
 	}()
 
 	languageData := ParseRawLanguages()
@@ -39,6 +41,9 @@ func Parse() {
 
 	// ----
 	log.Println("mapping items...")
+
+	runtime.GC() // stop the world and clean up
+
 	mappedItems := MapItems(gameData, languageData)
 	log.Println("saving items...")
 	out, err := os.Create("data/MAPPED_ITEMS.json")
