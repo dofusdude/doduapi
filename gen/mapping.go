@@ -5,7 +5,7 @@ import (
 	"github.com/dofusdude/api/utils"
 )
 
-func MapSets(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangSet {
+func MapSets(data JSONGameData, langs map[string]LangDict) []MappedMultilangSet {
 	var mappedSets []MappedMultilangSet
 	for _, set := range data.Sets {
 		var mappedSet MappedMultilangSet
@@ -23,7 +23,7 @@ func MapSets(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangS
 
 		mappedSet.Name = make(map[string]string)
 		for _, lang := range utils.Languages {
-			mappedSet.Name[lang] = (*langs)[lang].Texts[set.NameId]
+			mappedSet.Name[lang] = (langs)[lang].Texts[set.NameId]
 		}
 
 		mappedSets = append(mappedSets, mappedSet)
@@ -33,10 +33,10 @@ func MapSets(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangS
 		return nil
 	}
 
-	return &mappedSets
+	return mappedSets
 }
 
-func MapRecipes(data *JSONGameData, langs *map[string]LangDict) []MappedMultilangRecipe {
+func MapRecipes(data JSONGameData) []MappedMultilangRecipe {
 	var mappedRecipes []MappedMultilangRecipe
 	for _, recipe := range data.Recipes {
 		ingredientCount := len(recipe.IngredientIds)
@@ -59,7 +59,7 @@ func MapRecipes(data *JSONGameData, langs *map[string]LangDict) []MappedMultilan
 	return mappedRecipes
 }
 
-func MapMounts(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangMount {
+func MapMounts(data JSONGameData, langs map[string]LangDict) []MappedMultilangMount {
 	var mappedMounts []MappedMultilangMount
 	for _, mount := range data.Mounts {
 		var mappedMount MappedMultilangMount
@@ -69,8 +69,8 @@ func MapMounts(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilan
 		mappedMount.FamilyName = make(map[string]string)
 
 		for _, lang := range utils.Languages {
-			mappedMount.Name[lang] = (*langs)[lang].Texts[mount.NameId]
-			mappedMount.FamilyName[lang] = (*langs)[lang].Texts[data.Mount_familys[mount.FamilyId].NameId]
+			mappedMount.Name[lang] = (langs)[lang].Texts[mount.NameId]
+			mappedMount.FamilyName[lang] = (langs)[lang].Texts[data.Mount_familys[mount.FamilyId].NameId]
 		}
 
 		allEffectResult := ParseEffects(data, [][]JSONGameItemPossibleEffect{mount.Effects}, langs)
@@ -85,10 +85,10 @@ func MapMounts(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilan
 		return nil
 	}
 
-	return &mappedMounts
+	return mappedMounts
 }
 
-func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilangItem {
+func MapItems(data JSONGameData, langs map[string]LangDict) []MappedMultilangItem {
 	var mappedItems []MappedMultilangItem
 	for _, item := range data.Items {
 		var mappedItem MappedMultilangItem
@@ -103,14 +103,14 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 		mappedItem.IconId = item.IconId
 
 		// skip unnamed and hidden items
-		if (*langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 {
+		if (langs)["fr"].Texts[item.NameId] == "" || data.ItemTypes[item.TypeId].CategoryId == 4 {
 			continue
 		}
 
 		for _, lang := range utils.Languages {
-			mappedItem.Name[lang] = (*langs)[lang].Texts[item.NameId]
-			mappedItem.Description[lang] = (*langs)[lang].Texts[item.DescriptionId]
-			mappedItem.Type.Name[lang] = (*langs)[lang].Texts[data.ItemTypes[item.TypeId].NameId]
+			mappedItem.Name[lang] = (langs)[lang].Texts[item.NameId]
+			mappedItem.Description[lang] = (langs)[lang].Texts[item.DescriptionId]
+			mappedItem.Type.Name[lang] = (langs)[lang].Texts[data.ItemTypes[item.TypeId].NameId]
 		}
 
 		mappedItem.Type.Id = item.TypeId
@@ -138,7 +138,7 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 			mappedItem.ParentSet.Id = item.ItemSetId
 			mappedItem.ParentSet.Name = make(map[string]string)
 			for _, lang := range utils.Languages {
-				mappedItem.ParentSet.Name[lang] = (*langs)[lang].Texts[data.Sets[item.ItemSetId].NameId]
+				mappedItem.ParentSet.Name[lang] = (langs)[lang].Texts[data.Sets[item.ItemSetId].NameId]
 			}
 		}
 		/*
@@ -196,5 +196,5 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) *[]MappedMultilang
 		mappedItem.DropMonsterIds = item.DropMonsterIds
 	}
 
-	return &mappedItems
+	return mappedItems
 }

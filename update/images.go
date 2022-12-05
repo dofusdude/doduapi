@@ -8,7 +8,7 @@ import (
 	"os/exec"
 )
 
-func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
+func DownloadImagesLauncher(hashJson ankabuffer.Manifest) error {
 
 	fileNames := []HashFile{
 		{Filename: "content/gfx/items/bitmap0.d2p", FriendlyName: "data/tmp/bitmaps_0.d2p"},

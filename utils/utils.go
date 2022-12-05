@@ -28,7 +28,7 @@ var (
 	ApiPort             string
 	ApiScheme           string
 	DockerMountDataPath string
-	FileHashes          *ankabuffer.Manifest
+	FileHashes          ankabuffer.Manifest
 	MeiliHost           string
 	MeiliKey            string
 	PrometheusEnabled   bool
@@ -43,7 +43,7 @@ var (
 
 var currentWd string
 
-func GetReleaseManifest(version string) (*ankabuffer.Manifest, error) {
+func GetReleaseManifest(version string) (ankabuffer.Manifest, error) {
 	var gameVersionType string
 	if IsBeta {
 		gameVersionType = "beta"
@@ -54,16 +54,16 @@ func GetReleaseManifest(version string) (*ankabuffer.Manifest, error) {
 	hashResponse, err := http.Get(gameHashesUrl)
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return ankabuffer.Manifest{}, err
 	}
 
 	hashBody, err := io.ReadAll(hashResponse.Body)
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return ankabuffer.Manifest{}, err
 	}
 
-	FileHashes = ankabuffer.ParseManifest(hashBody)
+	FileHashes = *ankabuffer.ParseManifest(hashBody)
 
 	marshalledBytes, _ := json.MarshalIndent(FileHashes, "", "  ")
 	os.WriteFile("data/manifest.json", marshalledBytes, os.ModePerm)

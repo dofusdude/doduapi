@@ -209,7 +209,7 @@ func Unpack(filepath string, destDirRel string, fileType string) {
 	}
 }
 
-func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) error {
+func DownloadUnpackFiles(manifest ankabuffer.Manifest, fragment string, toDownload []HashFile, relDir string, unpack bool) error {
 	var filesToDownload []ankabuffer.File
 	for i, file := range toDownload {
 		filesToDownload = append(filesToDownload, manifest.Fragments[fragment].Files[file.Filename])
@@ -228,7 +228,7 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 		return nil
 	}
 
-	bundlesMap := ankabuffer.GetBundleHashMap(manifest)
+	bundlesMap := ankabuffer.GetBundleHashMap(&manifest)
 
 	type DownloadedBundle struct {
 		BundleHash string

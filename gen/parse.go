@@ -47,7 +47,7 @@ func Parse() {
 	}
 	defer out.Close()
 
-	outBytes, err := json.MarshalIndent(*mappedItems, "", "    ")
+	outBytes, err := json.MarshalIndent(mappedItems, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -56,7 +56,7 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
-	log.Println("\nmapping mounts...")
+	log.Println("mapping mounts...")
 	mappedMounts := MapMounts(gameData, languageData)
 	log.Println("saving mounts...")
 	out, err = os.Create("data/MAPPED_MOUNTS.json")
@@ -65,7 +65,7 @@ func Parse() {
 	}
 	defer out.Close()
 
-	outBytes, err = json.MarshalIndent(*mappedMounts, "", "    ")
+	outBytes, err = json.MarshalIndent(mappedMounts, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -74,7 +74,7 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
-	log.Println("\nmapping sets...")
+	log.Println("mapping sets...")
 	mappedSets := MapSets(gameData, languageData)
 	log.Println("saving sets...")
 	outSets, err := os.Create("data/MAPPED_SETS.json")
@@ -83,7 +83,7 @@ func Parse() {
 	}
 	defer outSets.Close()
 
-	outSetsBytes, err := json.MarshalIndent(*mappedSets, "", "    ")
+	outSetsBytes, err := json.MarshalIndent(mappedSets, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -92,8 +92,8 @@ func Parse() {
 	outSets.Write(outSetsBytes)
 
 	// ----
-	log.Println("\nmapping recipes...")
-	mappedRecipes := MapRecipes(gameData, languageData)
+	log.Println("mapping recipes...")
+	mappedRecipes := MapRecipes(gameData)
 	log.Println("saving recipes...")
 	outRecipes, err := os.Create("data/MAPPED_RECIPES.json")
 	if err != nil {
@@ -120,7 +120,7 @@ func Parse() {
 	mappedItems = nil
 }
 
-func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
+func DownloadMountImageWorker(manifest ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
 	wg := sync.WaitGroup{}
 
 	for _, mount := range workerSlice {
@@ -147,7 +147,7 @@ func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, wo
 	wg.Wait()
 }
 
-func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, worker int) {
+func DownloadMountsImages(mounts JSONGameData, hashJson ankabuffer.Manifest, worker int) {
 	arr := utils.Values(mounts.Mounts)
 	workerSlices := utils.PartitionSlice(arr, worker)
 
@@ -162,7 +162,7 @@ func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, w
 	wg.Wait()
 }
 
-func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs *map[string]LangDict) [][]MappedMultilangEffect {
+func ParseEffects(data JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs map[string]LangDict) [][]MappedMultilangEffect {
 	var mappedAllEffects [][]MappedMultilangEffect
 	for _, effects := range allEffects {
 		var mappedEffects []MappedMultilangEffect
@@ -172,7 +172,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 			currentEffect := data.effects[effect.EffectId]
 
 			numIsSpell := false
-			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
+			if strings.Contains((langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
 				numIsSpell = true
 			}
 
@@ -190,7 +190,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 
 				value = effect.Value
 
-				effectName := (*langs)[lang].Texts[currentEffect.DescriptionId]
+				effectName := (langs)[lang].Texts[currentEffect.DescriptionId]
 				if lang == "de" {
 					effectName = strings.ReplaceAll(effectName, "{~ps}{~zs}", "") // german has error in template
 				}
@@ -200,7 +200,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 					mappedEffect.Min = 0
 					mappedEffect.Max = 0
 					mappedEffect.Type[lang] = effectName
-					mappedEffect.Templated[lang] = (*langs)[lang].Texts[data.spells[diceNum].DescriptionId]
+					mappedEffect.Templated[lang] = (langs)[lang].Texts[data.spells[diceNum].DescriptionId]
 					mappedEffect.IsMeta = true
 				} else {
 					templatedName := effectName
@@ -257,7 +257,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 	return mappedAllEffects
 }
 
-func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGameData) []MappedMultilangCondition {
+func ParseCondition(condition string, langs map[string]LangDict, data JSONGameData) []MappedMultilangCondition {
 	if condition == "" || (!strings.Contains(condition, "&") && !strings.Contains(condition, "<") && !strings.Contains(condition, ">")) {
 		return nil
 	}
@@ -305,7 +305,7 @@ func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGame
 	return outs
 }
 
-func ParseRawData() *JSONGameData {
+func ParseRawData() JSONGameData {
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -614,7 +614,7 @@ func ParseRawData() *JSONGameData {
 	data.npcs = <-npcsChan
 	close(npcsChan)
 
-	return &data
+	return data
 }
 
 func ParseLangDict(langCode string) LangDict {
@@ -660,7 +660,7 @@ func ParseLangDict(langCode string) LangDict {
 	return data
 }
 
-func ParseRawLanguages() *map[string]LangDict {
+func ParseRawLanguages() map[string]LangDict {
 	data := make(map[string]LangDict)
 
 	chanDe := make(chan LangDict)
@@ -711,5 +711,5 @@ func ParseRawLanguages() *map[string]LangDict {
 	data["it"] = <-chanIt
 	close(chanIt)
 
-	return &data
+	return data
 }
