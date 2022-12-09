@@ -194,7 +194,7 @@ func main() {
 
 	if all || *parseFlag || *genFlag {
 		if !*updateFlag || *genFlag { // need hashfile first for mount images
-			_, err := utils.GetDofusFileHashesJson(utils.GetCurrentVersion())
+			_, err := utils.GetReleaseManifest(utils.GetCurrentVersion())
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -202,7 +202,10 @@ func main() {
 		gen.Parse()
 	}
 
-	if all || *genFlag {
+	if all || *genFlag || *serveFlag {
+		if *serveFlag && !all && !*genFlag {
+			_ = utils.LoadPersistedElements("db/elements.json")
+		}
 		server.Db, server.Indexes = gen.IndexApiData(indexWaiterDone, &server.Indexed, &server.Version)
 		server.Version.Search = !server.Version.Search
 		server.Version.MemDb = !server.Version.MemDb

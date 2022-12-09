@@ -8,3 +8,4 @@ redis_db:
     - "6379:6379"
   volumes:
     - ./redis-volume:/data
+  restart: unless-stopped

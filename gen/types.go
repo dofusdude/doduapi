@@ -119,6 +119,10 @@ type JSONGameSpellType struct {
 	ShortNameId int `json:"shortNameId"`
 }
 
+func (i JSONGameSpellType) GetID() int {
+	return i.Id
+}
+
 type JSONGameSpell struct {
 	Id            int   `json:"id"`
 	NameId        int   `json:"nameId"`
@@ -127,6 +131,10 @@ type JSONGameSpell struct {
 	Order         int   `json:"order"`
 	IconId        int   `json:"iconId"`
 	SpellLevels   []int `json:"spellLevels"`
+}
+
+func (i JSONGameSpell) GetID() int {
+	return i.Id
 }
 
 type JSONLangDict struct {
@@ -146,6 +154,10 @@ type JSONGameRecipe struct {
 	SkillId       int   `json:"skillId"`
 }
 
+func (i JSONGameRecipe) GetID() int {
+	return i.Id
+}
+
 type LangDict struct {
 	Texts    map[int]string
 	IdText   map[int]int
@@ -157,6 +169,10 @@ type JSONGameBonus struct {
 	Id            int   `json:"id"`
 	CriterionsIds []int `json:"criterionsIds"`
 	Type          int   `json:"type"`
+}
+
+func (i JSONGameBonus) GetID() int {
+	return i.Id
 }
 
 type JSONGameAreaBounds struct {
@@ -177,6 +193,10 @@ type JSONGameArea struct {
 	HasWorldMap     bool               `json:"hasWorldMap"`
 }
 
+func (i JSONGameArea) GetID() int {
+	return i.Id
+}
+
 type JSONGameItemPossibleEffect struct {
 	EffectId     int `json:"effectId"`
 	MinimumValue int `json:"diceNum"`
@@ -190,6 +210,10 @@ type JSONGameItemPossibleEffect struct {
 	Duration      int `json:"duration"`
 }
 
+func (i JSONGameItemPossibleEffect) GetID() int {
+	return i.EffectId
+}
+
 type JSONGameSet struct {
 	Id      int                            `json:"id"`
 	ItemIds []int                          `json:"items"`
@@ -197,11 +221,19 @@ type JSONGameSet struct {
 	Effects [][]JSONGameItemPossibleEffect `json:"effects"`
 }
 
+func (i JSONGameSet) GetID() int {
+	return i.Id
+}
+
 type JSONGameItemType struct {
 	Id          int `json:"id"`
 	NameId      int `json:"nameId"`
 	SuperTypeId int `json:"superTypeId"`
 	CategoryId  int `json:"categoryId"`
+}
+
+func (i JSONGameItemType) GetID() int {
+	return i.Id
 }
 
 type JSONGameEffect struct {
@@ -215,6 +247,10 @@ type JSONGameEffect struct {
 	TheoreticalDescriptionId int  `json:"theoreticalDescriptionId"`
 	BonusType                int  `json:"bonusType"` // -1,0,+1
 	ElementId                int  `json:"elementId"`
+}
+
+func (i JSONGameEffect) GetID() int {
+	return i.Id
 }
 
 type JSONGameItem struct {
@@ -242,11 +278,19 @@ type JSONGameItem struct {
 	CriticalHitProbability int                          `json:"criticalHitProbability"`
 }
 
+func (i JSONGameItem) GetID() int {
+	return i.Id
+}
+
 type JSONGameBreed struct {
 	Id            int `json:"id"`
 	ShortNameId   int `json:"shortNameId"`
 	LongNameId    int `json:"longNameId"`
 	DescriptionId int `json:"descriptionId"`
+}
+
+func (i JSONGameBreed) GetID() int {
+	return i.Id
 }
 
 type JSONGameMount struct {
@@ -256,10 +300,18 @@ type JSONGameMount struct {
 	Effects  []JSONGameItemPossibleEffect `json:"effects"`
 }
 
+func (i JSONGameMount) GetID() int {
+	return i.Id
+}
+
 type JSONGameMountFamily struct {
 	Id      int    `json:"id"`
 	NameId  int    `json:"nameId"`
 	HeadUri string `json:"headUri"`
+}
+
+func (i JSONGameMountFamily) GetID() int {
+	return i.Id
 }
 
 type JSONGameNPC struct {
@@ -270,18 +322,22 @@ type JSONGameNPC struct {
 	Actions        []int   `json:"actions"`
 }
 
+func (i JSONGameNPC) GetID() int {
+	return i.Id
+}
+
 type JSONGameData struct {
-	Items         map[int]JSONGameItem
-	Sets          map[int]JSONGameSet
-	ItemTypes     map[int]JSONGameItemType
-	effects       map[int]JSONGameEffect
-	bonuses       map[int]JSONGameBonus
-	Recipes       map[int]JSONGameRecipe
-	spells        map[int]JSONGameSpell
-	spellTypes    map[int]JSONGameSpellType
-	areas         map[int]JSONGameArea
-	Mounts        map[int]JSONGameMount
-	classes       map[int]JSONGameBreed
-	Mount_familys map[int]JSONGameMountFamily
-	npcs          map[int]JSONGameNPC
+	Items        map[int]JSONGameItem
+	Sets         map[int]JSONGameSet
+	ItemTypes    map[int]JSONGameItemType
+	effects      map[int]JSONGameEffect
+	bonuses      map[int]JSONGameBonus
+	Recipes      map[int]JSONGameRecipe
+	spells       map[int]JSONGameSpell
+	spellTypes   map[int]JSONGameSpellType
+	areas        map[int]JSONGameArea
+	Mounts       map[int]JSONGameMount
+	classes      map[int]JSONGameBreed
+	MountFamilys map[int]JSONGameMountFamily
+	npcs         map[int]JSONGameNPC
 }

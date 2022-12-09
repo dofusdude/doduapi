@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -122,6 +123,8 @@ func Router() chi.Router {
 			})
 		})
 	})
+
+	log.Println("Router initialized")
 
 	return r
 }

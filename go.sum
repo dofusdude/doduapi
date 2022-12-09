@@ -71,8 +71,10 @@ github.com/docker/go-connections v0.4.0 h1:El9xVISelRB7BuFusrZozjnkIM5YnzCViNKoh
 github.com/docker/go-connections v0.4.0/go.mod h1:Gbd7IOopHjR8Iph03tsViu4nIes5XhDvyHbTtUxmeec=
 github.com/docker/go-units v0.4.0 h1:3uh0PgVws3nIA0Q+MwDC8yjEPf9zjRfZZWXZYDct3Tw=
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
-github.com/dofusdude/ankabuffer v0.0.0-20221121100545-a2857706d25c h1:KHgg64gksQ1ZXqP8FawCeNDek5mKeIaY5mtblp17tdE=
-github.com/dofusdude/ankabuffer v0.0.0-20221121100545-a2857706d25c/go.mod h1:kopikjHiR4OOhNtjAFYuNkEouYEh2I+9ZftDI9/UGhA=
+github.com/dofusdude/ankabuffer v0.0.7 h1:2Da6PjylO9YJoBbn214cka6FWT6w6Jp+4whFUrTL3w4=
+github.com/dofusdude/ankabuffer v0.0.7/go.mod h1:thGiWt9q3jQ9HXF4toodro2t9cPSECFALSeVq2CEphg=
+github.com/dofusdude/ankabuffer v0.0.8 h1:sWcUweUA8MNSNBRStbb+LxxiI21gJckWhpLX21TEWuI=
+github.com/dofusdude/ankabuffer v0.0.8/go.mod h1:thGiWt9q3jQ9HXF4toodro2t9cPSECFALSeVq2CEphg=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -131,8 +133,8 @@ github.com/golang/protobuf v1.5.2 h1:ROPKBNFfQgOUMifHyP+KYbvpjbdoFNs+aK7DXlji0Tw
 github.com/golang/protobuf v1.5.2/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiuN0vRsmY=
 github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
-github.com/google/flatbuffers v22.10.26+incompatible h1:z1QiaMyPu1x3Z6xf2u1dsLj1ZxicdGSeaLpCuIsQNZM=
-github.com/google/flatbuffers v22.10.26+incompatible/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv5+zNeJKJCa8=
+github.com/google/flatbuffers v22.11.23+incompatible h1:334TygA7iuxt0hoamawsM36xoui01YiouEZnr0qeFMI=
+github.com/google/flatbuffers v22.11.23+incompatible/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv5+zNeJKJCa8=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.3.1/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=

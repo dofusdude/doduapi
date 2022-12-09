@@ -31,6 +31,7 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 	if err != nil {
 		fmt.Println(err)
 	}
+	log.Println("loaded ", len(items), " items")
 
 	// --
 	file, err = os.ReadFile("data/MAPPED_SETS.json")
@@ -43,6 +44,8 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 		fmt.Println(err)
 	}
 
+	log.Println("loaded ", len(sets), " sets")
+
 	// --
 	file, err = os.ReadFile("data/MAPPED_RECIPES.json")
 	if err != nil {
@@ -53,6 +56,8 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 	if err != nil {
 		fmt.Println(err)
 	}
+	
+	log.Println("loaded ", len(recipes), " recipes")
 
 	// --
 	file, err = os.ReadFile("data/MAPPED_MOUNTS.json")
@@ -64,6 +69,8 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	log.Println("loaded ", len(mounts), " mounts")
 
 	startDatabaseIndex := time.Now()
 	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, indexed, version, done)

@@ -156,7 +156,7 @@ func ConditionWithOperator(input string, operator string, langs *map[string]Lang
 	return true
 }
 
-// returns info about min max with in. -1 "only_min", -2 "no_min_max"
+// NumSpellFormatter returns info about min max with in. -1 "only_min", -2 "no_min_max"
 func NumSpellFormatter(input string, lang string, gameData *JSONGameData, langs *map[string]LangDict, diceNum *int, diceSide *int, value *int, effectNameId int, numIsSpell bool, useDice bool) (string, int) {
 	diceNumIsSpellId := *diceNum > 12000 || numIsSpell
 	diceSideIsSpellId := *diceSide > 12000

@@ -10,7 +10,8 @@ var testingLangs *map[string]LangDict
 var testingData *JSONGameData
 
 func setup() {
-	testingLangs = ParseRawLanguages()
+	_testingLangs := ParseRawLanguages()
+	testingLangs = &_testingLangs
 	testingData = ParseRawData()
 }
 

@@ -25,6 +25,7 @@ services:
       - REDIS_HOST
       - REDIS_PASSWORD
       - IS_BETA
+      - PYTHON_PATH=/usr/local/bin/python3
     user: ${CURRENT_UID}
     restart: unless-stopped
   meili:

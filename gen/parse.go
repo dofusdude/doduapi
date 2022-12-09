@@ -8,6 +8,7 @@ import (
 	"github.com/dofusdude/api/utils"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,10 +22,11 @@ func Parse() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go func() {
+	go func(data *JSONGameData) {
 		defer wg.Done()
-		DownloadMountsImages(gameData, utils.FileHashes, 6)
-	}()
+		DownloadMountsImages(data, &utils.FileHashes, 6)
+		log.Println("... downloaded mount images")
+	}(gameData)
 
 	languageData := ParseRawLanguages()
 	log.Println("... completed parsing in", time.Since(startParsing))
@@ -38,14 +40,19 @@ func Parse() {
 	}
 
 	// ----
-	mappedItems := MapItems(gameData, languageData)
+	log.Println("mapping items...")
+
+	runtime.GC()
+
+	mappedItems := MapItems(gameData, &languageData)
+	log.Println("saving items...")
 	out, err := os.Create("data/MAPPED_ITEMS.json")
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer out.Close()
 
-	outBytes, err := json.MarshalIndent(*mappedItems, "", "    ")
+	outBytes, err := json.MarshalIndent(mappedItems, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -54,14 +61,16 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
-	mappedMounts := MapMounts(gameData, languageData)
+	log.Println("mapping mounts...")
+	mappedMounts := MapMounts(gameData, &languageData)
+	log.Println("saving mounts...")
 	out, err = os.Create("data/MAPPED_MOUNTS.json")
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer out.Close()
 
-	outBytes, err = json.MarshalIndent(*mappedMounts, "", "    ")
+	outBytes, err = json.MarshalIndent(mappedMounts, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -70,14 +79,16 @@ func Parse() {
 	out.Write(outBytes)
 
 	// ----
-	mappedSets := MapSets(gameData, languageData)
+	log.Println("mapping sets...")
+	mappedSets := MapSets(gameData, &languageData)
+	log.Println("saving sets...")
 	outSets, err := os.Create("data/MAPPED_SETS.json")
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer outSets.Close()
 
-	outSetsBytes, err := json.MarshalIndent(*mappedSets, "", "    ")
+	outSetsBytes, err := json.MarshalIndent(mappedSets, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -86,7 +97,9 @@ func Parse() {
 	outSets.Write(outSetsBytes)
 
 	// ----
-	mappedRecipes := MapRecipes(gameData, languageData)
+	log.Println("mapping recipes...")
+	mappedRecipes := MapRecipes(gameData)
+	log.Println("saving recipes...")
 	outRecipes, err := os.Create("data/MAPPED_RECIPES.json")
 	if err != nil {
 		fmt.Println(err)
@@ -112,7 +125,7 @@ func Parse() {
 	mappedItems = nil
 }
 
-func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JSONGameMount) {
+func DownloadMountImageWorker(manifest *ankabuffer.Manifest, fragment string, workerSlice []JSONGameMount) {
 	wg := sync.WaitGroup{}
 
 	for _, mount := range workerSlice {
@@ -122,22 +135,17 @@ func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JS
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.png", mountId)
 			image.FriendlyName = fmt.Sprintf("data/img/mount/%d.png", mountId)
-			err := update.DownloadHashImageFileInJson(files, image)
-			if err != nil {
-				fmt.Println(err)
-			}
+			_ = update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "data/img/mount", true)
 		}(mount.Id, &wg)
 
+		//  Missing bundle for content/gfx/mounts/162.swf
 		wg.Add(1)
 		go func(mountId int, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var image update.HashFile
 			image.Filename = fmt.Sprintf("content/gfx/mounts/%d.swf", mountId)
 			image.FriendlyName = fmt.Sprintf("data/vector/mount/%d.swf", mountId)
-			err := update.DownloadHashImageFileInJson(files, image)
-			if err != nil {
-				fmt.Println(err)
-			}
+			_ = update.DownloadUnpackFiles(manifest, fragment, []update.HashFile{image}, "data/vector/mount", false)
 		}(mount.Id, &wg)
 	}
 
@@ -145,8 +153,6 @@ func DownloadMountImageWorker(files map[string]ankabuffer.File, workerSlice []JS
 }
 
 func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, worker int) {
-	files := hashJson.Fragments["main"].Files
-
 	arr := utils.Values(mounts.Mounts)
 	workerSlices := utils.PartitionSlice(arr, worker)
 
@@ -155,7 +161,7 @@ func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, w
 		wg.Add(1)
 		go func(workerSlice []JSONGameMount) {
 			defer wg.Done()
-			DownloadMountImageWorker(files, workerSlice)
+			DownloadMountImageWorker(hashJson, "main", workerSlice)
 		}(workerSlice)
 	}
 	wg.Wait()
@@ -304,11 +310,35 @@ func ParseCondition(condition string, langs *map[string]LangDict, data *JSONGame
 	return outs
 }
 
-func ParseRawData() *JSONGameData {
+type HasId interface {
+	GetID() int
+}
+
+func ParseRawDataPart[T HasId](fileSource string, result chan map[int]T) {
 	path, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
 	}
+	dataPath := fmt.Sprintf("%s/data", path)
+
+	file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, fileSource))
+	if err != nil {
+		fmt.Print(err)
+	}
+	fileStr := utils.CleanJSON(string(file))
+	var fileJson []T
+	err = json.Unmarshal([]byte(fileStr), &fileJson)
+	if err != nil {
+		fmt.Println(err)
+	}
+	items := make(map[int]T)
+	for _, item := range fileJson {
+		items[item.GetID()] = item
+	}
+	result <- items
+}
+
+func ParseRawData() *JSONGameData {
 	var data JSONGameData
 	itemChan := make(chan map[int]JSONGameItem)
 	itemTypeChan := make(chan map[int]JSONGameItemType)
@@ -324,254 +354,44 @@ func ParseRawData() *JSONGameData {
 	mountFamilyChan := make(chan map[int]JSONGameMountFamily)
 	npcsChan := make(chan map[int]JSONGameNPC)
 
-	dataPath := fmt.Sprintf("%s/data", path)
-
-	// npcs
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "npcs.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameNPC
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameNPC)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		npcsChan <- items
+		ParseRawDataPart("npcs.json", npcsChan)
 	}()
-
-	// mount family
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "mount_family.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameMountFamily
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameMountFamily)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		mountFamilyChan <- items
+		ParseRawDataPart("mount_family.json", mountFamilyChan)
 	}()
-
-	// breeds
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "breeds.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameBreed
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameBreed)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		breedsChan <- items
+		ParseRawDataPart("breeds.json", breedsChan)
 	}()
-
-	// mounts
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "mounts.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameMount
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameMount)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		mountsChan <- items
+		ParseRawDataPart("mounts.json", mountsChan)
 	}()
-
-	// areas
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "areas.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameArea
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameArea)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		areasChan <- items
+		ParseRawDataPart("areas.json", areasChan)
 	}()
-
-	// spells
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "spells.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameSpell
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameSpell)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		spellsChan <- items
+		ParseRawDataPart("spell_types.json", spellTypesChan)
 	}()
-
-	// spell types
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "spell_types.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameSpellType
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameSpellType)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		spellTypesChan <- items
+		ParseRawDataPart("spells.json", spellsChan)
 	}()
-
-	// recipes
 	go func() {
-		file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "recipes.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		fileStr := utils.CleanJSON(string(file))
-		var fileJson []JSONGameRecipe
-		err = json.Unmarshal([]byte(fileStr), &fileJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameRecipe)
-		for _, item := range fileJson {
-			items[item.Id] = item
-		}
-		itemRecipesChang <- items
+		ParseRawDataPart("recipes.json", itemRecipesChang)
 	}()
-
-	// items
 	go func() {
-		itemsFile, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "items.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		itemsFileStr := utils.CleanJSON(string(itemsFile))
-		var itemsJson []JSONGameItem
-		err = json.Unmarshal([]byte(itemsFileStr), &itemsJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		items := make(map[int]JSONGameItem)
-		for _, item := range itemsJson {
-			items[item.Id] = item
-		}
-		itemChan <- items
+		ParseRawDataPart("items.json", itemChan)
 	}()
-
-	// item_types
 	go func() {
-		itemsTypeFile, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "item_types.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		itemTypesFileStr := utils.CleanJSON(string(itemsTypeFile))
-		var itemTypesJson []JSONGameItemType
-		err = json.Unmarshal([]byte(itemTypesFileStr), &itemTypesJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		itemTypes := make(map[int]JSONGameItemType)
-		for _, itemType := range itemTypesJson {
-			itemTypes[itemType.Id] = itemType
-		}
-		itemTypeChan <- itemTypes
+		ParseRawDataPart("item_types.json", itemTypeChan)
 	}()
-
-	// item_sets
 	go func() {
-		itemsSetsFile, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "item_sets.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		itemSetsFileStr := utils.CleanJSON(string(itemsSetsFile))
-		var setsJson []JSONGameSet
-		err = json.Unmarshal([]byte(itemSetsFileStr), &setsJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		sets := make(map[int]JSONGameSet)
-		for _, set := range setsJson {
-			sets[set.Id] = set
-		}
-
-		itemSetsChan <- sets
+		ParseRawDataPart("item_sets.json", itemSetsChan)
 	}()
-
-	// bonuses
 	go func() {
-		bonusesFile, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "bonuses.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		bonusesFileStr := utils.CleanJSON(string(bonusesFile))
-		var bonusesJson []JSONGameBonus
-		err = json.Unmarshal([]byte(bonusesFileStr), &bonusesJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		bonuses := make(map[int]JSONGameBonus)
-		for _, bonus := range bonusesJson {
-			bonuses[bonus.Id] = bonus
-		}
-		itemBonusesChan <- bonuses
+		ParseRawDataPart("bonuses.json", itemBonusesChan)
 	}()
-
-	// effects
 	go func() {
-		effectsFile, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, "effects.json"))
-		if err != nil {
-			fmt.Print(err)
-		}
-		effectsFileStr := utils.CleanJSON(string(effectsFile))
-		var effectsJson []JSONGameEffect
-		err = json.Unmarshal([]byte(effectsFileStr), &effectsJson)
-		if err != nil {
-			fmt.Println(err)
-		}
-		effects := make(map[int]JSONGameEffect)
-		for _, effect := range effectsJson {
-			effects[effect.Id] = effect
-		}
-		itemEffectsChan <- effects
+		ParseRawDataPart("effects.json", itemEffectsChan)
 	}()
 
 	data.Items = <-itemChan
@@ -607,7 +427,7 @@ func ParseRawData() *JSONGameData {
 	data.classes = <-breedsChan
 	close(breedsChan)
 
-	data.Mount_familys = <-mountFamilyChan
+	data.MountFamilys = <-mountFamilyChan
 	close(mountFamilyChan)
 
 	data.npcs = <-npcsChan
@@ -659,56 +479,10 @@ func ParseLangDict(langCode string) LangDict {
 	return data
 }
 
-func ParseRawLanguages() *map[string]LangDict {
+func ParseRawLanguages() map[string]LangDict {
 	data := make(map[string]LangDict)
-
-	chanDe := make(chan LangDict)
-	go func() {
-		chanDe <- ParseLangDict("de")
-	}()
-
-	chanEn := make(chan LangDict)
-	go func() {
-		chanEn <- ParseLangDict("en")
-	}()
-
-	chanFr := make(chan LangDict)
-	go func() {
-		chanFr <- ParseLangDict("fr")
-	}()
-
-	chanEs := make(chan LangDict)
-	go func() {
-		chanEs <- ParseLangDict("es")
-	}()
-
-	chanPt := make(chan LangDict)
-	go func() {
-		chanPt <- ParseLangDict("pt")
-	}()
-
-	chanIt := make(chan LangDict)
-	go func() {
-		chanIt <- ParseLangDict("it")
-	}()
-
-	data["de"] = <-chanDe
-	close(chanDe)
-
-	data["en"] = <-chanEn
-	close(chanEn)
-
-	data["fr"] = <-chanFr
-	close(chanFr)
-
-	data["es"] = <-chanEs
-	close(chanEs)
-
-	data["pt"] = <-chanPt
-	close(chanPt)
-
-	data["it"] = <-chanIt
-	close(chanIt)
-
-	return &data
+	for _, lang := range utils.Languages {
+		data[lang] = ParseLangDict(lang)
+	}
+	return data
 }
