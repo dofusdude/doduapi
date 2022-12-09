@@ -79,7 +79,7 @@ type MappedMultilangEffect struct {
 	Templated        map[string]string `json:"templated"`
 	ElementId        int               `json:"element_id"`
 	IsMeta           bool              `json:"is_meta"`
-	Active           bool              `json:"affects_target"`
+	Active           bool              `json:"active"`
 }
 
 type MappedMultilangItemType struct {
