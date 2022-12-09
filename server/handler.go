@@ -535,9 +535,26 @@ func ListCosmetics(w http.ResponseWriter, r *http.Request) {
 	ListItems("cosmetics", w, r)
 }
 
+func getLimitInBoundary(limitStr string) (int64, error) {
+	if limitStr == "" {
+		limitStr = "8"
+	}
+	var limit int
+	var err error
+	if limit, err = strconv.Atoi(limitStr); err != nil {
+		return 0, fmt.Errorf("invalid limit value")
+	}
+	if limit > 100 {
+		return 0, fmt.Errorf("limit value is too high")
+	}
+
+	return int64(limit), nil
+}
+
 // search
 
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
+	var err error
 	client := utils.CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
@@ -545,10 +562,15 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var searchLimit int64
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	familyName := strings.ToLower(r.URL.Query().Get("filter[family_name]"))
 
 	lang := r.Context().Value("lang").(string)
-	var maxSearchResults int64 = 8
 
 	index := client.Index(fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -559,11 +581,11 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 
 	if filterString == "" {
 		request = &meilisearch.SearchRequest{
-			Limit: maxSearchResults,
+			Limit: searchLimit,
 		}
 	} else {
 		request = &meilisearch.SearchRequest{
-			Limit:  maxSearchResults,
+			Limit:  searchLimit,
 			Filter: filterString,
 		}
 	}
@@ -625,24 +647,28 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var maxSearchResults int64 = 8
+	var searchLimit int64
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
 
 	if filterString == "" {
 		request = &meilisearch.SearchRequest{
-			Limit: maxSearchResults,
+			Limit: searchLimit,
 		}
 	} else {
 		request = &meilisearch.SearchRequest{
-			Limit:  maxSearchResults,
+			Limit:  searchLimit,
 			Filter: filterString,
 		}
 	}
 
 	request = &meilisearch.SearchRequest{
-		Limit: maxSearchResults,
+		Limit: searchLimit,
 	}
 
 	searchResp, err := index.Search(query, request)
@@ -703,7 +729,12 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	}
 
 	lang := r.Context().Value("lang").(string)
-	var maxSearchResults int64 = 8
+
+	var searchLimit int64
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	index := client.Index(fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -733,11 +764,11 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	if filterString == "" {
 		request = &meilisearch.SearchRequest{
-			Limit: maxSearchResults,
+			Limit: searchLimit,
 		}
 	} else {
 		request = &meilisearch.SearchRequest{
-			Limit:  maxSearchResults,
+			Limit:  searchLimit,
 			Filter: filterString,
 		}
 	}
