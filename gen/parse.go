@@ -8,6 +8,7 @@ import (
 	"github.com/dofusdude/api/utils"
 	"log"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -167,6 +168,17 @@ func DownloadMountsImages(mounts *JSONGameData, hashJson *ankabuffer.Manifest, w
 	wg.Wait()
 }
 
+func isActiveEffect(name map[string]string) bool {
+	regex := regexp.MustCompile(`^\(.*\)$`)
+	if regex.Match([]byte(name["en"])) {
+		return true
+	}
+	if strings.Contains(name["de"], "(Ziel)") {
+		return true
+	}
+	return false
+}
+
 func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect, langs *map[string]LangDict) [][]MappedMultilangEffect {
 	var mappedAllEffects [][]MappedMultilangEffect
 	for _, effects := range allEffects {
@@ -175,7 +187,6 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 
 			var mappedEffect MappedMultilangEffect
 			currentEffect := data.effects[effect.EffectId]
-			mappedEffect.Active = currentEffect.Active
 
 			numIsSpell := false
 			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
@@ -235,6 +246,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 				continue
 			}
 
+			mappedEffect.Active = isActiveEffect(mappedEffect.Type)
 			searchTypeEn := mappedEffect.Type["en"]
 			if mappedEffect.Active {
 				searchTypeEn += " (Active)"
