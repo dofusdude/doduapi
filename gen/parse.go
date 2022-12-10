@@ -175,6 +175,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 
 			var mappedEffect MappedMultilangEffect
 			currentEffect := data.effects[effect.EffectId]
+			mappedEffect.Active = currentEffect.Active
 
 			numIsSpell := false
 			if strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zauberspruchs #1") || strings.Contains((*langs)["de"].Texts[currentEffect.DescriptionId], "Zaubers #1") {
@@ -228,29 +229,27 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 				if lang == "en" && mappedEffect.Type[lang] == "" {
 					break
 				}
+			}
 
-				if lang != "en" {
-					continue
-				}
+			if mappedEffect.Type["en"] == "()" || mappedEffect.Type["en"] == "" {
+				continue
+			}
 
-				if effectName == "()" {
-					continue
-				}
-
-				key, foundKey := utils.PersistedElements.Entries.GetKey(effectName)
-				if foundKey {
-					mappedEffect.ElementId = key.(int)
-				} else {
-					utils.PersistedElements.Entries.Put(utils.PersistedElements.NextId, effectName)
-					utils.PersistedElements.NextId++
-				}
+			searchTypeEn := mappedEffect.Type["en"]
+			if mappedEffect.Active {
+				searchTypeEn += " (Active)"
+			}
+			key, foundKey := utils.PersistedElements.Entries.GetKey(searchTypeEn)
+			if foundKey {
+				mappedEffect.ElementId = key.(int)
+			} else {
+				utils.PersistedElements.Entries.Put(utils.PersistedElements.NextId, searchTypeEn)
+				utils.PersistedElements.NextId++
 			}
 
 			mappedEffect.MinMaxIrrelevant = minMaxRemove
 
-			if mappedEffect.Type["en"] != "" && mappedEffect.Type["en"] != "()" {
-				mappedEffects = append(mappedEffects, mappedEffect)
-			}
+			mappedEffects = append(mappedEffects, mappedEffect)
 		}
 		if len(mappedEffects) > 0 {
 			mappedAllEffects = append(mappedAllEffects, mappedEffects)

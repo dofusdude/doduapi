@@ -36,12 +36,12 @@ func RenderImageUrls(urls []string) ApiImageUrls {
 }
 
 type ApiEffect struct {
-	MinInt       int                    `json:"int_minimum"`
-	MaxInt       int                    `json:"int_maximum"`
-	Type         ApiEffectConditionType `json:"type"`
-	IgnoreMinInt bool                   `json:"ignore_int_min"`
-	IgnoreMaxInt bool                   `json:"ignore_int_max"`
-	Formatted    string                 `json:"formatted"`
+	MinInt       int           `json:"int_minimum"`
+	MaxInt       int           `json:"int_maximum"`
+	Type         ApiEffectType `json:"type"`
+	IgnoreMinInt bool          `json:"ignore_int_min"`
+	IgnoreMaxInt bool          `json:"ignore_int_max"`
+	Formatted    string        `json:"formatted"`
 }
 
 func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffect {
@@ -52,10 +52,11 @@ func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffec
 			MaxInt:       effect.Max,
 			IgnoreMinInt: effect.IsMeta || effect.MinMaxIrrelevant == -2,
 			IgnoreMaxInt: effect.IsMeta || effect.MinMaxIrrelevant <= -1,
-			Type: ApiEffectConditionType{
-				Name:   effect.Type[lang],
-				Id:     effect.ElementId,
-				IsMeta: effect.IsMeta,
+			Type: ApiEffectType{
+				Name:     effect.Type[lang],
+				Id:       effect.ElementId,
+				IsMeta:   effect.IsMeta,
+				IsActive: effect.Active,
 			},
 			Formatted: effect.Templated[lang],
 		})
@@ -69,9 +70,9 @@ func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffec
 }
 
 type ApiCondition struct {
-	Operator string                 `json:"operator"`
-	IntValue int                    `json:"int_value"`
-	Element  ApiEffectConditionType `json:"element"`
+	Operator string           `json:"operator"`
+	IntValue int              `json:"int_value"`
+	Element  ApiConditionType `json:"element"`
 }
 
 type APIResource struct {
@@ -268,7 +269,7 @@ func RenderConditions(conditions *[]gen.MappedMultilangCondition, lang string) [
 		retConditions = append(retConditions, ApiCondition{
 			Operator: condition.Operator,
 			IntValue: condition.Value,
-			Element: ApiEffectConditionType{
+			Element: ApiConditionType{
 				Name: condition.Templated[lang],
 				Id:   condition.ElementId,
 			},
@@ -286,10 +287,16 @@ type ApiType struct {
 	Name string `json:"name"`
 }
 
-type ApiEffectConditionType struct {
-	Name   string `json:"name"`
-	Id     int    `json:"id"`
-	IsMeta bool   `json:"is_meta"`
+type ApiConditionType struct {
+	Name string `json:"name"`
+	Id   int    `json:"id"`
+}
+
+type ApiEffectType struct {
+	Name     string `json:"name"`
+	Id       int    `json:"id"`
+	IsMeta   bool   `json:"is_meta"`
+	IsActive bool   `json:"is_active"`
 }
 
 type APIListItem struct {
