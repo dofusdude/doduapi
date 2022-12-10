@@ -165,5 +165,19 @@
     "-special spell-",
     "The spell can be cast on a free cell",
     "% Weapon Resistance",
-    "Max."
+    "Max.",
+    "Increases Critical Hits from the spell by%",
+    "(Neutral damage) (Active)",
+    "(Air damage) (Active)",
+    "(Water damage) (Active)",
+    "(Fire damage) (Active)",
+    "(Earth damage) (Active)",
+    "(Earth steal) (Active)",
+    "(Fire steal) (Active)",
+    "(Water steal) (Active)",
+    "Increases Damage from the spell by",
+    "(Air steal) (Active)",
+    "(Neutral steal) (Active)",
+    "AP (Active)",
+    "(HP restored) (Active)"
 ]
