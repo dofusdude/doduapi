@@ -3,11 +3,11 @@ module github.com/dofusdude/api
 go 1.19
 
 require (
-	github.com/docker/docker v20.10.18+incompatible
+	github.com/docker/docker v23.0.1+incompatible
+	github.com/dofusdude/ankabuffer v0.0.8
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
-	github.com/google/flatbuffers v22.11.23+incompatible
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/meilisearch/meilisearch-go v0.21.0
 	github.com/prometheus/client_golang v1.13.0
@@ -24,10 +24,10 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/dofusdude/ankabuffer v0.0.8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/flatbuffers v22.11.23+incompatible // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -43,7 +43,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.37.1-0.20220607072126-8a320890c08d // indirect
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4 // indirect
