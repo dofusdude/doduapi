@@ -1,8 +1,10 @@
-# api
+# Dofusdude - API
 
-Auto generated, always up to date API for all things Dofus.
+An auto-updating API for Dofus by imitating the Ankama Launcher.
 
-## Setup
+See [Docs](https://docs.dofusdu.de) for using this project.
+
+## Dev Setup
 
 Install Docker and make it available for all users.
 ```shell
@@ -25,14 +27,14 @@ MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
 CURRENT_UID=$(id -u):$(id -g)" > .env
 ```
 
-`sudo docker-compose up`
+Then `sudo docker-compose up`.
 
-## Building the SWF Renderer
-sudo apt install libtool libltdl3-dev autoconf automake pkg-config
+## SWF Renderer
+The renderer is my own dockerized gnash image.
 
-clone gnash
+If, for some reason, you want to rebuild this image:
 ```shell
-apt install git build-essential
+sudo apt install libtool libltdl3-dev autoconf automake pkg-config git build-essential
 git clone git://git.sv.gnu.org/gnash.git
 cd gnash
 ./configure
@@ -44,5 +46,5 @@ make
 sudo make install
 ```
 
-
+Example use of the renderer.
 `docker run -v $(pwd):/home/developer --entrypoint /usr/local/bin/dump-gnash dofusdude/swf-renderer --screenshot last --screenshot-file out.png -1 -r1 --width 1000 --height 1000 mount3.swf`
