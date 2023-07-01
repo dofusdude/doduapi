@@ -1,11 +1,12 @@
-redis_db:
-  container_name: redis_db
-  command: bash -c "redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}"
-  image: redis
-  environment:
-    - REDIS_PASSWORD=${REDIS_PASSWORD}
-  ports:
-    - "6379:6379"
-  volumes:
-    - ./redis-volume:/data
-  restart: unless-stopped
+services:
+  redis_db:
+    container_name: redis_db
+    command: bash -c "redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}"
+    image: redis
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-volume:/data
+    restart: unless-stopped
