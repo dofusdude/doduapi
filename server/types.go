@@ -94,6 +94,7 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 		Name: item.Name[lang],
 		Type: ApiType{
 			Name: item.Type.Name[lang],
+			Id:   item.Type.ItemTypeId,
 		},
 		Description: item.Description[lang],
 		Level:       item.Level,
@@ -148,6 +149,7 @@ func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 		Name: item.Name[lang],
 		Type: ApiType{
 			Name: item.Type.Name[lang],
+			Id:   item.Type.ItemTypeId,
 		},
 		Description: item.Description[lang],
 		Level:       item.Level,
@@ -220,6 +222,7 @@ func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
 		Name: item.Name[lang],
 		Type: ApiType{
 			Name: item.Type.Name[lang],
+			Id:   item.Type.ItemTypeId,
 		},
 		Description:            item.Description[lang],
 		Level:                  item.Level,
@@ -285,6 +288,7 @@ func RenderConditions(conditions *[]gen.MappedMultilangCondition, lang string) [
 
 type ApiType struct {
 	Name string `json:"name"`
+	Id   int    `json:"id"`
 }
 
 type ApiConditionType struct {
@@ -332,6 +336,7 @@ func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem
 		Name: item.Name[lang],
 		Type: ApiType{
 			Name: item.Type.Name[lang],
+			Id:   item.Type.ItemTypeId,
 		},
 		Level:     item.Level,
 		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
@@ -353,6 +358,7 @@ func RenderTypedItemListEntry(item *gen.MappedMultilangItem, lang string) APILis
 		Name: item.Name[lang],
 		Type: ApiType{
 			Name: item.Type.Name[lang],
+			Id:   item.Type.ItemTypeId,
 		},
 		ItemSubtype: utils.CategoryIdApiMapping(item.Type.CategoryId),
 		Level:       item.Level,

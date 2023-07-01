@@ -130,6 +130,16 @@ func MapItems(data *JSONGameData, langs *map[string]LangDict) []MappedMultilangI
 		mappedItems[idx].Type.SuperTypeId = data.ItemTypes[item.TypeId].SuperTypeId
 		mappedItems[idx].Type.CategoryId = data.ItemTypes[item.TypeId].CategoryId
 
+		searchTypeEn := mappedItems[idx].Type.Name["en"]
+		key, foundKey := utils.PersistedTypes.Entries.GetKey(searchTypeEn)
+		if foundKey {
+			mappedItems[idx].Type.ItemTypeId = key.(int)
+		} else {
+			mappedItems[idx].Type.ItemTypeId = utils.PersistedTypes.NextId
+			utils.PersistedTypes.Entries.Put(utils.PersistedTypes.NextId, searchTypeEn)
+			utils.PersistedTypes.NextId++
+		}
+
 		mappedItems[idx].UsedInRecipes = item.RecipeIds
 		allEffectResult := ParseEffects(data, [][]JSONGameItemPossibleEffect{item.PossibleEffects}, langs)
 		if allEffectResult != nil && len(allEffectResult) > 0 {

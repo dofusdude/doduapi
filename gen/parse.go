@@ -35,7 +35,7 @@ func Parse() {
 	log.Println("mapping...")
 	startMapping := time.Now()
 
-	err := utils.LoadPersistedElements("db/elements.json")
+	err := utils.LoadPersistedElements("db/elements.json", "db/item_types.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func Parse() {
 
 	outRecipes.Write(outRecipeBytes)
 
-	err = utils.PersistElements("db/elements.json")
+	err = utils.PersistElements("db/elements.json", "db/item_types.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -255,6 +255,7 @@ func ParseEffects(data *JSONGameData, allEffects [][]JSONGameItemPossibleEffect,
 			if foundKey {
 				mappedEffect.ElementId = key.(int)
 			} else {
+				mappedEffect.ElementId = utils.PersistedElements.NextId
 				utils.PersistedElements.Entries.Put(utils.PersistedElements.NextId, searchTypeEn)
 				utils.PersistedElements.NextId++
 			}

@@ -204,7 +204,7 @@ func main() {
 
 	if all || *genFlag || *serveFlag {
 		if *serveFlag && !all && !*genFlag {
-			_ = utils.LoadPersistedElements("db/elements.json")
+			_ = utils.LoadPersistedElements("db/elements.json", "db/item_types.json")
 		}
 		server.Db, server.Indexes = gen.IndexApiData(indexWaiterDone, &server.Indexed, &server.Version)
 		server.Version.Search = !server.Version.Search

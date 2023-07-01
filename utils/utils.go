@@ -33,7 +33,8 @@ var (
 	MeiliKey            string
 	PrometheusEnabled   bool
 	FileServer          bool
-	PersistedElements   PersistentElementsMap
+	PersistedElements   PersistentStringKeysMap
+	PersistedTypes      PersistentStringKeysMap
 	IsBeta              bool
 	LastUpdate          time.Time
 	RedisHost           string
@@ -276,13 +277,13 @@ func DeleteReplacer(input string) string {
 	return input
 }
 
-type PersistentElementsMap struct {
+type PersistentStringKeysMap struct {
 	Entries *treebidimap.Map `json:"entries"`
 	NextId  int              `json:"next_id"`
 }
 
-func LoadPersistedElements(path string) error {
-	data, err := os.ReadFile(path)
+func LoadPersistedElements(element_path string, item_type_path string) error {
+	data, err := os.ReadFile(element_path)
 	if err != nil {
 		return err
 	}
@@ -293,7 +294,7 @@ func LoadPersistedElements(path string) error {
 		fmt.Println(err)
 	}
 
-	PersistedElements = PersistentElementsMap{
+	PersistedElements = PersistentStringKeysMap{
 		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
 		NextId:  0,
 	}
@@ -303,10 +304,31 @@ func LoadPersistedElements(path string) error {
 		PersistedElements.NextId++
 	}
 
+	data, err = os.ReadFile(item_type_path)
+	if err != nil {
+		return err
+	}
+
+	var types []string
+	err = json.Unmarshal(data, &types)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	PersistedTypes = PersistentStringKeysMap{
+		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
+		NextId:  0,
+	}
+
+	for _, entry := range types {
+		PersistedTypes.Entries.Put(PersistedTypes.NextId, entry)
+		PersistedTypes.NextId++
+	}
+
 	return nil
 }
 
-func PersistElements(path string) error {
+func PersistElements(element_path string, item_type_path string) error {
 	elements := make([]string, PersistedElements.NextId)
 	it := PersistedElements.Entries.Iterator()
 	for it.Next() {
@@ -317,7 +339,22 @@ func PersistElements(path string) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(path, elementsJson, 0644)
+	err = os.WriteFile(element_path, elementsJson, 0644)
+	if err != nil {
+		return err
+	}
+
+	types := make([]string, PersistedTypes.NextId)
+	it = PersistedTypes.Entries.Iterator()
+	for it.Next() {
+		types[it.Key().(int)] = it.Value().(string)
+	}
+
+	typesJson, err := json.MarshalIndent(types, "", "    ")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(item_type_path, typesJson, 0644)
 	if err != nil {
 		return err
 	}

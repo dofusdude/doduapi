@@ -85,6 +85,7 @@ type MappedMultilangEffect struct {
 type MappedMultilangItemType struct {
 	Id          int               `json:"id"`
 	Name        map[string]string `json:"name"`
+	ItemTypeId  int               `json:"itemTypeId"`
 	SuperTypeId int               `json:"superTypeId"`
 	CategoryId  int               `json:"categoryId"`
 }
