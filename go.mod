@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/meilisearch/meilisearch-go v0.25.0
 	github.com/prometheus/client_golang v1.16.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.4
 )
 
 require (
