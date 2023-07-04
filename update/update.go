@@ -257,6 +257,9 @@ func DownloadUnpackFiles(manifest *ankabuffer.Manifest, fragment string, toDownl
 
 	var wg sync.WaitGroup
 	for i, file := range filesToDownload {
+		if file.Name == "" {
+			continue
+		}
 		wg.Add(1)
 		go func(file ankabuffer.File, bundlesBuffer map[string]DownloadedBundle, relDir string, i int) {
 			defer wg.Done()
