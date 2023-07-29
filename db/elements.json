@@ -180,5 +180,12 @@
     "(Neutral steal) (Active)",
     "AP (Active)",
     "(HP restored) (Active)",
-    ""
+    "",
+    "Increases the spell's Criticals by%",
+    "(Fire healing) (Active)",
+    "Increases the spell's maximum number of casts per target by",
+    "Increases the spell's fixed damage by",
+    "Increases the spell's maximum number of casts per turn by",
+    "Deactivates casting of the spell on an occupied cell",
+    "Expiry:"
 ]
