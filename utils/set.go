@@ -5,6 +5,14 @@ type Set struct {
 	list map[string]struct{} //empty structs occupy 0 memory
 }
 
+func (s *Set) ToList() []string {
+	res := make([]string, 0, len(s.list))
+	for v := range s.list {
+		res = append(res, v)
+	}
+	return res
+}
+
 func (s *Set) Has(v string) bool {
 	_, ok := s.list[v]
 	return ok
