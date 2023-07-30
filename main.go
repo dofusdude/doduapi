@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/dofusdude/api/gen"
 	"github.com/dofusdude/api/server"
@@ -169,6 +170,7 @@ func main() {
 	utils.ReadEnvs()
 
 	if *cleanFlag {
+		log.Println("cleaning up...")
 		update.CleanUp()
 		return
 	}
@@ -180,6 +182,7 @@ func main() {
 	updaterDone := make(chan bool)
 	indexWaiterDone := make(chan bool)
 
+	log.Println("create directories...")
 	utils.CreateDataDirectoryStructure()
 
 	if all || *updateFlag {
@@ -194,18 +197,21 @@ func main() {
 
 	if all || *parseFlag || *genFlag {
 		if !*updateFlag || *genFlag { // need hashfile first for mount images
-			_, err := utils.GetReleaseManifest(utils.GetCurrentVersion())
-			if err != nil {
+			log.Println("get manifest file...")
+			var err error
+			if _, err = utils.GetReleaseManifest(utils.GetCurrentVersion()); err != nil {
 				log.Fatal(err)
 			}
 		}
+		log.Println("parse game files...")
 		gen.Parse()
 	}
 
 	if all || *genFlag || *serveFlag {
 		if *serveFlag && !all && !*genFlag {
-			_ = utils.LoadPersistedElements("db/elements.json", "db/item_types.json")
+			_ = utils.LoadPersistedElements()
 		}
+		log.Println("generate API datastructure...")
 		server.Db, server.Indexes = gen.IndexApiData(indexWaiterDone, &server.Indexed, &server.Version)
 		server.Version.Search = !server.Version.Search
 		server.Version.MemDb = !server.Version.MemDb

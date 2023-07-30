@@ -2,6 +2,7 @@ package gen
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -126,6 +127,10 @@ func ConditionWithOperator(input string, operator string, langs *map[string]Lang
 			}
 
 			keySanitized := utils.DeleteReplacer(langStr)
+
+			if utils.PersistedElements.Entries == nil {
+				log.Fatal("Elements Entries is nil")
+			}
 
 			key, foundKey := utils.PersistedElements.Entries.GetKey(keySanitized)
 			if foundKey {

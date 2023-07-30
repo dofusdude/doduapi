@@ -2,10 +2,10 @@ package update
 
 import (
 	"fmt"
+	"os/exec"
+
 	"github.com/dofusdude/ankabuffer"
 	"github.com/dofusdude/api/utils"
-	"os"
-	"os/exec"
 )
 
 func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
@@ -22,14 +22,9 @@ func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
 		return err
 	}
 
-	path, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	inPath := fmt.Sprintf("%s/data/tmp", path)
-	outPath := fmt.Sprintf("%s/data/img/item", path)
-	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", path, "d2p")
+	inPath := fmt.Sprintf("%s/data/tmp", utils.DockerMountDataPath)
+	outPath := fmt.Sprintf("%s/data/img/item", utils.DockerMountDataPath)
+	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", utils.DockerMountDataPath, "d2p")
 	if err := exec.Command(utils.PythonPath, absConvertCmd, inPath, outPath).Run(); err != nil {
 		return err
 	}
@@ -46,8 +41,8 @@ func DownloadImagesLauncher(hashJson *ankabuffer.Manifest) error {
 		return err
 	}
 
-	inPath = fmt.Sprintf("%s/data/tmp/vector", path)
-	outPath = fmt.Sprintf("%s/data/vector/item", path)
+	inPath = fmt.Sprintf("%s/data/tmp/vector", utils.DockerMountDataPath)
+	outPath = fmt.Sprintf("%s/data/vector/item", utils.DockerMountDataPath)
 	if err := exec.Command(utils.PythonPath, absConvertCmd, inPath, outPath).Run(); err != nil {
 		return err
 	}

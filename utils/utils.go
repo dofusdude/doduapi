@@ -4,11 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/dofusdude/ankabuffer"
-	"github.com/emirpasic/gods/maps/treebidimap"
-	gutils "github.com/emirpasic/gods/utils"
-	"github.com/go-redis/redis/v9"
-	"github.com/meilisearch/meilisearch-go"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dofusdude/ankabuffer"
+	"github.com/emirpasic/gods/maps/treebidimap"
+	gutils "github.com/emirpasic/gods/utils"
+	"github.com/go-redis/redis/v9"
+	_ "github.com/joho/godotenv/autoload"
+	"github.com/meilisearch/meilisearch-go"
 )
 
 var (
@@ -282,7 +284,15 @@ type PersistentStringKeysMap struct {
 	NextId  int              `json:"next_id"`
 }
 
-func LoadPersistedElements(element_path string, item_type_path string) error {
+func LoadPersistedElements() error {
+	log.Println("loading persisted elements...")
+
+	var element_path string
+	var item_type_path string
+
+	element_path = fmt.Sprintf("%s/db/elements.json", DockerMountDataPath)
+	item_type_path = fmt.Sprintf("%s/db/item_types.json", DockerMountDataPath)
+
 	data, err := os.ReadFile(element_path)
 	if err != nil {
 		return err

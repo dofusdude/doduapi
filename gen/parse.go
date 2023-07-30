@@ -3,9 +3,6 @@ package gen
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dofusdude/ankabuffer"
-	"github.com/dofusdude/api/update"
-	"github.com/dofusdude/api/utils"
 	"log"
 	"os"
 	"regexp"
@@ -14,6 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dofusdude/ankabuffer"
+	"github.com/dofusdude/api/update"
+	"github.com/dofusdude/api/utils"
 )
 
 func Parse() {
@@ -26,7 +27,6 @@ func Parse() {
 	go func(data *JSONGameData) {
 		defer wg.Done()
 		DownloadMountsImages(data, &utils.FileHashes, 6)
-		log.Println("... downloaded mount images")
 	}(gameData)
 
 	languageData := ParseRawLanguages()
@@ -35,7 +35,7 @@ func Parse() {
 	log.Println("mapping...")
 	startMapping := time.Now()
 
-	err := utils.LoadPersistedElements("db/elements.json", "db/item_types.json")
+	err := utils.LoadPersistedElements()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,16 +101,17 @@ func Parse() {
 	log.Println("mapping recipes...")
 	mappedRecipes := MapRecipes(gameData)
 	log.Println("saving recipes...")
-	outRecipes, err := os.Create("data/MAPPED_RECIPES.json")
+	var outRecipes *os.File
+	outRecipes, err = os.Create("data/MAPPED_RECIPES.json")
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 	defer outRecipes.Close()
 
-	outRecipeBytes, err := json.MarshalIndent(mappedRecipes, "", "    ")
+	var outRecipeBytes []byte
+	outRecipeBytes, err = json.MarshalIndent(mappedRecipes, "", "    ")
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal(err)
 	}
 
 	outRecipes.Write(outRecipeBytes)
@@ -120,8 +121,10 @@ func Parse() {
 		log.Fatal(err)
 	}
 
-	wg.Wait() // mount images
 	log.Println("... completed mapping in", time.Since(startMapping))
+	log.Println("waiting for downloading mount images...")
+	wg.Wait() // mount images
+	log.Println("... downloaded mount images")
 	mappedSets = nil
 	mappedItems = nil
 }
@@ -327,11 +330,7 @@ type HasId interface {
 }
 
 func ParseRawDataPart[T HasId](fileSource string, result chan map[int]T) {
-	path, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-	dataPath := fmt.Sprintf("%s/data", path)
+	dataPath := fmt.Sprintf("%s/data", utils.DockerMountDataPath)
 
 	file, err := os.ReadFile(fmt.Sprintf("%s/%s", dataPath, fileSource))
 	if err != nil {
@@ -449,12 +448,9 @@ func ParseRawData() *JSONGameData {
 }
 
 func ParseLangDict(langCode string) LangDict {
-	path, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
+	var err error
 
-	dataPath := fmt.Sprintf("%s/data/languages", path)
+	dataPath := fmt.Sprintf("%s/data/languages", utils.DockerMountDataPath)
 	var data LangDict
 	data.IdText = make(map[int]int)
 	data.Texts = make(map[int]string)

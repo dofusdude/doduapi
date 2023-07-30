@@ -2,8 +2,6 @@ package update
 
 import (
 	"fmt"
-	"github.com/dofusdude/ankabuffer"
-	"github.com/dofusdude/api/utils"
 	"io"
 	"log"
 	"net/http"
@@ -13,6 +11,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/dofusdude/ankabuffer"
+	"github.com/dofusdude/api/utils"
 )
 
 type GameVersions struct {
@@ -100,11 +101,6 @@ func DownloadBundle(bundleHash string) ([]byte, error) {
 }
 
 func CleanUp() {
-	path, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-
 	files := []string{
 		"data/effects.json",
 		"data/items.json",
@@ -147,7 +143,7 @@ func CleanUp() {
 	}
 
 	for _, file := range files {
-		absPath := fmt.Sprintf("%s/%s", path, file)
+		absPath := fmt.Sprintf("%s/%s", utils.DockerMountDataPath, file)
 		_ = os.Remove(absPath)
 	}
 
@@ -159,44 +155,48 @@ func CleanUp() {
 		log.Fatal("meili could not be reached")
 	}
 
-	for _, lang := range utils.Languages {
-		taskItemsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("all_items-%s", lang))
-		if err != nil {
-			log.Println(err)
-		}
-		taskSetsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("sets-%s", lang))
-		if err != nil {
-			log.Println(err)
-		}
-		taskMountsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("mounts-%s", lang))
-		if err != nil {
-			log.Println(err)
-		}
+	red_blue_versions := []string{"red", "blue"}
+	for _, version := range red_blue_versions {
+		for _, lang := range utils.Languages {
+			taskStuffDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("%s-all_stuff-%s", version, lang))
+			if err != nil {
+				log.Println(err)
+			}
+			taskItemsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("%s-all_items-%s", version, lang))
+			if err != nil {
+				log.Println(err)
+			}
+			taskSetsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("%s-sets-%s", version, lang))
+			if err != nil {
+				log.Println(err)
+			}
+			taskMountsDelete, err := meiliClient.DeleteIndex(fmt.Sprintf("%s-mounts-%s", version, lang))
+			if err != nil {
+				log.Println(err)
+			}
 
-		_, _ = meiliClient.WaitForTask(taskItemsDelete.TaskUID)
-		_, _ = meiliClient.WaitForTask(taskSetsDelete.TaskUID)
-		_, _ = meiliClient.WaitForTask(taskMountsDelete.TaskUID)
+			_, _ = meiliClient.WaitForTask(taskStuffDelete.TaskUID)
+			_, _ = meiliClient.WaitForTask(taskItemsDelete.TaskUID)
+			_, _ = meiliClient.WaitForTask(taskSetsDelete.TaskUID)
+			_, _ = meiliClient.WaitForTask(taskMountsDelete.TaskUID)
+		}
 	}
-
 }
 
 func Unpack(filepath string, destDirRel string, fileType string) {
+	var err error
+
 	if fileType == "png" || fileType == "jpg" || fileType == "jpeg" {
 		return // no need to unpack images files
 	}
 
-	path, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-
-	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", path, fileType)
-	absFilePath := fmt.Sprintf("%s/%s", path, filepath)
+	absConvertCmd := fmt.Sprintf("%s/PyDofus/%s_unpack.py", utils.DockerMountDataPath, fileType)
+	absFilePath := fmt.Sprintf("%s/%s", utils.DockerMountDataPath, filepath)
 	absOutPath := strings.Replace(absFilePath, fileType, "json", 1)
 	filenameParts := strings.Split(filepath, "/")
 	filename := filenameParts[len(filenameParts)-1]
 	outFile := strings.Replace(filename, fileType, "json", 1)
-	finalOutPath := fmt.Sprintf("%s/%s/%s", path, destDirRel, outFile)
+	finalOutPath := fmt.Sprintf("%s/%s/%s", utils.DockerMountDataPath, destDirRel, outFile)
 
 	err = exec.Command(utils.PythonPath, absConvertCmd, absFilePath).Run()
 	if err != nil {

@@ -3,16 +3,17 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/dofusdude/api/utils"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"github.com/dofusdude/api/utils"
 )
 
 type ImageContainerResult struct {
@@ -23,10 +24,6 @@ type ImageContainerResult struct {
 
 func RenderVectorImagesWorker(swfFiles []fs.DirEntry, ctx context.Context, resolution string, cli *client.Client, imgOutSubdirName string, done chan bool, result chan []string, yield chan string) {
 	var containerIds []string
-	path, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
 
 	for _, swfFile := range swfFiles {
 		select {
@@ -37,9 +34,9 @@ func RenderVectorImagesWorker(swfFiles []fs.DirEntry, ctx context.Context, resol
 				continue
 			}
 
-			absSwfPath := fmt.Sprintf("%s/data/vector/%s/%s", path, imgOutSubdirName, swfFile.Name())
+			absSwfPath := fmt.Sprintf("%s/data/vector/%s/%s", utils.DockerMountDataPath, imgOutSubdirName, swfFile.Name())
 			rawFileName := strings.TrimSuffix(swfFile.Name(), ".swf")
-			finalImagePath := fmt.Sprintf("%s/data/img/%s/%s-%s.png", path, imgOutSubdirName, rawFileName, resolution)
+			finalImagePath := fmt.Sprintf("%s/data/img/%s/%s-%s.png", utils.DockerMountDataPath, imgOutSubdirName, rawFileName, resolution)
 
 			if _, err := os.Stat(finalImagePath); err == nil {
 				yield <- finalImagePath
@@ -75,7 +72,7 @@ func RenderVectorImagesWorker(swfFiles []fs.DirEntry, ctx context.Context, resol
 			case <-statusCh:
 			}
 
-			srcImagePath := fmt.Sprintf("%s/data/vector/%s/%s-%s.png", path, imgOutSubdirName, rawFileName, resolution)
+			srcImagePath := fmt.Sprintf("%s/data/vector/%s/%s-%s.png", utils.DockerMountDataPath, imgOutSubdirName, rawFileName, resolution)
 			err = os.Rename(srcImagePath, finalImagePath)
 			if err != nil {
 				log.Println(err)
@@ -96,12 +93,7 @@ func RenderVectorImages(done chan bool, imgOutSubdirName string) {
 	}
 	defer cli.Close()
 
-	path, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-
-	outPath := fmt.Sprintf("%s/data/vector/%s", path, imgOutSubdirName)
+	outPath := fmt.Sprintf("%s/data/vector/%s", utils.DockerMountDataPath, imgOutSubdirName)
 	ctx := context.Background()
 	reader, err := cli.ImagePull(ctx, "stelzo/swf-renderer", types.ImagePullOptions{})
 	if err != nil {
