@@ -230,10 +230,14 @@ func touchFileIfNotExists(fileName string) error {
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		file, err := os.Create(fileName)
-		defer file.Close()
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if err := file.Close(); err != nil {
+				log.Println(err)
+			}
+		}()
 	}
 
 	return nil

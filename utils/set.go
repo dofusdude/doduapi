@@ -55,7 +55,7 @@ type FilterFunc func(v string) bool
 func (s *Set) Filter(P FilterFunc) *Set {
 	res := NewSet()
 	for v := range s.list {
-		if P(v) == false {
+		if !P(v) {
 			continue
 		}
 		res.Add(v)
@@ -78,7 +78,7 @@ func (s *Set) Union(s2 *Set) *Set {
 func (s *Set) Intersect(s2 *Set) *Set {
 	res := NewSet()
 	for v := range s.list {
-		if s2.Has(v) == false {
+		if !s2.Has(v) {
 			continue
 		}
 		res.Add(v)
