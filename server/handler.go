@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -15,6 +16,17 @@ import (
 )
 
 var (
+	// Note: Never change the order of this list. Indices are guaranteed to be backwards compatible.
+	searchAllowedIndices = []string{
+		"items-consumables",
+		"items-cosmetics",
+		"items-resources",
+		"items-equipment",
+		"items-quest_items",
+		"mounts",
+		"sets",
+	}
+
 	mountAllowedExpandFields     = []string{"effects"}
 	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
 	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
@@ -22,9 +34,10 @@ var (
 )
 
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (gen.MappedMultilangRecipe, bool) {
-	raw, err := txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(Version.MemDb)), "id", itemId)
-	if err != nil {
-		panic(err)
+	var err error
+	var raw interface{}
+	if raw, err = txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(Version.MemDb)), "id", itemId); err != nil {
+		log.Fatal(err)
 	}
 
 	if raw != nil {
@@ -706,6 +719,81 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(sets)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
+	client := utils.CreateMeiliClient()
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	filterSearchIndex := strings.ToLower(r.URL.Query().Get("filter[type]"))
+	if filterSearchIndex == "" {
+		filterSearchIndex = strings.Join(searchAllowedIndices, ",")
+	}
+
+	parsedIndices := parseFields(filterSearchIndex)
+	if !validateFields(parsedIndices, searchAllowedIndices) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	lang := r.Context().Value("lang").(string)
+
+	var searchLimit int64
+	var err error
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	indexName := fmt.Sprintf("%s-all_stuff-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang)
+	index := client.Index(indexName)
+	filterString := "stuff_type=" + strings.Join(parsedIndices.ToList(), " OR stuff_type=")
+
+	request := &meilisearch.SearchRequest{
+		Limit:  searchLimit,
+		Filter: filterString,
+	}
+
+	var searchResp *meilisearch.SearchResponse
+	if searchResp, err = index.Search(query, request); err != nil {
+		log.Println("SearchAllIndices: index not found: ", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsSearchTotal.Inc()
+
+	if searchResp.EstimatedTotalHits == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	var stuffs []ApiAllSearchResult
+	for _, hit := range searchResp.Hits {
+		indexed := hit.(map[string]interface{})
+
+		result := ApiAllSearchResult{
+			Id:   int(indexed["id"].(float64)),
+			Name: indexed["name"].(string),
+			Type: indexed["stuff_type"].(string),
+		}
+
+		stuffs = append(stuffs, result)
+	}
+
+	utils.WriteCacheHeader(&w)
+	if json.NewEncoder(w).Encode(stuffs) != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

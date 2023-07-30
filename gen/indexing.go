@@ -56,7 +56,7 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 	if err != nil {
 		fmt.Println(err)
 	}
-	
+
 	log.Println("loaded ", len(recipes), " recipes")
 
 	// --
@@ -82,190 +82,190 @@ func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memd
 func GetMemDBSchema() *memdb.DBSchema {
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
-			"red-equipment": &memdb.TableSchema{
+			"red-equipment": {
 				Name: "red-equipment",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-equipment": &memdb.TableSchema{
+			"blue-equipment": {
 				Name: "blue-equipment",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-resources": &memdb.TableSchema{
+			"red-resources": {
 				Name: "red-resources",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-resources": &memdb.TableSchema{
+			"blue-resources": {
 				Name: "blue-resources",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-consumables": &memdb.TableSchema{
+			"red-consumables": {
 				Name: "red-consumables",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-consumables": &memdb.TableSchema{
+			"blue-consumables": {
 				Name: "blue-consumables",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-quest_items": &memdb.TableSchema{
+			"red-quest_items": {
 				Name: "red-quest_items",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-quest_items": &memdb.TableSchema{
+			"blue-quest_items": {
 				Name: "blue-quest_items",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-cosmetics": &memdb.TableSchema{
+			"red-cosmetics": {
 				Name: "red-cosmetics",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-cosmetics": &memdb.TableSchema{
+			"blue-cosmetics": {
 				Name: "blue-cosmetics",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-sets": &memdb.TableSchema{
+			"red-sets": {
 				Name: "red-sets",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-sets": &memdb.TableSchema{
+			"blue-sets": {
 				Name: "blue-sets",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-all_items": &memdb.TableSchema{
+			"red-all_items": {
 				Name: "red-all_items",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-all_items": &memdb.TableSchema{
+			"blue-all_items": {
 				Name: "blue-all_items",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"red-recipes": &memdb.TableSchema{
+			"red-recipes": {
 				Name: "red-recipes",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "ResultId"},
 					},
 				},
 			},
-			"blue-recipes": &memdb.TableSchema{
+			"blue-recipes": {
 				Name: "blue-recipes",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "ResultId"},
 					},
 				},
 			},
-			"red-mounts": &memdb.TableSchema{
+			"red-mounts": {
 				Name: "red-mounts",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"blue-mounts": &memdb.TableSchema{
+			"blue-mounts": {
 				Name: "blue-mounts",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"},
 					},
 				},
 			},
-			"effect-condition-elements": &memdb.TableSchema{
+			"effect-condition-elements": {
 				Name: "effect-condition-elements",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.IntFieldIndex{Field: "Id"},
@@ -289,6 +289,7 @@ func GetItemSuperType(id int) int {
 }
 
 type SearchIndexes struct {
+	AllStuff *meilisearch.Index
 	AllItems *meilisearch.Index
 	Sets     *meilisearch.Index
 	Mounts   *meilisearch.Index
@@ -312,19 +313,24 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	client := utils.CreateMeiliClient()
 
 	for _, lang := range utils.Languages {
+		allIndexUid := fmt.Sprintf("%s-all_stuff-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		itemIndexUid := fmt.Sprintf("%s-all_items-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		setIndexUid := fmt.Sprintf("%s-sets-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 
 		// creation
-		createItemsIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        itemIndexUid,
+		createAllIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        allIndexUid,
 			PrimaryKey: "id",
 		})
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = client.WaitForTask(createItemsIdxTask.TaskUID)
+
+		createItemsIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        itemIndexUid,
+			PrimaryKey: "id",
+		})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -333,10 +339,6 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			Uid:        setIndexUid,
 			PrimaryKey: "id",
 		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = client.WaitForTask(createSetsIdxTask.TaskUID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -350,50 +352,55 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 
 		// wait for creation end
-		_, err = client.WaitForTask(createItemsIdxTask.TaskUID)
-		if err != nil {
+		if _, err = client.WaitForTask(createAllIdxTask.TaskUID); err != nil {
 			log.Fatal(err)
 		}
-		_, err = client.WaitForTask(createSetsIdxTask.TaskUID)
-		if err != nil {
+
+		if _, err = client.WaitForTask(createItemsIdxTask.TaskUID); err != nil {
 			log.Fatal(err)
 		}
-		_, err = client.WaitForTask(createMountIdxTask.TaskUID)
-		if err != nil {
+
+		if _, err = client.WaitForTask(createSetsIdxTask.TaskUID); err != nil {
+			log.Fatal(err)
+		}
+
+		if _, err = client.WaitForTask(createMountIdxTask.TaskUID); err != nil {
 			log.Fatal(err)
 		}
 
 		// add filters
+		allStuffIdx := client.Index(allIndexUid)
+		if _, err = allStuffIdx.UpdateFilterableAttributes(&[]string{
+			"stuff_type",
+		}); err != nil {
+			log.Fatal(err)
+		}
+
 		allItemsIdx := client.Index(itemIndexUid)
-		_, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
+		if _, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"super_type",
 			"type_name",
 			"level",
-		})
-		if err != nil {
-			log.Println(err)
-			return nil, nil
+		}); err != nil {
+			log.Fatal(err)
 		}
 
 		mountsIdx := client.Index(mountIndexUid)
-		_, err = mountsIdx.UpdateFilterableAttributes(&[]string{
+		if _, err = mountsIdx.UpdateFilterableAttributes(&[]string{
 			"family_name",
-		})
-		if err != nil {
-			log.Println(err)
-			return nil, nil
+		}); err != nil {
+			log.Fatal(err)
 		}
 
 		setsIdx := client.Index(setIndexUid)
-		_, err = setsIdx.UpdateFilterableAttributes(&[]string{
+		if _, err = setsIdx.UpdateFilterableAttributes(&[]string{
 			"highest_equipment_level",
-		})
-		if err != nil {
-			log.Println(err)
-			return nil, nil
+		}); err != nil {
+			log.Fatal(err)
 		}
 
 		multilangSearchIndexes[lang] = SearchIndexes{
+			AllStuff: allStuffIdx,
 			AllItems: allItemsIdx,
 			Sets:     setsIdx,
 			Mounts:   mountsIdx,
@@ -402,20 +409,21 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 	schema := GetMemDBSchema()
 
-	db, err := memdb.NewMemDB(schema)
-	if err != nil {
-		panic(err)
+	var err error
+	var db *memdb.MemDB
+	if db, err = memdb.NewMemDB(schema); err != nil {
+		log.Fatal(err)
 	}
 
 	txn := db.Txn(true)
 
 	persIt := utils.PersistedElements.Entries.Iterator()
 	for persIt.Next() {
-		if err := txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
+		if err = txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
 			Id:   persIt.Key().(int),
 			Name: persIt.Value().(string),
 		}); err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -433,11 +441,12 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 	for _, recipe := range *recipes {
 		recipeCt := recipe
-		if err := txn.Insert(recipesTable, &recipeCt); err != nil {
-			panic(err)
+		if err = txn.Insert(recipesTable, &recipeCt); err != nil {
+			log.Fatal(err)
 		}
 	}
 
+	// all items search
 	for _, item := range *items {
 		itemCp := item
 		var insertCategoryTable string
@@ -446,12 +455,12 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		}
 		insertCategoryTable = utils.CategoryIdMapping(itemCp.Type.CategoryId)
 
-		if err := txn.Insert(fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
-			panic(err)
+		if err = txn.Insert(fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
+			log.Fatal(err)
 		}
 
-		if err := txn.Insert(itemsTable, &itemCp); err != nil {
-			panic(err)
+		if err = txn.Insert(itemsTable, &itemCp); err != nil {
+			log.Fatal(err)
 		}
 
 		for _, lang := range utils.Languages {
@@ -462,18 +471,22 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				SuperType:   insertCategoryTable,
 				TypeName:    strings.ToLower(itemCp.Type.Name[lang]),
 				Level:       itemCp.Level,
+				StuffType:   fmt.Sprintf("items-%s", insertCategoryTable),
 			}
 
 			itemIndexBatch[lang] = append(itemIndexBatch[lang], object)
 			if len(itemIndexBatch[lang]) >= maxBatchSize {
-				taskInfo, err := multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang])
-				if err != nil {
-					log.Println(err)
+				var taskInfo *meilisearch.TaskInfo
+				if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang]); err != nil {
+					log.Fatal(err)
+				}
+				indexTasks = append(indexTasks, taskInfo)
+				if taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(itemIndexBatch[lang]); err != nil {
+					log.Fatal(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				itemIndexBatch[lang] = nil
 			}
-
 		}
 	}
 
@@ -486,14 +499,20 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 		for _, lang := range utils.Languages {
 			object := SearchIndexedSet{
-				Name:  setCp.Name[lang],
-				Id:    setCp.AnkamaId,
-				Level: setCp.Level,
+				Name:      setCp.Name[lang],
+				Id:        setCp.AnkamaId,
+				Level:     setCp.Level,
+				StuffType: "sets",
 			}
 
 			setIndexBatch[lang] = append(setIndexBatch[lang], object)
 			if len(setIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
+				if err != nil {
+					log.Println(err)
+				}
+				indexTasks = append(indexTasks, taskInfo)
+				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(setIndexBatch[lang])
 				if err != nil {
 					log.Println(err)
 				}
@@ -515,11 +534,17 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				Name:       mountCp.Name[lang],
 				Id:         mountCp.AnkamaId,
 				FamilyName: strings.ToLower(mountCp.FamilyName[lang]),
+				StuffType:  "mounts",
 			}
 
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
+				if err != nil {
+					log.Println(err)
+				}
+				indexTasks = append(indexTasks, taskInfo)
+				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(mountIndexBatch[lang])
 				if err != nil {
 					log.Println(err)
 				}
@@ -597,8 +622,6 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				if allTrue {
 					*indexed = true
 					ticker.Stop()
-
-					log.Println("-- waiter: indexes done, Bye!")
 					staySelectLoop = false
 					break
 				}

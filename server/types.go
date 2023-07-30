@@ -2,10 +2,11 @@ package server
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/dofusdude/api/gen"
 	"github.com/dofusdude/api/utils"
 	"github.com/hashicorp/go-memdb"
-	"log"
 )
 
 type ApiImageUrls struct {
@@ -33,6 +34,12 @@ func RenderImageUrls(urls []string) ApiImageUrls {
 	}
 
 	return res
+}
+
+type ApiAllSearchResult struct {
+	Name string `json:"name"`
+	Id   int    `json:"ankama_id"`
+	Type string `json:"type"`
 }
 
 type ApiEffect struct {

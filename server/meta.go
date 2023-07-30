@@ -2,10 +2,19 @@ package server
 
 import (
 	"encoding/json"
+	"net/http"
+
 	"github.com/dofusdude/api/gen"
 	"github.com/dofusdude/api/utils"
-	"net/http"
 )
+
+func ListSearchAllTypes(w http.ResponseWriter, r *http.Request) {
+	utils.WriteCacheHeader(&w)
+	if err := json.NewEncoder(w).Encode(searchAllowedIndices); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
 
 func ListEffectConditionElements(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)

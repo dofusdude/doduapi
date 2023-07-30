@@ -11,6 +11,11 @@ var (
 		Help: "The total number of processed requests over all endpoints",
 	})
 
+	requestsSearchTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dofus_requestsSearchTotal",
+		Help: "The total number of searches on the global /search endpoint",
+	})
+
 	requestsItemsSearch = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllItemsSearch",
 		Help: "The total number of searched items requests",

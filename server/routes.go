@@ -1,9 +1,7 @@
 package server
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -47,8 +45,6 @@ func Router() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
-	workDir, _ := os.Getwd()
-
 	var routePrefix string
 	if utils.IsBeta {
 		routePrefix = "/dofus2beta"
@@ -59,15 +55,20 @@ func Router() chi.Router {
 	r.With(useCors).Route(routePrefix, func(r chi.Router) {
 
 		if utils.FileServer {
-			imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))
+			imagesDir := http.Dir(filepath.Join(utils.DockerMountDataPath, "data", "img"))
 			FileServer(r, "/img", imagesDir)
 		}
 
 		r.Route("/meta", func(r chi.Router) {
 			r.Get("/elements", ListEffectConditionElements)
+			r.Get("/search/types", ListSearchAllTypes)
 		})
 
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
+			r.Route("/search", func(r chi.Router) {
+				r.Get("/", SearchAllIndices)
+			})
+
 			r.Route("/items", func(r chi.Router) {
 				r.Route("/consumables", func(r chi.Router) {
 					r.With(paginate).Get("/", ListConsumables)
@@ -123,8 +124,6 @@ func Router() chi.Router {
 			})
 		})
 	})
-
-	log.Println("Router initialized")
 
 	return r
 }
