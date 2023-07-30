@@ -18,18 +18,8 @@ jobs:
       with:
         go-version: '1.20'
 
-    - name: Set up environment variables
-      run: |
-        export DOCKER_MOUNT_DATA_PATH=$(pwd)
-
     - name: Build
       run: go build -v ./...
-
-    - name: Download data for tests
-      run: |
-        mkdir -p data
-        docker pull stelzo/doduda:latest
-        docker run --rm -v $PWD/data:/app/data stelzo/doduda:latest --ignore mountsimages
 
     - name: Test
       run: go test -v ./...
