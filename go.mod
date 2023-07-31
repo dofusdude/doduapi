@@ -3,7 +3,7 @@ module github.com/dofusdude/api
 go 1.20
 
 require (
-	github.com/docker/docker v24.0.2+incompatible
+	github.com/docker/docker v24.0.5+incompatible
 	github.com/dofusdude/ankabuffer v0.0.8
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.8
