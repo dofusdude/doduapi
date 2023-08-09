@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/log v0.2.3
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/dofusdude/ankabuffer v0.0.8
-	github.com/dofusdude/dodumap v0.0.5
+	github.com/dofusdude/dodumap v0.1.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/hashicorp/go-memdb v1.3.4
