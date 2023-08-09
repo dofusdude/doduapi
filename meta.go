@@ -1,11 +1,17 @@
-package server
+package main
 
 import (
 	"encoding/json"
-	"github.com/dofusdude/api/gen"
-	"github.com/dofusdude/api/utils"
 	"net/http"
 )
+
+func ListSearchAllTypes(w http.ResponseWriter, r *http.Request) {
+	WriteCacheHeader(&w)
+	if err := json.NewEncoder(w).Encode(searchAllowedIndices); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
 
 func ListEffectConditionElements(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
@@ -19,11 +25,11 @@ func ListEffectConditionElements(w http.ResponseWriter, r *http.Request) {
 
 	var effects []string
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		effectElement := obj.(*gen.EffectConditionDbEntry)
+		effectElement := obj.(*EffectConditionDbEntry)
 		effects = append(effects, effectElement.Name)
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(effects)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

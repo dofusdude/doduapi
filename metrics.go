@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -9,6 +9,11 @@ var (
 	requestsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsTotal",
 		Help: "The total number of processed requests over all endpoints",
+	})
+
+	requestsSearchTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dofus_requestsSearchTotal",
+		Help: "The total number of searches on the global /search endpoint",
 	})
 
 	requestsItemsSearch = promauto.NewCounter(prometheus.CounterOpts{

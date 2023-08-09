@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"encoding/json"
@@ -8,31 +8,47 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dofusdude/api/gen"
-	"github.com/dofusdude/api/utils"
+	"github.com/charmbracelet/log"
+	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
+	g "github.com/zyedidia/generic"
+	"github.com/zyedidia/generic/set"
 )
 
 var (
+	// Note: Never change the order of this list. Indices are guaranteed to be backwards compatible.
+	searchAllowedIndices = []string{
+		"items-consumables",
+		"items-cosmetics",
+		"items-resources",
+		"items-equipment",
+		"items-quest_items",
+		"mounts",
+		"sets",
+	}
+
+	searchAllItemAllowedExpandFields = []string{"type", "image_urls", "level"}
+
 	mountAllowedExpandFields     = []string{"effects"}
-	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
-	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
-	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "is_two_handed", "max_cast_per_turn", "ap_cost"})
+	setAllowedExpandFields       = Concat(mountAllowedExpandFields, []string{"equipment_ids"})
+	itemAllowedExpandFields      = Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
+	equipmentAllowedExpandFields = Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "is_two_handed", "max_cast_per_turn", "ap_cost"})
 )
 
-func GetRecipeIfExists(itemId int, txn *memdb.Txn) (gen.MappedMultilangRecipe, bool) {
-	raw, err := txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(Version.MemDb)), "id", itemId)
-	if err != nil {
-		panic(err)
+func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecipe, bool) {
+	var err error
+	var raw interface{}
+	if raw, err = txn.First(fmt.Sprintf("%s-recipes", CurrentRedBlueVersionStr(Version.MemDb)), "id", itemId); err != nil {
+		log.Fatal(err)
 	}
 
 	if raw != nil {
-		recipe := raw.(*gen.MappedMultilangRecipe)
+		recipe := raw.(*mapping.MappedMultilangRecipe)
 		return *recipe, true
 	}
 
-	return gen.MappedMultilangRecipe{}, false
+	return mapping.MappedMultilangRecipe{}, false
 }
 
 func MinMaxLevelInt(minLevel string, maxLevel string, indexFilterName string) (int, int, error) {
@@ -76,6 +92,39 @@ func MinMaxLevelMeiliFilterFromParams(filterMinLevel string, filterMaxLevel stri
 	}
 
 	return filterString, nil
+}
+
+type UpdateMessage struct {
+	Version string `json:"version"`
+}
+
+// update
+func UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	var updateMessage UpdateMessage
+	if err := json.NewDecoder(r.Body).Decode(&updateMessage); err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var release string
+	if IsBeta {
+		release = "beta"
+	} else {
+		release = "main"
+	}
+
+	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", release, updateMessage.Version)
+
+	log.Info("Updating to version", updateMessage.Version)
+	err := DownloadImages()
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	UpdateChan <- true
 }
 
 // listings
@@ -127,12 +176,11 @@ func ListAllCosmetics(w http.ResponseWriter, r *http.Request) {
 
 func ListMounts(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := PageninationWithState(r.Context().Value("pagination").(string))
 
 	filterFamilyName := r.URL.Query().Get("filter[family_name]")
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[mount]"))
-	var expansions *utils.Set
-	expansions = parseFields(expansionsParam)
+	expansions := parseFields(expansionsParam)
 	if !validateFields(expansions, mountAllowedExpandFields) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -141,7 +189,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id")
 	if err != nil || it == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -152,9 +200,9 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 
 	var mounts []APIListMount
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*gen.MappedMultilangMount)
+		p := obj.(*mapping.MappedMultilangMount)
 		if filterFamilyName != "" {
-			if strings.ToLower(p.FamilyName[lang]) != strings.ToLower(filterFamilyName) {
+			if !strings.EqualFold(p.FamilyName[lang], filterFamilyName) {
 				continue
 			}
 		}
@@ -189,7 +237,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -199,11 +247,10 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 
 func ListSets(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := PageninationWithState(r.Context().Value("pagination").(string))
 
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[set]"))
-	var expansions *utils.Set
-	expansions = parseFields(expansionsParam)
+	expansions := parseFields(expansionsParam)
 	if !validateFields(expansions, setAllowedExpandFields) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -220,7 +267,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id")
 	if err != nil || it == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -231,7 +278,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 
 	var sets []APIListSet
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*gen.MappedMultilangSet)
+		p := obj.(*mapping.MappedMultilangSet)
 
 		if filterMinLevel != "" {
 			if p.Level < filterMinLevelInt {
@@ -293,7 +340,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -301,26 +348,26 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func parseFields(expansionsParam string) *utils.Set {
-	expansions := utils.NewSet()
+func parseFields(expansionsParam string) *set.Set[string] {
+	expansions := set.NewHashset[string](10, g.Equals[string], g.HashString)
 	expansionContainsDiv := strings.Contains(expansionsParam, ",")
 	if len(expansionsParam) != 0 && expansionContainsDiv {
 		expansionsArr := strings.Split(expansionsParam, ",")
 		for _, expansion := range expansionsArr {
-			expansions.Add(expansion)
+			expansions.Put(expansion)
 		}
 	}
 	if len(expansionsParam) != 0 && !expansionContainsDiv {
-		expansions.Add(expansionsParam)
+		expansions.Put(expansionsParam)
 	}
 
-	return expansions
+	return &expansions
 }
 
-func validateFields(expansions *utils.Set, list []string) bool {
-	allowedFields := utils.NewSet()
+func validateFields(expansions *set.Set[string], list []string) bool {
+	allowedFields := set.NewHashset[string](10, g.Equals[string], g.HashString)
 	for _, expansion := range list {
-		allowedFields.Add(expansion)
+		allowedFields.Put(expansion)
 	}
 
 	return expansions.Difference(allowedFields).Size() == 0
@@ -328,10 +375,10 @@ func validateFields(expansions *utils.Set, list []string) bool {
 
 func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := PageninationWithState(r.Context().Value("pagination").(string))
 
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
-	var expansions *utils.Set
+	var expansions *set.Set[string]
 	if itemType == "equipment" {
 		expansions = parseFields(expansionsParam)
 		if !validateFields(expansions, equipmentAllowedExpandFields) {
@@ -359,7 +406,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id")
 	if err != nil || it == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -370,7 +417,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 	var items []APIListItem
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*gen.MappedMultilangItem)
+		p := obj.(*mapping.MappedMultilangItem)
 
 		if filterTypeName != "" {
 			if strings.ToLower(p.Type.Name[lang]) != filterTypeName {
@@ -507,7 +554,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		Links: links,
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -555,7 +602,7 @@ func getLimitInBoundary(limitStr string) (int64, error) {
 
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	var err error
-	client := utils.CreateMeiliClient()
+	client := CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -572,7 +619,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 
 	lang := r.Context().Value("lang").(string)
 
-	index := client.Index(fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-mounts-%s", CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
 	filterString := ""
 	if familyName != "" {
@@ -612,17 +659,17 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		indexed := hit.(map[string]interface{})
 		itemId := int(indexed["id"].(float64))
 
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", itemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", itemId)
 		if err != nil || raw == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		item := raw.(*gen.MappedMultilangMount)
+		item := raw.(*mapping.MappedMultilangMount)
 		mounts = append(mounts, RenderMountListEntry(item, lang))
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mounts)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -631,7 +678,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchSets(w http.ResponseWriter, r *http.Request) {
-	client := utils.CreateMeiliClient()
+	client := CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -653,7 +700,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-sets-%s", CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
 
 	if filterString == "" {
@@ -693,17 +740,17 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		indexed := hit.(map[string]interface{})
 		itemId := int(indexed["id"].(float64))
 
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", itemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", itemId)
 		if err != nil || raw == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		item := raw.(*gen.MappedMultilangSet)
+		item := raw.(*mapping.MappedMultilangSet)
 		sets = append(sets, RenderSetListEntry(item, lang))
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(sets)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -711,8 +758,147 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
+	client := CreateMeiliClient()
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	filterSearchIndex := strings.ToLower(r.URL.Query().Get("filter[type]"))
+	if filterSearchIndex == "" {
+		filterSearchIndex = strings.Join(searchAllowedIndices, ",")
+	}
+
+	parsedIndices := parseFields(filterSearchIndex)
+	if !validateFields(parsedIndices, searchAllowedIndices) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	itemExpansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
+	itemExpansions := parseFields(itemExpansionsParam)
+	if !validateFields(itemExpansions, searchAllItemAllowedExpandFields) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	lang := r.Context().Value("lang").(string)
+
+	var searchLimit int64
+	var err error
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
+	index := client.Index(indexName)
+	filterString := "stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=")
+
+	request := &meilisearch.SearchRequest{
+		Limit:  searchLimit,
+		Filter: filterString,
+	}
+
+	log.Info(filterString)
+
+	var searchResp *meilisearch.SearchResponse
+	if searchResp, err = index.Search(query, request); err != nil {
+		log.Warn("SearchAllIndices: index not found: ", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsSearchTotal.Inc()
+
+	if searchResp.EstimatedTotalHits == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	var stuffs []ApiAllSearchResult
+	for _, hit := range searchResp.Hits {
+		indexed := hit.(map[string]interface{})
+
+		isItem := strings.HasPrefix(indexed["stuff_type"].(string), "items-")
+		ankamaId := int(indexed["id"].(float64))
+		stuffType := indexed["stuff_type"].(string)
+
+		var itemInclude *ApiAllSearchItem
+		if isItem {
+			var itemType string
+			switch stuffType {
+			case "items-consumables":
+				itemType = "consumables"
+			case "items-cosmetics":
+				itemType = "cosmetics"
+			case "items-resources":
+				itemType = "resources"
+			case "items-equipment":
+				itemType = "equipment"
+			case "items-quest_items":
+				itemType = "quest_items"
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			txn := Db.Txn(false)
+			defer txn.Abort()
+
+			raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
+			if err != nil || raw == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			item := raw.(*mapping.MappedMultilangItem)
+			itemFields := RenderItemListEntry(item, lang)
+
+			itemInclude = &ApiAllSearchItem{}
+
+			if itemExpansions.Has("type") {
+				itemInclude.Type = &itemFields.Type
+			}
+
+			if itemExpansions.Has("level") {
+				itemInclude.Level = &itemFields.Level
+			}
+
+			if itemExpansions.Has("image_urls") {
+				itemInclude.ImageUrls = &itemFields.ImageUrls
+			}
+
+			if itemInclude.ImageUrls == nil && itemInclude.Type == nil && itemInclude.Level == nil {
+				itemInclude = nil
+			}
+		}
+
+		result := ApiAllSearchResult{
+			Id:         ankamaId,
+			Name:       indexed["name"].(string),
+			Type:       stuffType,
+			ItemFields: itemInclude,
+		}
+
+		stuffs = append(stuffs, result)
+	}
+
+	WriteCacheHeader(&w)
+	if json.NewEncoder(w).Encode(stuffs) != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Request) {
-	client := utils.CreateMeiliClient()
+	client := CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -736,7 +922,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	index := client.Index(fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-all_items-%s", CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
 	if all {
 		if filterTypeName != "" {
@@ -798,16 +984,16 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 		var raw interface{}
 		if all {
-			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", itemId)
+			raw, err = txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", itemId)
 		} else {
-			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", itemId)
+			raw, err = txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", itemId)
 		}
 		if err != nil || raw == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		item := raw.(*gen.MappedMultilangItem)
+		item := raw.(*mapping.MappedMultilangItem)
 		if all {
 			typedItems = append(typedItems, RenderTypedItemListEntry(item, lang))
 		} else {
@@ -815,7 +1001,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	var encodeErr error
 	if all {
 		encodeErr = json.NewEncoder(w).Encode(typedItems)
@@ -862,7 +1048,7 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", ankamaId)
 	if err != nil || raw == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -871,8 +1057,8 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	requestsTotal.Inc()
 	requestsSetsSingle.Inc()
 
-	set := RenderSet(raw.(*gen.MappedMultilangSet), lang)
-	utils.WriteCacheHeader(&w)
+	set := RenderSet(raw.(*mapping.MappedMultilangSet), lang)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(set)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -887,7 +1073,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", ankamaId)
 	if err != nil || raw == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -896,8 +1082,8 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	requestsTotal.Inc()
 	requestsMountsSingle.Inc()
 
-	mount := RenderMount(raw.(*gen.MappedMultilangMount), lang)
-	utils.WriteCacheHeader(&w)
+	mount := RenderMount(raw.(*mapping.MappedMultilangMount), lang)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mount)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -912,7 +1098,7 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
 	if err != nil || raw == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -921,12 +1107,12 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	requestsTotal.Inc()
 	requestsItemsSingle.Inc()
 
-	resource := RenderResource(raw.(*gen.MappedMultilangItem), lang)
+	resource := RenderResource(raw.(*mapping.MappedMultilangItem), lang)
 	recipe, exists := GetRecipeIfExists(ankamaId, txn)
 	if exists {
 		resource.Recipe = RenderRecipe(recipe, Db)
 	}
-	utils.WriteCacheHeader(&w)
+	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(resource)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -957,7 +1143,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-equipment", utils.CurrentRedBlueVersionStr(Version.MemDb)), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-equipment", CurrentRedBlueVersionStr(Version.MemDb)), "id", ankamaId)
 	if err != nil || raw == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -966,14 +1152,14 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 	requestsTotal.Inc()
 	requestsItemsSingle.Inc()
 
-	item := raw.(*gen.MappedMultilangItem)
+	item := raw.(*mapping.MappedMultilangItem)
 	if item.Type.SuperTypeId == 2 { // is weapon
 		weapon := RenderWeapon(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
 			weapon.Recipe = RenderRecipe(recipe, Db)
 		}
-		utils.WriteCacheHeader(&w)
+		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(weapon)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -985,7 +1171,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		if exists {
 			equipment.Recipe = RenderRecipe(recipe, Db)
 		}
-		utils.WriteCacheHeader(&w)
+		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(equipment)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

@@ -1,15 +1,19 @@
-package utils
+package main
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestPaginationSet(t *testing.T) {
 	pagination := PageninationWithState("30,3")
 
-	assert.Equal(t, 3, pagination.PageSize)
-	assert.Equal(t, 30, pagination.PageNumber)
+	if pagination.PageSize != 3 {
+		t.Error("Expected 3, got ", t)
+	}
+
+	if pagination.PageNumber != 30 {
+		t.Error("Expected 30, got ", t)
+	}
 }
 
 func TestPaginationValidation(t *testing.T) {
@@ -17,12 +21,19 @@ func TestPaginationValidation(t *testing.T) {
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
-	assert.Equal(t, 0, valid)
+	if valid != 0 {
+		t.Error("Expected 0, got ", valid)
+	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(listSize)
 
-	assert.Equal(t, 90, startIdx)
-	assert.Equal(t, 91, endIdx)
+	if startIdx != 90 {
+		t.Error("Expected 90, got ", startIdx)
+	}
+
+	if endIdx != 91 {
+		t.Error("Expected 91, got ", endIdx)
+	}
 }
 
 func TestPaginationValidationFail(t *testing.T) {
@@ -30,7 +41,10 @@ func TestPaginationValidationFail(t *testing.T) {
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
-	assert.NotEqual(t, 0, valid)
+
+	if valid == 0 {
+		t.Error("Expected 0, got ", valid)
+	}
 }
 
 func TestPaginationValidation1(t *testing.T) {
@@ -38,34 +52,54 @@ func TestPaginationValidation1(t *testing.T) {
 	listSize := 6
 
 	valid := pagination.ValidatePagination(listSize)
-	assert.Equal(t, 0, valid)
+	if valid != 0 {
+		t.Error("Expected 0, got ", valid)
+	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(listSize)
 
-	assert.Equal(t, 0, startIdx)
-	assert.Equal(t, 6, endIdx)
+	if startIdx != 0 {
+		t.Error("Expected 0, got ", startIdx)
+	}
+
+	if endIdx != 6 {
+		t.Error("Expected 6, got ", endIdx)
+	}
 }
 
 func TestPaginationLastSite(t *testing.T) {
 	pagination := PageninationWithState("30,3")
 	listSize := 90
 	valid := pagination.ValidatePagination(listSize)
-	assert.Equal(t, 0, valid)
+	if valid != 0 {
+		t.Error("Expected 0, got ", valid)
+	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(listSize)
 
-	assert.Equal(t, 87, startIdx)
-	assert.Equal(t, 90, endIdx)
+	if startIdx != 87 {
+		t.Error("Expected 87, got ", startIdx)
+	}
+	if endIdx != 90 {
+		t.Error("Expected 90, got ", endIdx)
+	}
 }
 
 func TestPaginationFirstSite(t *testing.T) {
 	pagination := PageninationWithState("1,3")
 	listSize := 266
 	valid := pagination.ValidatePagination(listSize)
-	assert.Equal(t, 0, valid)
+	if valid != 0 {
+		t.Error("Expected 0, got ", valid)
+	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(listSize)
 
-	assert.Equal(t, 0, startIdx)
-	assert.Equal(t, 3, endIdx)
+	if startIdx != 0 {
+		t.Error("Expected 0, got ", startIdx)
+	}
+
+	if endIdx != 3 {
+		t.Error("Expected 3, got ", endIdx)
+	}
 }

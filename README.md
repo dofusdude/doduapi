@@ -1,107 +1,94 @@
-# Dofusdude - API
+<p align="center">
+  <img src="https://docs.dofusdu.de/logo_cropped.png" width="120">
+  <h3 align="center">doduapi</h3>
+  <p align="center">The always up-to-date API for Dofus.</p>
+  <p align="center"><a href="https://docs.dofusdu.de">Try it!</a></p>
+  <p align="center"><a href="https://goreportcard.com/report/github.com/dofusdude/doduapi"><img src="https://goreportcard.com/badge/github.com/dofusdude/doduapi" alt=""></a> <a href="https://godoc.org/github.com/dofusdude/doduapi"><img src="https://godoc.org/github.com/dofusdude/doduapi?status.svg" alt=""></a> <a href="https://github.com/dofusdude/doduda/actions/workflows/tests.yml"><img src="https://github.com/dofusdude/doduapi/actions/workflows/tests.yml/badge.svg" alt=""></a>
+  </p>
+</p>
 
-An auto-updating API for Dofus by imitating the Ankama Launcher.
+<p align="center">
+  <img src="https://vhs.charm.sh/vhs-cPARIJGIyMVFcOYG9b1tZ.gif" width="600">
+</p>
 
-See [Docs](https://docs.dofusdu.de) for using this project.
+## Usage
 
-## Dev Setup
+This project only covers the encyclopedia part.
 
-### MacOS
+The dofusdude server is always running with the latest Dofus version and it is highly recommended to use its public endpoint `https://api.dofusdu.de/`. Try out the endpoints [here](https://docs.dofusdu.de) and use the SDKs for real development.
 
-Install [Homebrew](https://brew.sh/) and [Docker Desktop](https://www.docker.com/products/docker-desktop).
+- [Javascript](https://github.com/dofusdude/dofusdude-js) `npm i dofusdude-js --save`
+- [Typescript](https://github.com/dofusdude/dofusdude-ts) `npm i dofusdude-ts --save`
+- [Go](https://github.com/dofusdude/dodugo) `go get -u github.com/dofusdude/dodugo`
+- [Python](https://github.com/dofusdude/dofusdude-py) `pip install dofusdude`
+- [PHP](https://github.com/dofusdude/dofusdude-php)
+
+If you host your own instance you have to update it yourself. You can use a [doduda Watchdog](https://github.com/dofusdude/doduda#watchdog) as a trigger.
+
+## Development Setup
+
+Assumptions:
+- Linux / MacOS
+- Docker (only if `RENDER_IMAGES=true`)
+
+Create a simple `.env` file.
 ```shell
-brew install md5sha1sum
+export MEILI_MASTER_KEY_GEN=$(echo $RANDOM | md5sum | head -c 20; echo;)
+
+echo "DOCKER_MOUNT_DATA_PATH=$(pwd)
+MEILI_MASTER_KEY=$MEILI_MASTER_KEY_GEN
+CURRENT_UID=$(id -u):$(id -g)
+DOFUS_VERSION=$(curl -s https://api.github.com/repos/dofusdude/dofus2-main/releases/latest | jq -r '.name')
+" > .env
+```
+If you had a problem with the md5sum, you are probably on MacOS and need to `brew install md5sha1sum`. Also, `jq` could be a problem, `brew install jq` or `sudo apt install jq`. Or just make up your own keys.
+
+Download [Meilisearch](https://www.meilisearch.com/docs/learn/getting_started/installation#local-installation) for the search engine and let it run in the background.
+```shell
+curl -L https://install.meilisearch.com | sh
+./meilisearch --master-key $MEILI_MASTER_KEY_GEN &
+```
+You can get the process back with `fg` later.
+
+Now build it from source. You need to have [Go](https://go.dev/doc/install) >= 1.18 installed.
+```shell
+git clone git@github.com:dofusdude/doduapi.git
+cd doduapi
+go run .
 ```
 
-We need the Docker socket. Docker Desktop might have a different path to the socket.
-If the socket is not at `/var/run/docker.sock`, add a parameter `DOCKER_HOST` to the `.env` file and change the path in the `docker-compose.yml` file.
+If you want more info about the specific tasks, you can set the `LOG_LEVEL` env to one of `debug`, `info`, `warn` (default), `error` or `fatal`. The more left you go in that list, the more info you get.
 
-```yaml
-    volumes:
-      - ./db:/home/developer/db
-      - ./data:/home/developer/data
-      - <your docker.sock path>:/var/run/docker.sock
+```bash
+LOG_LEVEL=debug go run . --headless
 ```
 
+## Configuration
+
+Open the `.env` with your favorite editor. Add more parameters if you want. Here is a full list.
+```shell
+DOCKER_MOUNT_DATA_PATH=<already set> # directory where the ./data dir can be found for the image renderer
+MEILI_MASTER_KEY=<already set> # a random string that must be the same in the meilisearch.service file or parameter
+CURRENT_UID=<already set> # the current user id and group id, used for docker
+DOFUS_VERSION=2.68.4.5 # must match a name from https://github.com/dofusdude/dofus2-main/releases
+API_SCHEME=http # http or https. Just used for building links
+API_HOSTNAME=localhost # the hostname of the api. Just used for building links
+API_PORT=3000 # the port where to listen on
+MEILI_PORT=7700 # the port where meilisearch is listening on
+MEILI_PROTOCOL=http # http or https
+MEILI_HOST=127.0.0.1 # the hostname of meilisearch
+PROMETHEUS=false # enable prometheus metrics export running on one apiport + 1
+FILESERVER=true # will tell doduapi to serve the image files itself
+IS_BETA=false # main (false) vs beta (true)
+UPDATE_HOOK_TOKEN=secret # /update/<token> will trigger an update with a POST request {"version": "<dofusversion>"}
+RENDER_IMAGES=false # use docker to render images in higher resolutions
+```
+
+## Known Problems
+
+If you get some Docker errors and the socket is not at `/var/run/docker.sock`, add a parameter `DOCKER_HOST` to the `.env` file.
 ```bash
 DOCKER_HOST=unix://<your docker.sock path>
 ```
 
-### Steps
-
-Install Docker and make it available for all users.
-```shell
-sudo chmod 666 /var/run/docker.sock
-```
-
-```shell
-git clone git@github.com:dofusdude/api.git
-cd api/
-git submodule update --init --recursive
-sudo docker-compose build
-
-mkdir data
-sudo chown -R 1000:1000 data
-```
-
-Redis is required for keeping the version state.
-```shell
-docker-compose -f redis.docker-compose.yml up -d
-```
-
-Copy the all lines below together. The newlines are important.
-```shell
-$ echo "DOCKER_MOUNT_DATA_PATH=$(pwd)
-MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
-CURRENT_UID=$(id -u):$(id -g)" > .env
-```
-
-Export the created `.env` to your shell.
-You need this for every new shell and if you later use `go run .`.
-If you use the entire docker-compose file (unlike specified here), you don't need to export the .env.
-```shell
-export $(grep -v '^#' .env | xargs)
-```
-
-MeiliSearch is required for all searching queries of the API.
-```shell
-docker-compose up -d meili
-```
-
-Start everything. This will take a while.
-```shell
-go run .
-```
-
-For developing, use the following parameters to avoid doing every step again.
-- `-clean` Remove all generated and temporary files.
-- `-update` Download the Dofus client and generate the `data/` folder.
-- `-parse` Parse downloaded data.
-- `-gen` Generate in-memory index database.
-- `-serve` Start serving the endpoints at the end.
-
-Examples:
-```shell
-$ go run . -update -parse # Download and generate needed files.
-$ go run . -gen -serve # Reuse generated data, generate and run the API.
-```
-
-## SWF Renderer
-The renderer is my own dockerized gnash image.
-
-If, for some reason, you want to rebuild this image:
-```shell
-sudo apt install libtool libltdl3-dev autoconf automake pkg-config git build-essential
-git clone git://git.sv.gnu.org/gnash.git
-cd gnash
-./configure
-./autogen.sh
-sudo ./deb-attempt-install-dependencies.sh
-./configure
-
-make
-sudo make install
-```
-
-Example use of the renderer.
-`docker run -v $(pwd):/home/developer --entrypoint /usr/local/bin/dump-gnash dofusdude/swf-renderer --screenshot last --screenshot-file out.png -1 -r1 --width 1000 --height 1000 mount3.swf`
+Run `doduapi` with `--headless` in a server environment to avoid "no tty" errors.

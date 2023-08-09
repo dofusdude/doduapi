@@ -1,29 +1,33 @@
-package utils
+package main
 
 import (
-	"context"
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/dofusdude/ankabuffer"
-	"github.com/emirpasic/gods/maps/treebidimap"
-	gutils "github.com/emirpasic/gods/utils"
-	"github.com/go-redis/redis/v9"
-	"github.com/meilisearch/meilisearch-go"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/dofusdude/ankabuffer"
+	"github.com/emirpasic/gods/maps/treebidimap"
+	gutils "github.com/emirpasic/gods/utils"
+	_ "github.com/joho/godotenv/autoload"
+	"github.com/meilisearch/meilisearch-go"
+	"github.com/spf13/viper"
+	b "gogs.towantto.com/jiyusheng/gotil/box"
 )
 
 var (
 	Languages           = []string{"de", "en", "es", "fr", "it", "pt"}
 	ImgResolutions      = []string{"200", "400", "800"}
-	ImgWithResExists    *Set
+	ImgWithResExists    b.Set
 	ApiHostName         string
 	ApiPort             string
 	ApiScheme           string
@@ -32,45 +36,19 @@ var (
 	MeiliHost           string
 	MeiliKey            string
 	PrometheusEnabled   bool
-	FileServer          bool
+	PublishFileServer   bool
 	PersistedElements   PersistentStringKeysMap
 	PersistedTypes      PersistentStringKeysMap
 	IsBeta              bool
 	LastUpdate          time.Time
-	RedisHost           string
-	RedisPassword       string
-	PythonPath          string
+	ElementsUrl         string
+	TypesUrl            string
+	ReleaseUrl          string
+	UpdateHookToken     string
+	DofusVersion        string
 )
 
 var currentWd string
-
-func GetReleaseManifest(version string) (ankabuffer.Manifest, error) {
-	var gameVersionType string
-	if IsBeta {
-		gameVersionType = "beta"
-	} else {
-		gameVersionType = "main"
-	}
-	gameHashesUrl := fmt.Sprintf("https://cytrus.cdn.ankama.com/dofus/releases/%s/windows/%s.manifest", gameVersionType, version)
-	hashResponse, err := http.Get(gameHashesUrl)
-	if err != nil {
-		log.Println(err)
-		return ankabuffer.Manifest{}, err
-	}
-
-	hashBody, err := io.ReadAll(hashResponse.Body)
-	if err != nil {
-		log.Println(err)
-		return ankabuffer.Manifest{}, err
-	}
-
-	FileHashes = *ankabuffer.ParseManifest(hashBody)
-
-	marshalledBytes, _ := json.MarshalIndent(FileHashes, "", "  ")
-	os.WriteFile("data/manifest.json", marshalledBytes, os.ModePerm)
-
-	return FileHashes, nil
-}
 
 type VersionT struct {
 	Search bool
@@ -93,103 +71,130 @@ func WriteCacheHeader(w *http.ResponseWriter) {
 	(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
 }
 
+// from Armatorix https://codereview.stackexchange.com/questions/272457/decompress-tar-gz-file-in-go
+func ExtractTarGz(baseDir string, gzipStream io.Reader) error {
+	uncompressedStream, err := gzip.NewReader(gzipStream)
+	if err != nil {
+		return err
+	}
+
+	tarReader := tar.NewReader(uncompressedStream)
+	var header *tar.Header
+	for header, err = tarReader.Next(); err == nil; header, err = tarReader.Next() {
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(filepath.Join(baseDir, header.Name), 0755); err != nil {
+				return fmt.Errorf("ExtractTarGz: Mkdir() failed: %w", err)
+			}
+		case tar.TypeReg:
+			outFile, err := os.Create(filepath.Join(baseDir, header.Name))
+			if err != nil {
+				return fmt.Errorf("ExtractTarGz: Create() failed: %w", err)
+			}
+			defer outFile.Close()
+
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				return fmt.Errorf("ExtractTarGz: Copy() failed: %w", err)
+			}
+			if err := outFile.Close(); err != nil {
+				return fmt.Errorf("ExtractTarGz: Close() failed: %w", err)
+			}
+		default:
+			return fmt.Errorf("ExtractTarGz: uknown type: %b in %s", header.Typeflag, header.Name)
+		}
+	}
+	if err != io.EOF {
+		return fmt.Errorf("ExtractTarGz: Next() failed: %w", err)
+	}
+	return nil
+}
+
+func DownloadImages() error {
+	itemsImagesResponse, err := http.Get(fmt.Sprintf("%s/items_images.tar.gz", ReleaseUrl))
+	if err != nil {
+		return err
+	}
+	err = ExtractTarGz("", itemsImagesResponse.Body)
+	if err != nil {
+		return err
+	}
+
+	mountsImagesResponse, err := http.Get(fmt.Sprintf("%s/mounts_images.tar.gz", ReleaseUrl))
+	if err != nil {
+		return err
+	}
+	err = ExtractTarGz("", mountsImagesResponse.Body)
+	if err != nil {
+		return err
+	}
+
+	itemsImagesVectorResponse, err := http.Get(fmt.Sprintf("%s/items_images_vector.tar.gz", ReleaseUrl))
+	if err != nil {
+		return err
+	}
+	err = ExtractTarGz("", itemsImagesVectorResponse.Body)
+	if err != nil {
+		return err
+	}
+
+	mountsImagesVectorResponse, err := http.Get(fmt.Sprintf("%s/mounts_images_vector.tar.gz", ReleaseUrl))
+	if err != nil {
+		return err
+	}
+	err = ExtractTarGz("", mountsImagesVectorResponse.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func ReadEnvs() {
-	apiScheme, ok := os.LookupEnv("API_SCHEME")
-	if !ok {
-		apiScheme = "http"
-	}
-	ApiScheme = apiScheme
+	viper.SetDefault("API_SCHEME", "http")
+	viper.SetDefault("API_HOSTNAME", "localhost")
+	viper.SetDefault("API_PORT", "3000")
+	viper.SetDefault("MEILI_PORT", "7700")
+	viper.SetDefault("MEILI_MASTER_KEY", "masterKey")
+	viper.SetDefault("MEILI_PROTOCOL", "http")
+	viper.SetDefault("MEILI_HOST", "127.0.0.1")
+	viper.SetDefault("PROMETHEUS", "false")
+	viper.SetDefault("FILESERVER", "true")
+	viper.SetDefault("IS_BETA", "false")
+	viper.SetDefault("UPDATE_HOOK_TOKEN", "")
+	viper.SetDefault("DOFUS_VERSION", "2.68.4.5")
+	viper.SetDefault("LOG_LEVEL", "warn")
 
-	apiHostName, ok := os.LookupEnv("API_HOSTNAME")
-	if !ok {
-		apiHostName = "localhost"
-	}
-	ApiHostName = apiHostName
-
-	apiPort, ok := os.LookupEnv("API_PORT")
-	if !ok {
-		apiPort = "3000"
-	}
-	ApiPort = apiPort
-
-	path, err := os.Getwd()
+	var err error
+	currentWd, err = os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
-	currentWd = path
+	viper.SetDefault("DOCKER_MOUNT_DATA_PATH", currentWd)
 
-	dockerMountDataPath, ok := os.LookupEnv("DOCKER_MOUNT_DATA_PATH")
-	if !ok {
-		dockerMountDataPath = currentWd
+	viper.AutomaticEnv()
+
+	IsBeta = viper.GetBool("IS_BETA")
+	DofusVersion = viper.GetString("DOFUS_VERSION")
+	log.SetLevel(log.ParseLevel(viper.GetString("LOG_LEVEL")))
+
+	if IsBeta {
+		ElementsUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.beta.json"
+		TypesUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.beta.json"
+		ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", "beta", DofusVersion)
+	} else {
+		ElementsUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.main.json"
+		TypesUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.main.json"
+		ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", "main", DofusVersion)
 	}
-
-	DockerMountDataPath = dockerMountDataPath
-
-	meiliPort, ok := os.LookupEnv("MEILI_PORT")
-	if !ok {
-		meiliPort = "7700"
-	}
-
-	meiliKey, ok := os.LookupEnv("MEILI_MASTER_KEY")
-	if !ok {
-		meiliKey = "masterKey"
-	}
-
-	MeiliKey = meiliKey
-
-	meiliProtocol, ok := os.LookupEnv("MEILI_PROTOCOL")
-	if !ok {
-		meiliProtocol = "http"
-	}
-
-	meiliHost, ok := os.LookupEnv("MEILI_HOST")
-	if !ok {
-		meiliHost = "127.0.0.1"
-	}
-
-	MeiliHost = fmt.Sprintf("%s://%s:%s", meiliProtocol, meiliHost, meiliPort)
-
-	promEnables, ok := os.LookupEnv("PROMETHEUS")
-	if !ok {
-		promEnables = ""
-	}
-
-	pythonPath, ok := os.LookupEnv("PYTHON_PATH")
-	if !ok {
-		pythonPath = "/usr/bin/python3"
-	}
-
-	PythonPath = pythonPath
-
-	PrometheusEnabled = strings.ToLower(promEnables) == "true"
-
-	fileServer, ok := os.LookupEnv("FILESERVER")
-	if !ok {
-		fileServer = "true"
-	}
-
-	FileServer = strings.ToLower(fileServer) == "true"
-
-	isBeta, ok := os.LookupEnv("IS_BETA")
-	if !ok {
-		isBeta = "false"
-	}
-
-	IsBeta = strings.ToLower(isBeta) == "true"
-
-	redisHost, ok := os.LookupEnv("REDIS_HOST")
-	if !ok {
-		redisHost = "127.0.0.1"
-	}
-
-	RedisHost = redisHost
-
-	redisPassword, ok := os.LookupEnv("REDIS_PASSWORD")
-	if !ok {
-		redisPassword = "secret"
-	}
-
-	RedisPassword = redisPassword
+	ApiScheme = viper.GetString("API_SCHEME")
+	ApiHostName = viper.GetString("API_HOSTNAME")
+	ApiPort = viper.GetString("API_PORT")
+	MeiliKey = viper.GetString("MEILI_MASTER_KEY")
+	MeiliHost = fmt.Sprintf("%s://%s:%s", viper.GetString("MEILI_PROTOCOL"), viper.GetString("MEILI_HOST"), viper.GetString("MEILI_PORT"))
+	PrometheusEnabled = viper.GetBool("PROMETHEUS")
+	PublishFileServer = viper.GetBool("FILESERVER")
+	UpdateHookToken = viper.GetString("UPDATE_HOOK_TOKEN")
+	DockerMountDataPath = viper.GetString("DOCKER_MOUNT_DATA_PATH")
 }
 
 func ImageUrls(iconId int, apiType string) []string {
@@ -208,7 +213,7 @@ func ImageUrls(iconId int, apiType string) []string {
 	for _, resolution := range ImgResolutions {
 		finalImagePath := fmt.Sprintf("%s/data/img/%s/%d-%s.png", currentWd, apiType, iconId, resolution)
 		resolutionUrl := fmt.Sprintf("%s/%d-%s.png", baseUrl, iconId, resolution)
-		if ImgWithResExists.Has(finalImagePath) {
+		if ImgWithResExists.Contain(finalImagePath) {
 			urls = append(urls, resolutionUrl)
 		}
 	}
@@ -224,74 +229,26 @@ func CreateMeiliClient() *meilisearch.Client {
 	return client
 }
 
-func touchFileIfNotExists(fileName string) error {
-	_, err := os.Stat(fileName)
-	if os.IsNotExist(err) {
-		file, err := os.Create(fileName)
-		defer file.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func CreateDataDirectoryStructure() {
-	os.MkdirAll("data/tmp/vector", os.ModePerm)
-	os.MkdirAll("data/img/item", os.ModePerm)
-	os.MkdirAll("data/img/mount", os.ModePerm)
-
-	os.MkdirAll("data/vector/item", os.ModePerm)
-	os.MkdirAll("data/vector/mount", os.ModePerm)
-
-	os.MkdirAll("data/languages", os.ModePerm)
-
-	err := touchFileIfNotExists("data/img/index.html")
-	if err != nil {
-		log.Println(err)
-	}
-	err = touchFileIfNotExists("data/img/item/index.html")
-	if err != nil {
-		log.Println(err)
-	}
-	err = touchFileIfNotExists("data/img/mount/index.html")
-	if err != nil {
-		log.Println(err)
-	}
-
-}
-
-func DeleteReplacer(input string) string {
-	replacer := []string{
-		"#",
-		"%",
-	}
-
-	for i := 1; i < 6; i++ {
-		for _, replace := range replacer {
-			numRegex := regexp.MustCompile(fmt.Sprintf(" ?%s%d", replace, i))
-			input = numRegex.ReplaceAllString(input, "")
-		}
-	}
-	return input
-}
-
 type PersistentStringKeysMap struct {
 	Entries *treebidimap.Map `json:"entries"`
 	NextId  int              `json:"next_id"`
 }
 
-func LoadPersistedElements(element_path string, item_type_path string) error {
-	data, err := os.ReadFile(element_path)
+func LoadPersistedElements() error {
+	elementsResponse, err := http.Get(ElementsUrl)
+	if err != nil {
+		return err
+	}
+
+	elementsBody, err := io.ReadAll(elementsResponse.Body)
 	if err != nil {
 		return err
 	}
 
 	var elements []string
-	err = json.Unmarshal(data, &elements)
+	err = json.Unmarshal(elementsBody, &elements)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	PersistedElements = PersistentStringKeysMap{
@@ -304,15 +261,20 @@ func LoadPersistedElements(element_path string, item_type_path string) error {
 		PersistedElements.NextId++
 	}
 
-	data, err = os.ReadFile(item_type_path)
+	typesResponse, err := http.Get(TypesUrl)
+	if err != nil {
+		return err
+	}
+
+	typesBody, err := io.ReadAll(typesResponse.Body)
 	if err != nil {
 		return err
 	}
 
 	var types []string
-	err = json.Unmarshal(data, &types)
+	err = json.Unmarshal(typesBody, &types)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	PersistedTypes = PersistentStringKeysMap{
@@ -326,131 +288,6 @@ func LoadPersistedElements(element_path string, item_type_path string) error {
 	}
 
 	return nil
-}
-
-func PersistElements(element_path string, item_type_path string) error {
-	elements := make([]string, PersistedElements.NextId)
-	it := PersistedElements.Entries.Iterator()
-	for it.Next() {
-		elements[it.Key().(int)] = it.Value().(string)
-	}
-
-	elementsJson, err := json.MarshalIndent(elements, "", "    ")
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(element_path, elementsJson, 0644)
-	if err != nil {
-		return err
-	}
-
-	types := make([]string, PersistedTypes.NextId)
-	it = PersistedTypes.Entries.Iterator()
-	for it.Next() {
-		types[it.Key().(int)] = it.Value().(string)
-	}
-
-	typesJson, err := json.MarshalIndent(types, "", "    ")
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(item_type_path, typesJson, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func GetLatestLauncherVersion() string {
-	versionResponse, err := http.Get("https://cytrus.cdn.ankama.com/cytrus.json")
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	versionBody, err := io.ReadAll(versionResponse.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	var versionJson map[string]interface{}
-	err = json.Unmarshal(versionBody, &versionJson)
-	if err != nil {
-		fmt.Println("error:", err)
-	}
-
-	games := versionJson["games"].(map[string]interface{})
-	dofus := games["dofus"].(map[string]interface{})
-	platform := dofus["platforms"].(map[string]interface{})
-	windows := platform["windows"].(map[string]interface{})
-
-	if IsBeta {
-		return windows["beta"].(string)
-	} else {
-		return windows["main"].(string)
-	}
-}
-
-func NewVersion(version string) error {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:6379", RedisHost),
-		Password: RedisPassword,
-		DB:       0, // use default DB
-	})
-
-	var ctx = context.Background()
-
-	var versionPrefix string
-	if IsBeta {
-		versionPrefix = "Beta"
-	} else {
-		versionPrefix = "Main"
-	}
-
-	err := rdb.Set(ctx, fmt.Sprintf("dofus2%sVersion", versionPrefix), version, 0).Err()
-	if err != nil {
-		return err
-	}
-
-	err = rdb.Set(ctx, fmt.Sprintf("dofus2%sVersionUpdated", versionPrefix), time.Now().Format(http.TimeFormat), 0).Err()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func GetCurrentVersion() string {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:6379", RedisHost),
-		Password: RedisPassword,
-		DB:       0, // use default DB
-	})
-
-	var ctx = context.Background()
-
-	var versionPrefix string
-	if IsBeta {
-		versionPrefix = "Beta"
-	} else {
-		versionPrefix = "Main"
-	}
-
-	val, err := rdb.Get(ctx, fmt.Sprintf("dofus2%sVersion", versionPrefix)).Result()
-	if err != nil {
-		return ""
-	}
-
-	changedTime, err := rdb.Get(ctx, fmt.Sprintf("dofus2%sVersionUpdated", versionPrefix)).Result()
-	if err != nil {
-		return ""
-	}
-
-	LastUpdate, err = http.ParseTime(changedTime)
-	if err != nil {
-		return ""
-	}
-
-	return val
 }
 
 func CurrentRedBlueVersionStr(redBlueValue bool) string {

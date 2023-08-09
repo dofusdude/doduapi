@@ -1,34 +1,30 @@
-package server
+package main
 
 import (
-	"log"
+	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/dofusdude/api/gen"
-	"github.com/dofusdude/api/utils"
+	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-memdb"
 )
 
 var Db *memdb.MemDB
-var Indexes map[string]gen.SearchIndexes
+var Indexes map[string]SearchIndexes
 
-var Indexed bool
-
-var Version utils.VersionT
+var Version VersionT
 
 func FileServer(r chi.Router, path string, root http.FileSystem) {
 	if strings.ContainsAny(path, "{}*") {
-		panic("FileServer does not permit any URL parameters.")
+		log.Fatal("FileServer does not permit any URL parameters.")
 	}
 
 	if path != "/" && path[len(path)-1] != '/' {
-		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		r.Get(path, http.RedirectHandler(path+"/", http.StatusMovedPermanently).ServeHTTP)
 		path += "/"
 	}
 	path += "*"
@@ -47,10 +43,8 @@ func Router() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
-	workDir, _ := os.Getwd()
-
 	var routePrefix string
-	if utils.IsBeta {
+	if IsBeta {
 		routePrefix = "/dofus2beta"
 	} else {
 		routePrefix = "/dofus2"
@@ -58,16 +52,25 @@ func Router() chi.Router {
 
 	r.With(useCors).Route(routePrefix, func(r chi.Router) {
 
-		if utils.FileServer {
-			imagesDir := http.Dir(filepath.Join(workDir, "data", "img"))
+		if PublishFileServer {
+			imagesDir := http.Dir(filepath.Join(DockerMountDataPath, "data", "img"))
 			FileServer(r, "/img", imagesDir)
 		}
 
+		r.Route("/update", func(r chi.Router) {
+			r.Post(fmt.Sprintf("/%s", UpdateHookToken), UpdateHandler)
+		})
+
 		r.Route("/meta", func(r chi.Router) {
 			r.Get("/elements", ListEffectConditionElements)
+			r.Get("/search/types", ListSearchAllTypes)
 		})
 
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
+			r.Route("/search", func(r chi.Router) {
+				r.Get("/", SearchAllIndices)
+			})
+
 			r.Route("/items", func(r chi.Router) {
 				r.Route("/consumables", func(r chi.Router) {
 					r.With(paginate).Get("/", ListConsumables)
@@ -123,8 +126,6 @@ func Router() chi.Router {
 			})
 		})
 	})
-
-	log.Println("Router initialized")
 
 	return r
 }
