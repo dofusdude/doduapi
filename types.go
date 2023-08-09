@@ -1,11 +1,10 @@
-package server
+package main
 
 import (
 	"fmt"
-	"log"
 
-	"github.com/dofusdude/api/gen"
-	"github.com/dofusdude/api/utils"
+	"github.com/charmbracelet/log"
+	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
 )
 
@@ -36,10 +35,17 @@ func RenderImageUrls(urls []string) ApiImageUrls {
 	return res
 }
 
+type ApiAllSearchItem struct {
+	Type      *ApiType      `json:"type,omitempty"`
+	Level     *int          `json:"level,omitempty"`
+	ImageUrls *ApiImageUrls `json:"image_urls,omitempty"`
+}
+
 type ApiAllSearchResult struct {
-	Name string `json:"name"`
-	Id   int    `json:"ankama_id"`
-	Type string `json:"type"`
+	Name       string            `json:"name"`
+	Id         int               `json:"ankama_id"`
+	Type       string            `json:"type"`
+	ItemFields *ApiAllSearchItem `json:"item_fields,omitempty"`
 }
 
 type ApiEffect struct {
@@ -51,7 +57,7 @@ type ApiEffect struct {
 	Formatted    string        `json:"formatted"`
 }
 
-func RenderEffects(effects *[]gen.MappedMultilangEffect, lang string) []ApiEffect {
+func RenderEffects(effects *[]mapping.MappedMultilangEffect, lang string) []ApiEffect {
 	var retEffects []ApiEffect
 	for _, effect := range *effects {
 		retEffects = append(retEffects, ApiEffect{
@@ -95,7 +101,7 @@ type APIResource struct {
 	Recipe      []APIRecipe    `json:"recipe,omitempty"`
 }
 
-func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
+func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource {
 	resource := APIResource{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -106,7 +112,7 @@ func RenderResource(item *gen.MappedMultilangItem, lang string) APIResource {
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
 		Recipe:      nil,
 	}
 
@@ -142,7 +148,7 @@ type APIEquipment struct {
 	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
-func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
+func RenderEquipment(item *mapping.MappedMultilangItem, lang string) APIEquipment {
 	var setLink *APISetReverseLink = nil
 	if item.HasParentSet {
 		setLink = &APISetReverseLink{
@@ -161,7 +167,7 @@ func RenderEquipment(item *gen.MappedMultilangItem, lang string) APIEquipment {
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
 		IsWeapon:    false,
 		Recipe:      nil,
 		ParentSet:   setLink,
@@ -215,7 +221,7 @@ type APIWeapon struct {
 	ParentSet              *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
-func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
+func RenderWeapon(item *mapping.MappedMultilangItem, lang string) APIWeapon {
 	var setLink *APISetReverseLink = nil
 	if item.HasParentSet {
 		setLink = &APISetReverseLink{
@@ -234,7 +240,7 @@ func RenderWeapon(item *gen.MappedMultilangItem, lang string) APIWeapon {
 		Description:            item.Description[lang],
 		Level:                  item.Level,
 		Pods:                   item.Pods,
-		ImageUrls:              RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item")),
 		Recipe:                 nil,
 		CriticalHitBonus:       item.CriticalHitBonus,
 		CriticalHitProbability: item.CriticalHitProbability,
@@ -273,7 +279,7 @@ type MappedMultilangCondition struct {
 	Templated map[string]string `json:"templated"`
 }
 
-func RenderConditions(conditions *[]gen.MappedMultilangCondition, lang string) []ApiCondition {
+func RenderConditions(conditions *[]mapping.MappedMultilangCondition, lang string) []ApiCondition {
 	var retConditions []ApiCondition
 	for _, condition := range *conditions {
 		retConditions = append(retConditions, ApiCondition{
@@ -337,7 +343,7 @@ type APIListItem struct {
 	Range                  *APIRange `json:"range,omitempty"`
 }
 
-func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem {
+func RenderItemListEntry(item *mapping.MappedMultilangItem, lang string) APIListItem {
 	return APIListItem{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -346,7 +352,7 @@ func RenderItemListEntry(item *gen.MappedMultilangItem, lang string) APIListItem
 			Id:   item.Type.ItemTypeId,
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item")),
 	}
 }
 
@@ -359,7 +365,7 @@ type APIListTypedItem struct {
 	ImageUrls   ApiImageUrls `json:"image_urls,omitempty"`
 }
 
-func RenderTypedItemListEntry(item *gen.MappedMultilangItem, lang string) APIListTypedItem {
+func RenderTypedItemListEntry(item *mapping.MappedMultilangItem, lang string) APIListTypedItem {
 	return APIListTypedItem{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -367,9 +373,9 @@ func RenderTypedItemListEntry(item *gen.MappedMultilangItem, lang string) APILis
 			Name: item.Type.Name[lang],
 			Id:   item.Type.ItemTypeId,
 		},
-		ItemSubtype: utils.CategoryIdApiMapping(item.Type.CategoryId),
+		ItemSubtype: CategoryIdApiMapping(item.Type.CategoryId),
 		Level:       item.Level,
-		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
 	}
 }
 
@@ -383,11 +389,11 @@ type APIListMount struct {
 	Effects []ApiEffect `json:"effects,omitempty"`
 }
 
-func RenderMountListEntry(mount *gen.MappedMultilangMount, lang string) APIListMount {
+func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIListMount {
 	return APIListMount{
 		Id:         mount.AnkamaId,
 		Name:       mount.Name[lang],
-		ImageUrls:  RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount")),
+		ImageUrls:  RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
 		FamilyName: mount.FamilyName[lang],
 	}
 }
@@ -398,7 +404,7 @@ type APIRecipe struct {
 	Quantity int    `json:"quantity"`
 }
 
-func RenderRecipe(recipe gen.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe {
+func RenderRecipe(recipe mapping.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe {
 	if len(recipe.Entries) == 0 {
 		return nil
 	}
@@ -408,35 +414,35 @@ func RenderRecipe(recipe gen.MappedMultilangRecipe, db *memdb.MemDB) []APIRecipe
 
 	var apiRecipes []APIRecipe
 	for _, entry := range recipe.Entries {
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", entry.ItemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", entry.ItemId)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return nil
 		}
-		item := raw.(*gen.MappedMultilangItem)
+		item := raw.(*mapping.MappedMultilangItem)
 
 		apiRecipes = append(apiRecipes, APIRecipe{
 			AnkamaId: entry.ItemId,
 			Quantity: entry.Quantity,
-			ItemType: utils.CategoryIdApiMapping(item.Type.CategoryId),
+			ItemType: CategoryIdApiMapping(item.Type.CategoryId),
 		})
 	}
 	return apiRecipes
 }
 
 type APIPageItem struct {
-	Links utils.PaginationLinks `json:"_links,omitempty"`
-	Items []APIListItem         `json:"items"`
+	Links PaginationLinks `json:"_links,omitempty"`
+	Items []APIListItem   `json:"items"`
 }
 
 type APIPageMount struct {
-	Links utils.PaginationLinks `json:"_links,omitempty"`
-	Items []APIListMount        `json:"mounts"`
+	Links PaginationLinks `json:"_links,omitempty"`
+	Items []APIListMount  `json:"mounts"`
 }
 
 type APIPageSet struct {
-	Links utils.PaginationLinks `json:"_links,omitempty"`
-	Items []APIListSet          `json:"sets"`
+	Links PaginationLinks `json:"_links,omitempty"`
+	Items []APIListSet    `json:"sets"`
 }
 
 type APIMount struct {
@@ -447,12 +453,12 @@ type APIMount struct {
 	Effects    []ApiEffect  `json:"effects,omitempty"`
 }
 
-func RenderMount(mount *gen.MappedMultilangMount, lang string) APIMount {
+func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 	resMount := APIMount{
 		Id:         mount.AnkamaId,
 		Name:       mount.Name[lang],
 		FamilyName: mount.FamilyName[lang],
-		ImageUrls:  RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount")),
+		ImageUrls:  RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
 	}
 
 	effects := RenderEffects(&mount.Effects, lang)
@@ -476,7 +482,7 @@ type APIListSet struct {
 	ItemIds []int         `json:"equipment_ids,omitempty"`
 }
 
-func RenderSetListEntry(set *gen.MappedMultilangSet, lang string) APIListSet {
+func RenderSetListEntry(set *mapping.MappedMultilangSet, lang string) APIListSet {
 	return APIListSet{
 		Id:    set.AnkamaId,
 		Name:  set.Name[lang],
@@ -493,7 +499,7 @@ type APISet struct {
 	Level    int           `json:"highest_equipment_level"`
 }
 
-func RenderSet(set *gen.MappedMultilangSet, lang string) APISet {
+func RenderSet(set *mapping.MappedMultilangSet, lang string) APISet {
 	var effects [][]ApiEffect
 	for _, effect := range set.Effects {
 		effects = append(effects, RenderEffects(&effect, lang))

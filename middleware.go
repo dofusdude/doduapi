@@ -1,12 +1,13 @@
-package server
+package main
 
 import (
 	"context"
 	"fmt"
-	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func disablePaginate(next http.Handler) http.Handler {

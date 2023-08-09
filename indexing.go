@@ -1,80 +1,124 @@
-package gen
+package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"os"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dofusdude/api/utils"
-
+	"github.com/charmbracelet/log"
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
+
+	mapping "github.com/dofusdude/dodumap"
 )
 
-func IndexApiData(done chan bool, indexed *bool, version *utils.VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
-	var items []MappedMultilangItem
-	var sets []MappedMultilangSet
-	var recipes []MappedMultilangRecipe
-	var mounts []MappedMultilangMount
+type SearchIndexedItem struct {
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	SuperType   string `json:"super_type"`
+	TypeName    string `json:"type_name"`
+	Level       int    `json:"level"`
+	StuffType   string `json:"stuff_type"`
+}
 
-	log.Println("generating Database and search index ...")
-	// --
-	file, err := os.ReadFile("data/MAPPED_ITEMS.json")
-	if err != nil {
-		fmt.Print(err)
-	}
+type SearchIndexedMount struct {
+	Id         int    `json:"id"`
+	Name       string `json:"name"`
+	FamilyName string `json:"family_name"`
+	StuffType  string `json:"stuff_type"`
+}
 
-	err = json.Unmarshal(file, &items)
-	if err != nil {
-		fmt.Println(err)
-	}
-	log.Println("loaded ", len(items), " items")
+type SearchIndexedSet struct {
+	Id        int    `json:"id"`
+	Name      string `json:"name"`
+	Level     int    `json:"highest_equipment_level"`
+	StuffType string `json:"stuff_type"`
+}
 
-	// --
-	file, err = os.ReadFile("data/MAPPED_SETS.json")
-	if err != nil {
-		fmt.Print(err)
-	}
+type EffectConditionDbEntry struct {
+	Id   int
+	Name string
+}
 
-	err = json.Unmarshal(file, &sets)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	log.Println("loaded ", len(sets), " sets")
-
-	// --
-	file, err = os.ReadFile("data/MAPPED_RECIPES.json")
-	if err != nil {
-		fmt.Print(err)
-	}
-
-	err = json.Unmarshal(file, &recipes)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	log.Println("loaded ", len(recipes), " recipes")
+func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
+	var items []mapping.MappedMultilangItem
+	var sets []mapping.MappedMultilangSet
+	var recipes []mapping.MappedMultilangRecipe
+	var mounts []mapping.MappedMultilangMount
 
 	// --
-	file, err = os.ReadFile("data/MAPPED_MOUNTS.json")
+	itemsResponse, err := http.Get(ReleaseUrl + "/MAPPED_ITEMS.json")
 	if err != nil {
-		fmt.Print(err)
+		log.Fatal(err)
 	}
 
-	err = json.Unmarshal(file, &mounts)
+	itemsBody, err := io.ReadAll(itemsResponse.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
-	log.Println("loaded ", len(mounts), " mounts")
+	err = json.Unmarshal(itemsBody, &items)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Debug("loaded ", len(items), " items")
 
-	startDatabaseIndex := time.Now()
-	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, indexed, version, done)
-	log.Println("... completed indexing in", time.Since(startDatabaseIndex))
+	// --
+	setsResponse, err := http.Get(ReleaseUrl + "/MAPPED_SETS.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	setsBody, err := io.ReadAll(setsResponse.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = json.Unmarshal(setsBody, &sets)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Debug("loaded ", len(sets), " sets")
+
+	// --
+	recipesResponse, err := http.Get(ReleaseUrl + "/MAPPED_RECIPES.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	recipesBody, err := io.ReadAll(recipesResponse.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = json.Unmarshal(recipesBody, &recipes)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Debug("loaded ", len(recipes), " recipes")
+
+	// --
+	mountsResponse, err := http.Get(ReleaseUrl + "/MAPPED_MOUNTS.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mountsBody, err := io.ReadAll(mountsResponse.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = json.Unmarshal(mountsBody, &mounts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Debug("loaded ", len(mounts), " mounts")
+
+	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, version, done)
 
 	return db, indexes
 }
@@ -295,7 +339,7 @@ type SearchIndexes struct {
 	Mounts   *meilisearch.Index
 }
 
-func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, recipes *[]MappedMultilangRecipe, mounts *[]MappedMultilangMount, indexed *bool, version *utils.VersionT, done chan bool) (*memdb.MemDB, map[string]SearchIndexes) {
+func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.MappedMultilangSet, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT, done chan bool) (*memdb.MemDB, map[string]SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -308,15 +352,14 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 	multilangSearchIndexes := make(map[string]SearchIndexes)
 	var indexTasks []*meilisearch.TaskInfo
-	*indexed = false
 
-	client := utils.CreateMeiliClient()
+	client := CreateMeiliClient()
 
-	for _, lang := range utils.Languages {
-		allIndexUid := fmt.Sprintf("%s-all_stuff-%s", utils.NextRedBlueVersionStr(version.Search), lang)
-		itemIndexUid := fmt.Sprintf("%s-all_items-%s", utils.NextRedBlueVersionStr(version.Search), lang)
-		setIndexUid := fmt.Sprintf("%s-sets-%s", utils.NextRedBlueVersionStr(version.Search), lang)
-		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.NextRedBlueVersionStr(version.Search), lang)
+	for _, lang := range Languages {
+		allIndexUid := fmt.Sprintf("%s-all_stuff-%s", NextRedBlueVersionStr(version.Search), lang)
+		itemIndexUid := fmt.Sprintf("%s-all_items-%s", NextRedBlueVersionStr(version.Search), lang)
+		setIndexUid := fmt.Sprintf("%s-sets-%s", NextRedBlueVersionStr(version.Search), lang)
+		mountIndexUid := fmt.Sprintf("%s-mounts-%s", NextRedBlueVersionStr(version.Search), lang)
 
 		// creation
 		createAllIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
@@ -417,7 +460,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 
 	txn := db.Txn(true)
 
-	persIt := utils.PersistedElements.Entries.Iterator()
+	persIt := PersistedElements.Entries.Iterator()
 	for persIt.Next() {
 		if err = txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
 			Id:   persIt.Key().(int),
@@ -428,16 +471,16 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	}
 
 	langItems := make(map[string]map[int][]SearchIndexedItem)
-	for _, lang := range utils.Languages {
+	for _, lang := range Languages {
 		langItems[lang] = make(map[int][]SearchIndexedItem)
 	}
 
 	maxBatchSize := 250
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
-	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
-	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
-	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
-	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
+	itemsTable := fmt.Sprintf("%s-all_items", NextRedBlueVersionStr(version.MemDb))
+	setsTable := fmt.Sprintf("%s-sets", NextRedBlueVersionStr(version.MemDb))
+	mountsTable := fmt.Sprintf("%s-mounts", NextRedBlueVersionStr(version.MemDb))
+	recipesTable := fmt.Sprintf("%s-recipes", NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
 		recipeCt := recipe
@@ -453,9 +496,9 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		if itemCp.Type.CategoryId == 4 {
 			continue
 		}
-		insertCategoryTable = utils.CategoryIdMapping(itemCp.Type.CategoryId)
+		insertCategoryTable = CategoryIdMapping(itemCp.Type.CategoryId)
 
-		if err = txn.Insert(fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
+		if err = txn.Insert(fmt.Sprintf("%s-%s", NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
 			log.Fatal(err)
 		}
 
@@ -463,7 +506,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			log.Fatal(err)
 		}
 
-		for _, lang := range utils.Languages {
+		for _, lang := range Languages {
 			object := SearchIndexedItem{
 				Name:        itemCp.Name[lang],
 				Id:          itemCp.AnkamaId,
@@ -494,10 +537,10 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	for _, set := range *sets {
 		setCp := set
 		if err := txn.Insert(setsTable, &setCp); err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		for _, lang := range utils.Languages {
+		for _, lang := range Languages {
 			object := SearchIndexedSet{
 				Name:      setCp.Name[lang],
 				Id:        setCp.AnkamaId,
@@ -509,12 +552,12 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			if len(setIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
 				if err != nil {
-					log.Println(err)
+					log.Warn(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(setIndexBatch[lang])
 				if err != nil {
-					log.Println(err)
+					log.Warn(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				setIndexBatch[lang] = nil
@@ -526,10 +569,10 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	for _, mount := range *mounts {
 		mountCp := mount
 		if err := txn.Insert(mountsTable, &mountCp); err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		for _, lang := range utils.Languages {
+		for _, lang := range Languages {
 			object := SearchIndexedMount{
 				Name:       mountCp.Name[lang],
 				Id:         mountCp.AnkamaId,
@@ -541,12 +584,12 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
 				if err != nil {
-					log.Println(err)
+					log.Warn(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(mountIndexBatch[lang])
 				if err != nil {
-					log.Println(err)
+					log.Warn(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				mountIndexBatch[lang] = nil
@@ -557,11 +600,11 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 	txn.Commit()
 
 	// add everything not indexed because still under max batch size
-	for _, lang := range utils.Languages {
+	for _, lang := range Languages {
 		if len(itemIndexBatch[lang]) > 0 {
 			taskInfo, err := multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang])
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
 		}
@@ -569,14 +612,14 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 		if len(setIndexBatch[lang]) > 0 {
 			taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
 		}
 		if len(mountIndexBatch[lang]) > 0 {
 			taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
 		}
@@ -593,7 +636,6 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 			select {
 			case <-done:
 				ticker.Stop()
-				break
 			case <-ticker.C:
 				allTrue := true
 				for i, task := range indexTasks {
@@ -604,7 +646,7 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 					waitingForSucceededOrFailed := true
 					taskResp, err := client.GetTask(task.TaskUID)
 					if err != nil {
-						log.Println(err)
+						log.Error(err)
 						break
 					}
 					waitingForSucceededOrFailed = taskResp.Status == meilisearch.TaskStatusSucceeded || taskResp.Status == meilisearch.TaskStatusFailed
@@ -620,10 +662,8 @@ func GenerateDatabase(items *[]MappedMultilangItem, sets *[]MappedMultilangSet, 
 				firstRun = false
 
 				if allTrue {
-					*indexed = true
 					ticker.Stop()
 					staySelectLoop = false
-					break
 				}
 			}
 		}
