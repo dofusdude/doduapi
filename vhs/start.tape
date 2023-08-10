@@ -10,4 +10,4 @@ Set TypingSpeed 0.05
 
 Type "doduapi" Sleep 700ms Enter
 
-Sleep 20
+Sleep 30
