@@ -21,13 +21,11 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/viper"
-	b "gogs.towantto.com/jiyusheng/gotil/box"
 )
 
 var (
 	Languages           = []string{"de", "en", "es", "fr", "it", "pt"}
 	ImgResolutions      = []string{"200", "400", "800"}
-	ImgWithResExists    b.Set
 	ApiHostName         string
 	ApiPort             string
 	ApiScheme           string
@@ -46,6 +44,7 @@ var (
 	ReleaseUrl          string
 	UpdateHookToken     string
 	DofusVersion        string
+	FullImg             bool
 )
 
 var currentWd string
@@ -109,41 +108,50 @@ func ExtractTarGz(baseDir string, gzipStream io.Reader) error {
 	return nil
 }
 
+func DownloadExtract(filename string) error {
+	absUrl := fmt.Sprintf("%s/%s.tar.gz", ReleaseUrl, filename)
+	response, err := http.Get(absUrl)
+	if err != nil {
+		return err
+	}
+	err = ExtractTarGz("", response.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func DownloadImages() error {
-	itemsImagesResponse, err := http.Get(fmt.Sprintf("%s/items_images.tar.gz", ReleaseUrl))
-	if err != nil {
-		return err
-	}
-	err = ExtractTarGz("", itemsImagesResponse.Body)
+	var err error
+	resolutions := []string{"200", "400", "800"}
+
+	err = DownloadExtract("items_images")
 	if err != nil {
 		return err
 	}
 
-	mountsImagesResponse, err := http.Get(fmt.Sprintf("%s/mounts_images.tar.gz", ReleaseUrl))
-	if err != nil {
-		return err
+	if FullImg {
+		for _, resolution := range resolutions {
+			err = DownloadExtract(fmt.Sprintf("items_images_%s", resolution))
+			if err != nil {
+				return err
+			}
+		}
 	}
-	err = ExtractTarGz("", mountsImagesResponse.Body)
+
+	err = DownloadExtract("mounts_images")
 	if err != nil {
 		return err
 	}
 
-	itemsImagesVectorResponse, err := http.Get(fmt.Sprintf("%s/items_images_vector.tar.gz", ReleaseUrl))
-	if err != nil {
-		return err
-	}
-	err = ExtractTarGz("", itemsImagesVectorResponse.Body)
-	if err != nil {
-		return err
-	}
-
-	mountsImagesVectorResponse, err := http.Get(fmt.Sprintf("%s/mounts_images_vector.tar.gz", ReleaseUrl))
-	if err != nil {
-		return err
-	}
-	err = ExtractTarGz("", mountsImagesVectorResponse.Body)
-	if err != nil {
-		return err
+	if FullImg {
+		for _, resolution := range resolutions {
+			err = DownloadExtract(fmt.Sprintf("mounts_images_%s", resolution))
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -161,7 +169,7 @@ func ReadEnvs() {
 	viper.SetDefault("FILESERVER", "true")
 	viper.SetDefault("IS_BETA", "false")
 	viper.SetDefault("UPDATE_HOOK_TOKEN", "")
-	viper.SetDefault("DOFUS_VERSION", "2.68.4.5")
+	viper.SetDefault("DOFUS_VERSION", "")
 	viper.SetDefault("LOG_LEVEL", "warn")
 
 	var err error
@@ -169,23 +177,44 @@ func ReadEnvs() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	viper.SetDefault("DOCKER_MOUNT_DATA_PATH", currentWd)
+	viper.SetDefault("DIR", currentWd)
 
 	viper.AutomaticEnv()
 
 	IsBeta = viper.GetBool("IS_BETA")
-	DofusVersion = viper.GetString("DOFUS_VERSION")
+	var betaStr string
+	if IsBeta {
+		betaStr = "beta"
+	} else {
+		betaStr = "main"
+	}
+
+	dofusVersion := viper.GetString("DOFUS_VERSION")
+	if dofusVersion == "" {
+		releaseApiResponse, err := http.Get(fmt.Sprintf("https://api.github.com/repos/dofusdude/dofus2-%s/releases/latest", betaStr))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		releaseApiResponseBody, err := io.ReadAll(releaseApiResponse.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var v map[string]interface{}
+		err = json.Unmarshal(releaseApiResponseBody, &v)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		DofusVersion = v["name"].(string)
+	}
 	log.SetLevel(log.ParseLevel(viper.GetString("LOG_LEVEL")))
 
-	if IsBeta {
-		ElementsUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.beta.json"
-		TypesUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.beta.json"
-		ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", "beta", DofusVersion)
-	} else {
-		ElementsUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.main.json"
-		TypesUrl = "https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.main.json"
-		ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", "main", DofusVersion)
-	}
+	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.%s.json", betaStr)
+	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.%s.json", betaStr)
+	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", betaStr, DofusVersion)
+
 	ApiScheme = viper.GetString("API_SCHEME")
 	ApiHostName = viper.GetString("API_HOSTNAME")
 	ApiPort = viper.GetString("API_PORT")
@@ -194,7 +223,7 @@ func ReadEnvs() {
 	PrometheusEnabled = viper.GetBool("PROMETHEUS")
 	PublishFileServer = viper.GetBool("FILESERVER")
 	UpdateHookToken = viper.GetString("UPDATE_HOOK_TOKEN")
-	DockerMountDataPath = viper.GetString("DOCKER_MOUNT_DATA_PATH")
+	DockerMountDataPath = viper.GetString("DIR")
 }
 
 func ImageUrls(iconId int, apiType string) []string {
@@ -206,16 +235,13 @@ func ImageUrls(iconId int, apiType string) []string {
 	var urls []string
 	urls = append(urls, fmt.Sprintf("%s/%d.png", baseUrl, iconId))
 
-	if ImgResolutions == nil || ImgWithResExists == nil {
+	if ImgResolutions == nil {
 		return urls
 	}
 
 	for _, resolution := range ImgResolutions {
-		finalImagePath := fmt.Sprintf("%s/data/img/%s/%d-%s.png", currentWd, apiType, iconId, resolution)
 		resolutionUrl := fmt.Sprintf("%s/%d-%s.png", baseUrl, iconId, resolution)
-		if ImgWithResExists.Contain(finalImagePath) {
-			urls = append(urls, resolutionUrl)
-		}
+		urls = append(urls, resolutionUrl)
 	}
 	return urls
 }

@@ -15,8 +15,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"gogs.towantto.com/jiyusheng/gotil/box"
 )
 
 func AutoUpdate(done chan bool, version *VersionT, updateHook chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes) {
@@ -110,7 +108,7 @@ func AutoUpdate(done chan bool, version *VersionT, updateHook chan bool, updateD
 	}
 }
 
-func Hook(renderThread bool, updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes, updateMountImagesDone chan bool, updateItemImagesDone chan bool) {
+func Hook(updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes) {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -120,20 +118,11 @@ func Hook(renderThread bool, updaterDone chan bool, updateDb chan *memdb.MemDB, 
 		for !allDone {
 			select {
 			case Db = <-updateDb: // override main memory with updated data
-			case <-updateMountImagesDone:
-				log.Print("mount images rendered")
-			case <-updateItemImagesDone:
-				log.Info("item images rendered")
 			case Indexes = <-updateSearchIndex:
 			case <-sigs:
+				log.Debug("stopping update routine")
 				updaterDone <- true // signal update to stop
-				log.Debug("stopped update routine")
-
-				if renderThread {
-					updateMountImagesDone <- true
-					updateItemImagesDone <- true
-					log.Debug("stopped update images routine")
-				}
+				log.Debug("stopped")
 
 				err := httpDataServer.Close()
 				if err != nil {
@@ -174,9 +163,9 @@ var UpdateChan chan bool
 
 var (
 	rootCmd = &cobra.Command{
-		Use:           "doduda",
-		Short:         "doduda – Ankama data gathering CLI",
-		Long:          `A CLI for Ankama data gathering, versioning, parsing and more.`,
+		Use:           "doduapi",
+		Short:         "doduapi – The Dofus encyclopedia API.",
+		Long:          ``,
 		SilenceErrors: true,
 		SilenceUsage:  false,
 		Run:           rootCommand,
@@ -187,6 +176,7 @@ func main() {
 	ReadEnvs()
 
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
+	rootCmd.PersistentFlags().Bool("full-img", false, "Load images in prerendered resolutions (~2.5 GB).")
 
 	err := rootCmd.Execute()
 	if err != nil && err.Error() != "" {
@@ -195,7 +185,13 @@ func main() {
 }
 
 func rootCommand(ccmd *cobra.Command, args []string) {
+	var err error
 	headless, err := ccmd.Flags().GetBool("headless")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	FullImg, err = ccmd.Flags().GetBool("full-img")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -241,8 +237,6 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	Version.MemDb = !Version.MemDb
 
 	updateDb := make(chan *memdb.MemDB)
-	updateMountImagesDone := make(chan bool)
-	updateItemImagesDone := make(chan bool)
 	updateSearchIndex := make(chan map[string]SearchIndexes)
 	UpdateChan = make(chan bool)
 
@@ -279,30 +273,16 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 
 	go AutoUpdate(updaterDone, &Version, UpdateChan, updateDb, updateSearchIndex)
 
-	ImgWithResExists = box.ConcurrentHashSet()
-
-	renderThread := viper.GetString("RENDER_IMAGES") == "true"
-	if renderThread {
-
-		if isChannelClosed(feedbackChan) {
-			os.Exit(1)
-		}
-		feedbackChan <- "Rendering"
-
-		go RenderVectorImages(updateMountImagesDone, "mount")
-		go RenderVectorImages(updateItemImagesDone, "item")
-	}
-
 	if !isChannelClosed(feedbackChan) {
 		close(feedbackChan)
 	}
 	wg.Wait()
 
 	if PrometheusEnabled {
-		log.Print("Listening...", "dodudapi", apiPort, "metrics", apiPort+1)
+		log.Print("Listening...", "doduapi", apiPort, "metrics", apiPort+1)
 	} else {
-		log.Print("Listening...", "dodudapi", apiPort)
+		log.Print("Listening...", "doduapi", apiPort)
 	}
 
-	Hook(renderThread, updaterDone, updateDb, updateSearchIndex, updateMountImagesDone, updateItemImagesDone) // block and wait for signal, handle db updates
+	Hook(updaterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
 }
