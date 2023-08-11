@@ -278,10 +278,17 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	}
 	wg.Wait()
 
-	if PrometheusEnabled {
-		log.Print("Listening...", "doduapi", apiPort, "metrics", apiPort+1)
+	var channelLog string
+	if IsBeta {
+		channelLog = "beta"
 	} else {
-		log.Print("Listening...", "doduapi", apiPort)
+		channelLog = "main"
+	}
+
+	if PrometheusEnabled {
+		log.Print("Listening...", "doduapi", apiPort, "metrics", apiPort+1, "channel", channelLog)
+	} else {
+		log.Print("Listening...", "doduapi", apiPort, "channel", channelLog)
 	}
 
 	Hook(updaterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
