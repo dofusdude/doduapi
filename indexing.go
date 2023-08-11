@@ -65,7 +65,6 @@ func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]S
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Debug("loaded ", len(items), " items")
 
 	// --
 	setsResponse, err := http.Get(ReleaseUrl + "/MAPPED_SETS.json")
@@ -82,7 +81,6 @@ func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]S
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Debug("loaded ", len(sets), " sets")
 
 	// --
 	recipesResponse, err := http.Get(ReleaseUrl + "/MAPPED_RECIPES.json")
@@ -99,7 +97,6 @@ func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]S
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Debug("loaded ", len(recipes), " recipes")
 
 	// --
 	mountsResponse, err := http.Get(ReleaseUrl + "/MAPPED_MOUNTS.json")
@@ -116,7 +113,7 @@ func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]S
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Debug("loaded ", len(mounts), " mounts")
+	log.Debug("loaded", "mounts", len(mounts), "items", len(items), "sets", len(sets), "recipes", len(recipes))
 
 	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, version, done)
 
