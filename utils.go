@@ -128,28 +128,28 @@ func DownloadImages() error {
 
 	err = DownloadExtract("items_images")
 	if err != nil {
-		return err
+		return fmt.Errorf("could not download items_images")
 	}
 
 	if FullImg {
 		for _, resolution := range resolutions {
 			err = DownloadExtract(fmt.Sprintf("items_images_%s", resolution))
 			if err != nil {
-				return err
+				return fmt.Errorf("could not download items_images %s", resolution)
 			}
 		}
 	}
 
 	err = DownloadExtract("mounts_images")
 	if err != nil {
-		return err
+		return fmt.Errorf("could not download mount_images")
 	}
 
 	if FullImg {
 		for _, resolution := range resolutions {
 			err = DownloadExtract(fmt.Sprintf("mounts_images_%s", resolution))
 			if err != nil {
-				return err
+				return fmt.Errorf("could not download mount_images %s", resolution)
 			}
 		}
 	}
@@ -208,6 +208,8 @@ func ReadEnvs() {
 		}
 
 		DofusVersion = v["name"].(string)
+	} else {
+		DofusVersion = dofusVersion
 	}
 	log.SetLevel(log.ParseLevel(viper.GetString("LOG_LEVEL")))
 
