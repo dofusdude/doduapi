@@ -13,7 +13,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.25.1
+	github.com/meilisearch/meilisearch-go v0.26.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.17.0
