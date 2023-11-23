@@ -211,7 +211,11 @@ func ReadEnvs() {
 	} else {
 		DofusVersion = dofusVersion
 	}
-	log.SetLevel(log.ParseLevel(viper.GetString("LOG_LEVEL")))
+	parsedLevel, err := log.ParseLevel(viper.GetString("LOG_LEVEL"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetLevel(parsedLevel)
 
 	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.%s.json", betaStr)
 	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.%s.json", betaStr)
