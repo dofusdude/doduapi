@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/charmbracelet/lipgloss v0.9.1
-	github.com/charmbracelet/log v0.3.0
+	github.com/charmbracelet/log v0.3.1
 	github.com/dofusdude/ankabuffer v0.0.8
 	github.com/dofusdude/dodumap v0.0.5
 	github.com/emirpasic/gods v1.18.1
