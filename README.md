@@ -26,24 +26,30 @@ If you host your own instance you have to update it yourself. You can use a [dod
 ## Development Setup
 
 Assumptions:
+
 - Linux / MacOS
 
 Create a simple `.env` file.
+
 ```shell
 export MEILI_MASTER_KEY_GEN=$(echo $RANDOM | md5sum | head -c 20; echo;)
 
 echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY_GEN" > .env
 ```
+
 If you had a problem with the md5sum, you are probably on MacOS and need to `brew install md5sha1sum`. Also, `jq` could be a problem, `brew install jq` or `sudo apt install jq`. Or just make up your own keys.
 
 Download [Meilisearch](https://www.meilisearch.com/docs/learn/getting_started/installation#local-installation) for the search engine and let it run in the background.
+
 ```shell
 curl -L https://install.meilisearch.com | sh
 ./meilisearch --master-key $MEILI_MASTER_KEY_GEN &
 ```
+
 You can get the process back with `fg` later.
 
 Now build it from source. You need to have [Go](https://go.dev/doc/install) >= 1.18 installed.
+
 ```shell
 git clone git@github.com:dofusdude/doduapi.git
 cd doduapi
@@ -59,6 +65,7 @@ LOG_LEVEL=debug go run . --headless
 ## Configuration
 
 Open the `.env` with your favorite editor. Add more parameters if you want. Here is a full list.
+
 ```shell
 MEILI_MASTER_KEY=<already set> # a random string that must be the same in the meilisearch.service file or parameter
 DIR=<working directory> # directory where the ./data dir can be found
@@ -76,10 +83,5 @@ UPDATE_HOOK_TOKEN=secret # /update/<token> will trigger an update with a POST re
 ```
 
 ## Known Problems
-
-If you get some Docker errors and the socket is not at `/var/run/docker.sock`, add a parameter `DOCKER_HOST` to the `.env` file.
-```bash
-DOCKER_HOST=unix://<your docker.sock path>
-```
 
 Run `doduapi` with `--headless` in a server environment to avoid "no tty" errors.
