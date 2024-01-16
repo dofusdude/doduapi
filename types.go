@@ -88,17 +88,25 @@ type ApiCondition struct {
 	Element  ApiConditionType `json:"element"`
 }
 
+type ApiConditionNode struct {
+	Condition *ApiCondition       `json:"condition,omitempty"`
+	IsOperand bool                `json:"is_operand"`
+	Relation  *string             `json:"relation,omitempty"` // "and" or "or"
+	Children  []*ApiConditionNode `json:"children,omitempty"`
+}
+
 type APIResource struct {
-	Id          int            `json:"ankama_id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Type        ApiType        `json:"type"`
-	Level       int            `json:"level"`
-	Pods        int            `json:"pods"`
-	ImageUrls   ApiImageUrls   `json:"image_urls,omitempty"`
-	Effects     []ApiEffect    `json:"effects,omitempty"`
-	Conditions  []ApiCondition `json:"conditions,omitempty"`
-	Recipe      []APIRecipe    `json:"recipe,omitempty"`
+	Id            int               `json:"ankama_id"`
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	Type          ApiType           `json:"type"`
+	Level         int               `json:"level"`
+	Pods          int               `json:"pods"`
+	ImageUrls     ApiImageUrls      `json:"image_urls,omitempty"`
+	Effects       []ApiEffect       `json:"effects,omitempty"`
+	Conditions    []ApiCondition    `json:"conditions,omitempty"`
+	ConditionTree *ApiConditionNode `json:"condition_tree,omitempty"`
+	Recipe        []APIRecipe       `json:"recipe,omitempty"`
 }
 
 func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource {
@@ -116,6 +124,7 @@ func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource 
 		Recipe:      nil,
 	}
 
+	resource.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
 		resource.Conditions = nil
@@ -134,18 +143,19 @@ func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource 
 }
 
 type APIEquipment struct {
-	Id          int                `json:"ankama_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Type        ApiType            `json:"type"`
-	IsWeapon    bool               `json:"is_weapon"`
-	Level       int                `json:"level"`
-	Pods        int                `json:"pods"`
-	ImageUrls   ApiImageUrls       `json:"image_urls,omitempty"`
-	Effects     []ApiEffect        `json:"effects,omitempty"`
-	Conditions  []ApiCondition     `json:"conditions,omitempty"`
-	Recipe      []APIRecipe        `json:"recipe,omitempty"`
-	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
+	Id            int                `json:"ankama_id"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description"`
+	Type          ApiType            `json:"type"`
+	IsWeapon      bool               `json:"is_weapon"`
+	Level         int                `json:"level"`
+	Pods          int                `json:"pods"`
+	ImageUrls     ApiImageUrls       `json:"image_urls,omitempty"`
+	Effects       []ApiEffect        `json:"effects,omitempty"`
+	Conditions    []ApiCondition     `json:"conditions,omitempty"`
+	ConditionTree *ApiConditionNode  `json:"condition_tree,omitempty"`
+	Recipe        []APIRecipe        `json:"recipe,omitempty"`
+	ParentSet     *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
 func RenderEquipment(item *mapping.MappedMultilangItem, lang string) APIEquipment {
@@ -173,6 +183,7 @@ func RenderEquipment(item *mapping.MappedMultilangItem, lang string) APIEquipmen
 		ParentSet:   setLink,
 	}
 
+	equip.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
 		equip.Conditions = nil
@@ -211,6 +222,7 @@ type APIWeapon struct {
 	ImageUrls              ApiImageUrls       `json:"image_urls,omitempty"`
 	Effects                []ApiEffect        `json:"effects,omitempty"`
 	Conditions             []ApiCondition     `json:"conditions,omitempty"`
+	ConditionTree          *ApiConditionNode  `json:"condition_tree,omitempty"`
 	CriticalHitProbability int                `json:"critical_hit_probability"`
 	CriticalHitBonus       int                `json:"critical_hit_bonus"`
 	TwoHanded              bool               `json:"is_two_handed"`
@@ -255,6 +267,7 @@ func RenderWeapon(item *mapping.MappedMultilangItem, lang string) APIWeapon {
 		ParentSet: setLink,
 	}
 
+	weapon.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
 	conditions := RenderConditions(&item.Conditions, lang)
 	if len(conditions) == 0 {
 		weapon.Conditions = nil
@@ -277,6 +290,45 @@ type MappedMultilangCondition struct {
 	Operator  string            `json:"operator"`
 	Value     int               `json:"value"`
 	Templated map[string]string `json:"templated"`
+}
+
+func buildAPIConditionTree(out **ApiConditionNode, root *mapping.ConditionTreeNodeMapped, lang string) {
+	if root == nil {
+		return
+	}
+
+	if *out == nil {
+		*out = new(ApiConditionNode)
+	}
+
+	(*out).IsOperand = root.IsOperand
+
+	if root.IsOperand {
+		(*out).Condition = &ApiCondition{
+			Operator: root.Value.Operator,
+			IntValue: root.Value.Value,
+			Element: ApiConditionType{
+				Name: root.Value.Templated[lang],
+				Id:   root.Value.ElementId,
+			},
+		}
+		return
+	} else {
+		(*out).Relation = root.Relation
+		(*out).Children = make([]*ApiConditionNode, len(root.Children))
+		for i, child := range root.Children {
+			childOut := new(*ApiConditionNode)
+			buildAPIConditionTree(childOut, child, lang)
+			(*out).Children[i] = *childOut
+		}
+		return
+	}
+}
+
+func RenderConditionTree(conditions *mapping.ConditionTreeNodeMapped, lang string) *ApiConditionNode {
+	retConditionTree := new(*ApiConditionNode)
+	buildAPIConditionTree(retConditionTree, conditions, lang)
+	return *retConditionTree
 }
 
 func RenderConditions(conditions *[]mapping.MappedMultilangCondition, lang string) []ApiCondition {
