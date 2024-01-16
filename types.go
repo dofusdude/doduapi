@@ -376,10 +376,11 @@ type APIListItem struct {
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
 
 	// extra fields
-	Description *string        `json:"description,omitempty"`
-	Recipe      []APIRecipe    `json:"recipe,omitempty"`
-	Conditions  []ApiCondition `json:"conditions,omitempty"`
-	Effects     []ApiEffect    `json:"effects,omitempty"`
+	Description   *string           `json:"description,omitempty"`
+	Recipe        []APIRecipe       `json:"recipe,omitempty"`
+	Conditions    []ApiCondition    `json:"conditions,omitempty"`
+	ConditionTree *ApiConditionNode `json:"condition_tree,omitempty"`
+	Effects       []ApiEffect       `json:"effects,omitempty"`
 
 	// extra equipment
 	IsWeapon  *bool              `json:"is_weapon,omitempty"`

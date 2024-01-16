@@ -456,6 +456,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		if expansions.Has("conditions") {
 			if p.Conditions != nil {
 				item.Conditions = RenderConditions(&p.Conditions, lang)
+				item.ConditionTree = RenderConditionTree(p.ConditionTree, lang)
 			}
 		}
 
