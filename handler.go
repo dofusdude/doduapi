@@ -601,6 +601,68 @@ func getLimitInBoundary(limitStr string) (int64, error) {
 
 // search
 
+func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
+	client := CreateMeiliClient()
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	lang := r.Context().Value("lang").(string)
+
+	if lang == "pt" {
+		log.Info("SearchAlmanaxBonuses: pt is not supported")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var searchLimit int64
+	var err error
+	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	indexName := fmt.Sprintf("alm-bonuses-%s", lang)
+	index := client.Index(indexName)
+
+	request := &meilisearch.SearchRequest{
+		Limit: searchLimit,
+	}
+
+	var searchResp *meilisearch.SearchResponse
+	if searchResp, err = index.Search(query, request); err != nil {
+		log.Warn("SearchAlmanaxBonuses: index not found", "err", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	requestsTotal.Inc()
+	requestsSearchTotal.Inc()
+
+	if searchResp.EstimatedTotalHits == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	var results []AlmanaxBonusListing
+	for _, hit := range searchResp.Hits {
+		almBonusJson := hit.(map[string]interface{})
+		almBonus := AlmanaxBonusListing{
+			Id:   almBonusJson["id"].(string),
+			Name: almBonusJson["name"].(string),
+		}
+		results = append(results, almBonus)
+	}
+
+	WriteCacheHeader(&w)
+	if json.NewEncoder(w).Encode(results) != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	var err error
 	client := CreateMeiliClient()

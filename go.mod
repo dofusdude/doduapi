@@ -1,6 +1,8 @@
 module github.com/dofusdude/doduapi
 
-go 1.18
+go 1.21
+
+toolchain go1.21.6
 
 require (
 	github.com/charmbracelet/bubbles v0.17.1
@@ -8,12 +10,12 @@ require (
 	github.com/charmbracelet/lipgloss v0.9.1
 	github.com/charmbracelet/log v0.3.1
 	github.com/dofusdude/ankabuffer v0.0.8
-	github.com/dofusdude/dodumap v0.1.1
+	github.com/dofusdude/dodumap v0.1.5
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.26.0
+	github.com/meilisearch/meilisearch-go v0.26.1
 	github.com/prometheus/client_golang v1.18.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2

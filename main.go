@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,18 +18,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AutoUpdate(done chan bool, version *VersionT, updateHook chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes) {
-	indexWaiterDone := make(chan bool)
+func AutoUpdate(version *VersionT, updateHook chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes, almanaxBonusTicker *time.Ticker) {
 	for {
 		select {
-		case <-done:
-			indexWaiterDone <- true
-			return
+		case <-almanaxBonusTicker.C:
+			added := UpdateAlmanaxBonusIndex(false)
+			log.Print("updated almanax bonus index", "added", added)
 		case <-updateHook:
 			var err error
 			updateStart := time.Now()
 			log.Print("Initialize update...")
-			db, idx := IndexApiData(indexWaiterDone, version)
+			db, idx := IndexApiData(version)
 
 			// send data to main thread
 			updateDb <- db
@@ -108,43 +108,6 @@ func AutoUpdate(done chan bool, version *VersionT, updateHook chan bool, updateD
 	}
 }
 
-func Hook(updaterDone chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes) {
-	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	allDone := false
-	go func() {
-		for !allDone {
-			select {
-			case Db = <-updateDb: // override main memory with updated data
-			case Indexes = <-updateSearchIndex:
-			case <-sigs:
-				log.Debug("stopping update routine")
-				updaterDone <- true // signal update to stop
-				log.Debug("stopped")
-
-				err := httpDataServer.Close()
-				if err != nil {
-					log.Fatal(err)
-				} // close http connections and delete server
-
-				if PrometheusEnabled {
-					err = httpMetricsServer.Close()
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-
-				allDone = true
-				done <- true
-			}
-		}
-	}()
-
-	<-done
-}
-
 func isChannelClosed[T any](ch chan T) bool {
 	select {
 	case _, ok := <-ch:
@@ -163,12 +126,10 @@ var UpdateChan chan bool
 
 var (
 	rootCmd = &cobra.Command{
-		Use:           "doduapi",
-		Short:         "doduapi – The Dofus encyclopedia API.",
-		Long:          ``,
-		SilenceErrors: true,
-		SilenceUsage:  false,
-		Run:           rootCommand,
+		Use:   "doduapi",
+		Short: "doduapi – The Dofus encyclopedia API.",
+		Long:  ``,
+		Run:   rootCommand,
 	}
 )
 
@@ -177,6 +138,7 @@ func main() {
 
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
 	rootCmd.PersistentFlags().Bool("full-img", false, "Load images in prerendered resolutions (~2.5 GB).")
+	rootCmd.PersistentFlags().Int32("alm-bonus-interval", 12, "Almanax bonuses search index interval in hours.")
 
 	err := rootCmd.Execute()
 	if err != nil && err.Error() != "" {
@@ -185,6 +147,9 @@ func main() {
 }
 
 func rootCommand(ccmd *cobra.Command, args []string) {
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+
 	var err error
 	headless, err := ccmd.Flags().GetBool("headless")
 	if err != nil {
@@ -196,8 +161,10 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	updaterDone := make(chan bool)
-	indexWaiterDone := make(chan bool)
+	almBonusInterval, err := ccmd.Flags().GetInt32("alm-bonus-interval")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	feedbackChan := make(chan string, 5)
 	var wg sync.WaitGroup
@@ -232,7 +199,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	feedbackChan <- "Database"
-	Db, Indexes = IndexApiData(indexWaiterDone, &Version)
+	Db, Indexes = IndexApiData(&Version)
 	Version.Search = !Version.Search
 	Version.MemDb = !Version.MemDb
 
@@ -271,12 +238,18 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		}
 	}()
 
-	go AutoUpdate(updaterDone, &Version, UpdateChan, updateDb, updateSearchIndex)
+	almanaxBonusSearchTicker := time.NewTicker(time.Duration(almBonusInterval) * time.Hour)
+
+	go AutoUpdate(&Version, UpdateChan, updateDb, updateSearchIndex, almanaxBonusSearchTicker)
+
+	added := UpdateAlmanaxBonusIndex(true)
 
 	if !isChannelClosed(feedbackChan) {
 		close(feedbackChan)
 	}
 	wg.Wait()
+
+	log.Print("updated almanax bonus index", "added", added)
 
 	var channelLog string
 	if IsBeta {
@@ -291,5 +264,27 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		log.Print("Listening...", "port", apiPort, "channel", channelLog)
 	}
 
-	Hook(updaterDone, updateDb, updateSearchIndex) // block and wait for signal, handle db updates
+	go func() {
+		for {
+			select {
+			case Db = <-updateDb: // override main memory with updated data
+			case Indexes = <-updateSearchIndex:
+			}
+		}
+	}()
+
+	<-sigint
+	fmt.Println("Shutting down...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := httpDataServer.Shutdown(ctx); err != nil {
+		log.Fatal(err)
+	}
+	if PrometheusEnabled {
+		if err := httpMetricsServer.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Println("Goodbye!")
 }

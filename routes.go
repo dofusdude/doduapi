@@ -50,6 +50,10 @@ func Router() chi.Router {
 		routePrefix = "/dofus2"
 	}
 
+	r.With(useCors).With(languageChecker).Route("/dofus2/meta/{lang}/almanax/bonuses/search", func(r chi.Router) {
+		r.Get("/", SearchAlmanaxBonuses)
+	})
+
 	r.With(useCors).Route(routePrefix, func(r chi.Router) {
 
 		if PublishFileServer {

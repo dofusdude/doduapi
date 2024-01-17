@@ -44,7 +44,7 @@ type EffectConditionDbEntry struct {
 	Name string
 }
 
-func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
+func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	var items []mapping.MappedMultilangItem
 	var sets []mapping.MappedMultilangSet
 	var recipes []mapping.MappedMultilangRecipe
@@ -115,7 +115,7 @@ func IndexApiData(done chan bool, version *VersionT) (*memdb.MemDB, map[string]S
 	}
 	log.Debug("loaded", "mounts", len(mounts), "items", len(items), "sets", len(sets), "recipes", len(recipes))
 
-	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, version, done)
+	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, version)
 
 	return db, indexes
 }
@@ -336,7 +336,129 @@ type SearchIndexes struct {
 	Mounts   *meilisearch.Index
 }
 
-func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.MappedMultilangSet, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT, done chan bool) (*memdb.MemDB, map[string]SearchIndexes) {
+type AlmanaxBonusListing struct {
+	Id   string `json:"id"`   // english-id
+	Name string `json:"name"` // translated text
+}
+
+func UpdateAlmanaxBonusIndex(init bool) int {
+	client := CreateMeiliClient()
+
+	added := 0
+
+	for _, lang := range Languages {
+		if lang == "pt" {
+			continue // no portuguese almanax bonuses
+		}
+		url := fmt.Sprintf("https://api.dofusdu.de/dofus2/meta/%s/almanax/bonuses", lang)
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Warn(err, "lang", lang)
+			return added
+		}
+
+		var bonuses []AlmanaxBonusListing
+		err = json.NewDecoder(resp.Body).Decode(&bonuses)
+		if err != nil {
+			log.Warn(err, "lang", lang)
+			return added
+		}
+
+		indexName := fmt.Sprintf("alm-bonuses-%s", lang)
+
+		var almBonusIndex *meilisearch.Index
+
+		// check if index exists
+		indexes, err := client.GetIndexes(&meilisearch.IndexesQuery{
+			Limit: 100,
+		})
+		if err != nil {
+			log.Warn(err)
+			return added
+		}
+
+		for _, index := range indexes.Results {
+			if index.UID == indexName {
+				almBonusIndex = client.Index(indexName)
+				break
+			}
+		}
+
+		if almBonusIndex == nil {
+			almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
+				Uid:        indexName,
+				PrimaryKey: "id",
+			})
+
+			if err != nil {
+				log.Warn(err)
+				return added
+			}
+
+			if _, err = client.WaitForTask(almTaskInfo.TaskUID); err != nil {
+				log.Warn(err)
+				return added
+			}
+
+			almBonusIndex = client.Index(indexName)
+		}
+
+		if init { // search the item exact matches before adding it
+			var documentsAddTask *meilisearch.TaskInfo
+			if documentsAddTask, err = almBonusIndex.AddDocuments(bonuses); err != nil {
+				log.Warn(err)
+				return added
+			}
+
+			if _, err = client.WaitForTask(documentsAddTask.TaskUID); err != nil {
+				log.Warn(err)
+				return added
+			}
+
+			added += len(bonuses)
+		} else { // clean index, add all
+			for _, bonus := range bonuses {
+				request := &meilisearch.SearchRequest{
+					Limit: 1,
+				}
+
+				var searchResp *meilisearch.SearchResponse
+				if searchResp, err = almBonusIndex.Search(bonus.Name, request); err != nil {
+					log.Warn("SearchAlmanaxBonuses: index not found: ", "err", err)
+					return added
+				}
+
+				foundIdentical := false
+				if len(searchResp.Hits) > 0 {
+					var item = searchResp.Hits[0].(map[string]interface{})
+					if item["name"] == bonus.Name {
+						foundIdentical = true
+					}
+				}
+
+				if !foundIdentical { // add only if not found
+					log.Print("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
+					var documentsAddTask *meilisearch.TaskInfo
+					if documentsAddTask, err = almBonusIndex.AddDocuments([]AlmanaxBonusListing{bonus}); err != nil {
+						log.Warn(err)
+						return added
+					}
+
+					if _, err = client.WaitForTask(documentsAddTask.TaskUID); err != nil {
+						log.Warn(err)
+						return added
+					}
+
+					added += 1
+				}
+			}
+		}
+	}
+
+	return added
+}
+
+func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.MappedMultilangSet, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -630,43 +752,37 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		firstRun := true
 		staySelectLoop := true
 		for staySelectLoop {
-			select {
-			case <-done:
+			<-ticker.C
+			allTrue := true
+			for i, task := range indexTasks {
+				if !firstRun && awaited[i] { // save result from last run to save requests
+					continue
+				}
+
+				waitingForSucceededOrFailed := true
+				taskResp, err := client.GetTask(task.TaskUID)
+				if err != nil {
+					log.Error(err)
+					break
+				}
+				waitingForSucceededOrFailed = taskResp.Status == meilisearch.TaskStatusSucceeded || taskResp.Status == meilisearch.TaskStatusFailed
+				if !waitingForSucceededOrFailed {
+					allTrue = false
+				}
+				if firstRun {
+					awaited = append(awaited, waitingForSucceededOrFailed)
+				} else {
+					awaited[i] = waitingForSucceededOrFailed
+				}
+			}
+			firstRun = false
+
+			if allTrue {
 				ticker.Stop()
-			case <-ticker.C:
-				allTrue := true
-				for i, task := range indexTasks {
-					if !firstRun && awaited[i] { // save result from last run to save requests
-						continue
-					}
-
-					waitingForSucceededOrFailed := true
-					taskResp, err := client.GetTask(task.TaskUID)
-					if err != nil {
-						log.Error(err)
-						break
-					}
-					waitingForSucceededOrFailed = taskResp.Status == meilisearch.TaskStatusSucceeded || taskResp.Status == meilisearch.TaskStatusFailed
-					if !waitingForSucceededOrFailed {
-						allTrue = false
-					}
-					if firstRun {
-						awaited = append(awaited, waitingForSucceededOrFailed)
-					} else {
-						awaited[i] = waitingForSucceededOrFailed
-					}
-				}
-				firstRun = false
-
-				if allTrue {
-					ticker.Stop()
-					staySelectLoop = false
-				}
+				staySelectLoop = false
 			}
 		}
 		//}(done, indexed, client, ticker)
-	} else {
-		close(done)
 	}
 
 	return db, multilangSearchIndexes
