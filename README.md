@@ -32,9 +32,9 @@ Assumptions:
 Create a simple `.env` file.
 
 ```shell
-export MEILI_MASTER_KEY_GEN=$(echo $RANDOM | md5sum | head -c 20; echo;)
+export MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
 
-echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY_GEN" > .env
+echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" > .env
 ```
 
 If you had a problem with the md5sum, you are probably on MacOS and need to `brew install md5sha1sum`. Also, `jq` could be a problem, `brew install jq` or `sudo apt install jq`. Or just make up your own keys.
@@ -43,7 +43,7 @@ Download [Meilisearch](https://www.meilisearch.com/docs/learn/getting_started/in
 
 ```shell
 curl -L https://install.meilisearch.com | sh
-./meilisearch --master-key $MEILI_MASTER_KEY_GEN &
+./meilisearch --master-key $MEILI_MASTER_KEY &
 ```
 
 You can get the process back with `fg` later.
