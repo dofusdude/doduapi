@@ -14,8 +14,8 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-data/*
-data.ms/*
+data
+data.ms
 dumps/
 
 doduapi
