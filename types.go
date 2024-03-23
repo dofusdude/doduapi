@@ -82,6 +82,42 @@ func RenderEffects(effects *[]mapping.MappedMultilangEffect, lang string) []ApiE
 	return nil
 }
 
+type ApiSetEffect struct {
+	MinInt          int           `json:"int_minimum"`
+	MaxInt          int           `json:"int_maximum"`
+	Type            ApiEffectType `json:"type"`
+	IgnoreMinInt    bool          `json:"ignore_int_min"`
+	IgnoreMaxInt    bool          `json:"ignore_int_max"`
+	Formatted       string        `json:"formatted"`
+	ItemCombination uint          `json:"item_combination"`
+}
+
+func RenderSetEffects(effects *[]mapping.MappedMultilangSetEffect, lang string) []ApiSetEffect {
+	var retEffects []ApiSetEffect
+	for _, effect := range *effects {
+		retEffects = append(retEffects, ApiSetEffect{
+			MinInt:       effect.Min,
+			MaxInt:       effect.Max,
+			IgnoreMinInt: effect.IsMeta || effect.MinMaxIrrelevant == -2,
+			IgnoreMaxInt: effect.IsMeta || effect.MinMaxIrrelevant <= -1,
+			Type: ApiEffectType{
+				Name:     effect.Type[lang],
+				Id:       effect.ElementId,
+				IsMeta:   effect.IsMeta,
+				IsActive: effect.Active,
+			},
+			Formatted:       effect.Templated[lang],
+			ItemCombination: effect.ItemCombination,
+		})
+	}
+
+	if len(retEffects) > 0 {
+		return retEffects
+	}
+
+	return nil
+}
+
 type ApiCondition struct {
 	Operator string           `json:"operator"`
 	IntValue int              `json:"int_value"`
@@ -531,8 +567,8 @@ type APIListSet struct {
 	Level int    `json:"level"`
 
 	// extra fields
-	Effects [][]ApiEffect `json:"effects,omitempty"`
-	ItemIds []int         `json:"equipment_ids,omitempty"`
+	Effects [][]ApiSetEffect `json:"effects,omitempty"`
+	ItemIds []int            `json:"equipment_ids,omitempty"`
 }
 
 func RenderSetListEntry(set *mapping.MappedMultilangSet, lang string) APIListSet {
@@ -545,17 +581,17 @@ func RenderSetListEntry(set *mapping.MappedMultilangSet, lang string) APIListSet
 }
 
 type APISet struct {
-	AnkamaId int           `json:"ankama_id"`
-	Name     string        `json:"name"`
-	ItemIds  []int         `json:"equipment_ids"`
-	Effects  [][]ApiEffect `json:"effects,omitempty"`
-	Level    int           `json:"highest_equipment_level"`
+	AnkamaId int              `json:"ankama_id"`
+	Name     string           `json:"name"`
+	ItemIds  []int            `json:"equipment_ids"`
+	Effects  [][]ApiSetEffect `json:"effects,omitempty"`
+	Level    int              `json:"highest_equipment_level"`
 }
 
 func RenderSet(set *mapping.MappedMultilangSet, lang string) APISet {
-	var effects [][]ApiEffect
+	var effects [][]ApiSetEffect
 	for _, effect := range set.Effects {
-		effects = append(effects, RenderEffects(&effect, lang))
+		effects = append(effects, RenderSetEffects(&effect, lang))
 	}
 
 	resSet := APISet{

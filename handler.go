@@ -296,7 +296,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 
 		if expansions.Has("effects") {
 			for _, effect := range p.Effects {
-				set.Effects = append(set.Effects, RenderEffects(&effect, lang))
+				set.Effects = append(set.Effects, RenderSetEffects(&effect, lang))
 			}
 		}
 
