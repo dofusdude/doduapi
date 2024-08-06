@@ -30,8 +30,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dofusdude/ankabuffer v0.0.8 h1:sWcUweUA8MNSNBRStbb+LxxiI21gJckWhpLX21TEWuI=
 github.com/dofusdude/ankabuffer v0.0.8/go.mod h1:thGiWt9q3jQ9HXF4toodro2t9cPSECFALSeVq2CEphg=
-github.com/dofusdude/dodumap v0.2.1 h1:SlX7jAwSJb4z1e1uo0KpEpXRUM+DGtayRqRnBnNf6To=
-github.com/dofusdude/dodumap v0.2.1/go.mod h1:NBC73NRwacLMNj4qfUohltqw0sr3lk0zSvJS7h3X0eU=
+github.com/dofusdude/dodumap v0.2.3 h1:h+Pbq4sDBo6WyuqSB0Tb1J5R+biZFNjVhiiAleA1uJI=
+github.com/dofusdude/dodumap v0.2.3/go.mod h1:NBC73NRwacLMNj4qfUohltqw0sr3lk0zSvJS7h3X0eU=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6baUTXGLOoWe4PQhGxaX0KpnayAqC48p4=
