@@ -16,7 +16,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/joho/godotenv v1.5.1
 	github.com/meilisearch/meilisearch-go v0.26.3
-	github.com/prometheus/client_golang v1.19.0
+	github.com/prometheus/client_golang v1.19.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	github.com/zyedidia/generic v1.2.1
