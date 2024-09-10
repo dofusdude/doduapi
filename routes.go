@@ -67,6 +67,7 @@ func Router() chi.Router {
 
 		r.Route("/meta", func(r chi.Router) {
 			r.Get("/elements", ListEffectConditionElements)
+			r.Get("/items/types", ListItemTypeIds)
 			r.Get("/search/types", ListSearchAllTypes)
 		})
 

@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
+	g "github.com/zyedidia/generic"
+	"github.com/zyedidia/generic/set"
 
 	mapping "github.com/dofusdude/dodumap"
 )
@@ -21,6 +23,7 @@ type SearchIndexedItem struct {
 	Description string `json:"description"`
 	SuperType   string `json:"super_type"`
 	TypeName    string `json:"type_name"`
+	TypeId      string `json:"type_id"`
 	Level       int    `json:"level"`
 	StuffType   string `json:"stuff_type"`
 }
@@ -42,6 +45,11 @@ type SearchIndexedSet struct {
 type EffectConditionDbEntry struct {
 	Id   int
 	Name string
+}
+
+type ItemTypeId struct {
+	Id     int
+	EnName string
 }
 
 func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
@@ -313,6 +321,16 @@ func GetMemDBSchema() *memdb.DBSchema {
 					},
 				},
 			},
+			"item-type-ids": {
+				Name: "item-type-ids",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {
+						Name:    "id",
+						Unique:  true,
+						Indexer: &memdb.IntFieldIndex{Field: "Id"},
+					},
+				},
+			},
 		},
 	}
 }
@@ -534,6 +552,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		allStuffIdx := client.Index(allIndexUid)
 		if _, err = allStuffIdx.UpdateFilterableAttributes(&[]string{
 			"stuff_type",
+			"type_id",
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -542,6 +561,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		if _, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"super_type",
 			"type_name",
+			"type_id",
 			"level",
 		}); err != nil {
 			log.Fatal(err)
@@ -608,6 +628,8 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		}
 	}
 
+	itemTypeIds := set.NewHashset[string](10, g.Equals[string], g.HashString)
+
 	// all items search
 	for _, item := range *items {
 		itemCp := item
@@ -626,15 +648,19 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		}
 
 		for _, lang := range Languages {
+			enTypeId := strings.ToLower(strings.ReplaceAll(itemCp.Type.Name["en"], " ", "-"))
 			object := SearchIndexedItem{
 				Name:        itemCp.Name[lang],
 				Id:          itemCp.AnkamaId,
 				Description: itemCp.Description[lang],
 				SuperType:   insertCategoryTable,
 				TypeName:    strings.ToLower(itemCp.Type.Name[lang]),
+				TypeId:      enTypeId,
 				Level:       itemCp.Level,
 				StuffType:   fmt.Sprintf("items-%s", insertCategoryTable),
 			}
+
+			itemTypeIds.Put(enTypeId)
 
 			itemIndexBatch[lang] = append(itemIndexBatch[lang], object)
 			if len(itemIndexBatch[lang]) >= maxBatchSize {
@@ -649,6 +675,15 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 				indexTasks = append(indexTasks, taskInfo)
 				itemIndexBatch[lang] = nil
 			}
+		}
+	}
+
+	for id, itemTypeId := range itemTypeIds.Keys() {
+		if err = txn.Insert("item-type-ids", &ItemTypeId{
+			Id:     id,
+			EnName: itemTypeId,
+		}); err != nil {
+			log.Fatal(err)
 		}
 	}
 

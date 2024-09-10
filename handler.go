@@ -348,6 +348,49 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func isValidType(typeid string) bool {
+	// TODO
+	return true
+}
+
+func setFilter(in *set.Set[string], prefix string) (*set.Set[string], error) {
+	out := set.NewHashset[string](10, g.Equals[string], g.HashString)
+	for _, str := range in.Keys() {
+		noPrefix := str
+		if prefix != "" {
+			if strings.HasPrefix(str, prefix) {
+				noPrefix = strings.TrimPrefix(str, prefix)
+			}
+		}
+		if isValidType(noPrefix) {
+			out.Put(noPrefix)
+		} else {
+			return &out, fmt.Errorf("unknown type: " + noPrefix)
+		}
+	}
+
+	return &out, nil
+}
+
+func excludeTypes(all *set.Set[string]) (*set.Set[string], error) {
+	return setFilter(all, "-")
+}
+
+func includeTypes(all *set.Set[string]) (*set.Set[string], error) {
+	explicitAdd, err := setFilter(all, "+")
+	if err != nil {
+		return nil, err
+	}
+
+	implicitAdd, err := setFilter(all, "")
+	if err != nil {
+		return nil, err
+	}
+
+	res := explicitAdd.Union(implicitAdd)
+	return &res, nil
+}
+
 func parseFields(expansionsParam string) *set.Set[string] {
 	expansions := set.NewHashset[string](10, g.Equals[string], g.HashString)
 	expansionContainsDiv := strings.Contains(expansionsParam, ",")
@@ -393,6 +436,26 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type]"))
+	filterset := parseFields(typeFiltering)
+	additiveTypes, err := includeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	removedTypes, err := excludeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO validate fields
+	//if !validateFields(expansions, equipmentAllowedExpandFields) {
+	//	w.WriteHeader(http.StatusBadRequest)
+	//	return
+	//}
+
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterTypeName := strings.ToLower(r.URL.Query().Get("filter[type_name]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
@@ -418,6 +481,16 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	var items []APIListItem
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangItem)
+
+		enTypeName := strings.ToLower(p.Type.Name["en"])
+
+		if removedTypes.Has(enTypeName) {
+			continue
+		}
+
+		if additiveTypes.Size() > 0 && !additiveTypes.Has(enTypeName) {
+			continue
+		}
 
 		if filterTypeName != "" {
 			if strings.ToLower(p.Type.Name[lang]) != filterTypeName {
@@ -859,9 +932,31 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type]"))
+	filterset := parseFields(typeFiltering)
+	additiveTypes, err := includeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	removedTypes, err := excludeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
 	index := client.Index(indexName)
 	filterString := "stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=")
+
+	if additiveTypes.Size() > 0 {
+		filterString += " OR type_id=" + strings.Join(additiveTypes.Keys(), " OR type_id=")
+	}
+
+	if removedTypes.Size() > 0 {
+		filterString += " AND NOT type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=")
+	}
 
 	request := &meilisearch.SearchRequest{
 		Limit:  searchLimit,
