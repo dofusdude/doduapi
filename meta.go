@@ -13,6 +13,14 @@ func ListSearchAllTypes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func GetGameVersion(w http.ResponseWriter, r *http.Request) {
+	WriteCacheHeader(&w)
+	if err := json.NewEncoder(w).Encode(CurrentVersion); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 func ListItemTypeIds(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()

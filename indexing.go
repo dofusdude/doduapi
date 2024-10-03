@@ -311,6 +311,7 @@ func GetMemDBSchema() *memdb.DBSchema {
 					},
 				},
 			},
+			// Maybe add red/blue staging here.
 			"effect-condition-elements": {
 				Name: "effect-condition-elements",
 				Indexes: map[string]*memdb.IndexSchema{
@@ -321,6 +322,7 @@ func GetMemDBSchema() *memdb.DBSchema {
 					},
 				},
 			},
+			// Maybe add red/blue staging here.
 			"item-type-ids": {
 				Name: "item-type-ids",
 				Indexes: map[string]*memdb.IndexSchema{

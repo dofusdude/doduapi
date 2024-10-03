@@ -45,6 +45,7 @@ var (
 	UpdateHookToken     string
 	DofusVersion        string
 	FullImg             bool
+	CurrentVersion      GameVersion
 )
 
 var currentWd string
@@ -52,6 +53,12 @@ var currentWd string
 type VersionT struct {
 	Search bool
 	MemDb  bool
+}
+
+type GameVersion struct {
+	Version     string    `json:"version"`
+	Release     string    `json:"release"`
+	UpdateStamp time.Time `json:"update_stamp"`
 }
 
 func Concat[T any](first []T, second []T) []T {
