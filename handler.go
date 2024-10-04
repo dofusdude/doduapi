@@ -763,7 +763,7 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 	for _, hit := range searchResp.Hits {
 		almBonusJson := hit.(map[string]interface{})
 		almBonus := AlmanaxBonusListing{
-			Id:   almBonusJson["id"].(string),
+			Id:   almBonusJson["slug"].(string),
 			Name: almBonusJson["name"].(string),
 		}
 		results = append(results, almBonus)

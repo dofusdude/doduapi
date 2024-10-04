@@ -395,7 +395,6 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 		var bonusesMeili []AlmanaxBonusListingMeili
 		var counter int = 0
 		for i := range bonuses {
-			bonuses[i].Id = strconv.Itoa(counter)
 			bonusesMeili = append(bonusesMeili, AlmanaxBonusListingMeili{
 				Id:   strconv.Itoa(counter),
 				Slug: bonuses[i].Id,
