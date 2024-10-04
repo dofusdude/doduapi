@@ -406,7 +406,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 		indexName := fmt.Sprintf("alm-bonuses-%s", lang)
 		_, err = client.GetIndex(indexName)
 		if err != nil {
-			if !strings.Contains(err.Error(), "not found") {
+			if strings.Contains(err.Error(), "not found") {
 				log.Warn("alm bonuses index does not exist yet, creating now", "index", indexName)
 				almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
 					Uid:        indexName,
