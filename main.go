@@ -297,6 +297,4 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 			log.Fatal(err)
 		}
 	}
-
-	fmt.Println("Goodbye!")
 }

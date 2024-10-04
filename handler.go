@@ -1001,7 +1001,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		if filterString != "" {
 			filterString += " AND "
 		}
-		filterString += "NOT (type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
+		filterString += "(NOT type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
 	}
 
 	if filterString != "" {
@@ -1011,13 +1011,13 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	request := &meilisearch.SearchRequest{
 		Limit:  searchLimit,
-		Filter: "",
+		Filter: filterString,
 	}
 
 	var searchResp *meilisearch.SearchResponse
 	if searchResp, err = index.Search(query, request); err != nil {
-		log.Warn("SearchAllIndices: index not found: ", err)
-		w.WriteHeader(http.StatusNotFound)
+		log.Warn("SearchAllIndices: index not found: ", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -1167,7 +1167,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			filterString += " AND "
 		}
 
-		filterString += "NOT (type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
+		filterString += "(NOT type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
 	}
 
 	index := client.Index(fmt.Sprintf("%s-all_items-%s", CurrentRedBlueVersionStr(Version.Search), lang))
