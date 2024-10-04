@@ -714,7 +714,9 @@ func getLimitInBoundary(limitStr string) (int64, error) {
 // search
 
 func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
+
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -778,8 +780,10 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
+
 	var err error
-	client := CreateMeiliClient()
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -856,7 +860,9 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchSets(w http.ResponseWriter, r *http.Request) {
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
+
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -938,7 +944,9 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
+
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -1117,7 +1125,9 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Request) {
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
+
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		w.WriteHeader(http.StatusBadRequest)

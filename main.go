@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/ui"
 	"github.com/hashicorp/go-memdb"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 )
@@ -68,7 +69,9 @@ func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *m
 			// ----
 			updateSearchIndex <- idx
 
-			client := CreateMeiliClient()
+			client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+			defer client.Close()
+
 			nowOldRedBlueVersion := CurrentRedBlueVersionStr(version.Search)
 
 			version.Search = !version.Search // atomic version switch
@@ -81,29 +84,35 @@ func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *m
 
 				itemDeleteTask, err := client.DeleteIndex(nowOldItemIndexUid)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old item index.", "err", err)
+					return
 				}
-				_, err = client.WaitForTask(itemDeleteTask.TaskUID)
+				_, err = client.WaitForTask(itemDeleteTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old item index.", "err", err)
+					return
 				}
 
 				setDeletionTask, err := client.DeleteIndex(nowOldSetIndexUid)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old set index.", "err", err)
+					return
 				}
-				_, err = client.WaitForTask(setDeletionTask.TaskUID)
+				_, err = client.WaitForTask(setDeletionTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old set index.", "err", err)
+					return
 				}
 
 				mountDeletionTask, err := client.DeleteIndex(nowOldMountIndexUid)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old mount index.", "err", err)
+					return
 				}
-				_, err = client.WaitForTask(mountDeletionTask.TaskUID)
+				_, err = client.WaitForTask(mountDeletionTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
-					log.Fatal(err)
+					log.Error("Error while deleting old mount index.", "err", err)
+					return
 				}
 			}
 			log.Info("deleted old in-memory data")

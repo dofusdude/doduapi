@@ -350,10 +350,10 @@ func GetItemSuperType(id int) int {
 }
 
 type SearchIndexes struct {
-	AllStuff *meilisearch.Index
-	AllItems *meilisearch.Index
-	Sets     *meilisearch.Index
-	Mounts   *meilisearch.Index
+	AllStuff meilisearch.IndexManager
+	AllItems meilisearch.IndexManager
+	Sets     meilisearch.IndexManager
+	Mounts   meilisearch.IndexManager
 }
 
 type AlmanaxBonusListing struct {
@@ -362,7 +362,8 @@ type AlmanaxBonusListing struct {
 }
 
 func UpdateAlmanaxBonusIndex(init bool) int {
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
 
 	added := 0
 
@@ -386,10 +387,10 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 
 		indexName := fmt.Sprintf("alm-bonuses-%s", lang)
 
-		var almBonusIndex *meilisearch.Index
+		var almBonusIndex meilisearch.IndexManager
 
 		// check if index exists
-		indexes, err := client.GetIndexes(&meilisearch.IndexesQuery{
+		indexes, err := client.ListIndexes(&meilisearch.IndexesQuery{
 			Limit: 100,
 		})
 		if err != nil {
@@ -415,7 +416,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 				return added
 			}
 
-			if _, err = client.WaitForTask(almTaskInfo.TaskUID); err != nil {
+			if _, err = client.WaitForTask(almTaskInfo.TaskUID, 100*time.Millisecond); err != nil {
 				log.Warn(err)
 				return added
 			}
@@ -426,12 +427,12 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 		if init { // search the item exact matches before adding it
 			var documentsAddTask *meilisearch.TaskInfo
 			if documentsAddTask, err = almBonusIndex.AddDocuments(bonuses); err != nil {
-				log.Warn(err)
+				log.Error("Error while adding alm bonuses to meili.", "err", err)
 				return added
 			}
 
-			if _, err = client.WaitForTask(documentsAddTask.TaskUID); err != nil {
-				log.Warn(err)
+			if _, err = client.WaitForTask(documentsAddTask.TaskUID, 100*time.Millisecond); err != nil {
+				log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
 				return added
 			}
 
@@ -444,7 +445,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 
 				var searchResp *meilisearch.SearchResponse
 				if searchResp, err = almBonusIndex.Search(bonus.Name, request); err != nil {
-					log.Warn("SearchAlmanaxBonuses: index not found: ", "err", err)
+					log.Error("SearchAlmanaxBonuses: index not found: ", "err", err)
 					return added
 				}
 
@@ -457,15 +458,15 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 				}
 
 				if !foundIdentical { // add only if not found
-					log.Print("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
+					log.Info("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
 					var documentsAddTask *meilisearch.TaskInfo
 					if documentsAddTask, err = almBonusIndex.AddDocuments([]AlmanaxBonusListing{bonus}); err != nil {
-						log.Warn(err)
+						log.Error("Error while adding alm bonuses to meili.", "err", err)
 						return added
 					}
 
-					if _, err = client.WaitForTask(documentsAddTask.TaskUID); err != nil {
-						log.Warn(err)
+					if _, err = client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond); err != nil {
+						log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
 						return added
 					}
 
@@ -492,7 +493,8 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 	multilangSearchIndexes := make(map[string]SearchIndexes)
 	var indexTasks []*meilisearch.TaskInfo
 
-	client := CreateMeiliClient()
+	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	defer client.Close()
 
 	for _, lang := range Languages {
 		allIndexUid := fmt.Sprintf("%s-all_stuff-%s", NextRedBlueVersionStr(version.Search), lang)
@@ -534,19 +536,19 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		}
 
 		// wait for creation end
-		if _, err = client.WaitForTask(createAllIdxTask.TaskUID); err != nil {
+		if _, err = client.WaitForTask(createAllIdxTask.TaskUID, 100*time.Millisecond); err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createItemsIdxTask.TaskUID); err != nil {
+		if _, err = client.WaitForTask(createItemsIdxTask.TaskUID, 100*time.Millisecond); err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createSetsIdxTask.TaskUID); err != nil {
+		if _, err = client.WaitForTask(createSetsIdxTask.TaskUID, 100*time.Millisecond); err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createMountIdxTask.TaskUID); err != nil {
+		if _, err = client.WaitForTask(createMountIdxTask.TaskUID, 100*time.Millisecond); err != nil {
 			log.Fatal(err)
 		}
 

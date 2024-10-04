@@ -19,7 +19,6 @@ import (
 	"github.com/emirpasic/gods/maps/treebidimap"
 	gutils "github.com/emirpasic/gods/utils"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/viper"
 )
 
@@ -257,15 +256,6 @@ func ImageUrls(iconId int, apiType string) []string {
 		urls = append(urls, resolutionUrl)
 	}
 	return urls
-}
-
-func CreateMeiliClient() *meilisearch.Client {
-	client := meilisearch.NewClient(meilisearch.ClientConfig{
-		Host:   MeiliHost,
-		APIKey: MeiliKey,
-	})
-
-	return client
 }
 
 type PersistentStringKeysMap struct {
