@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	mapping "github.com/dofusdude/dodumap"
@@ -124,7 +125,13 @@ func UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	UpdateChan <- true
+	newVersion := GameVersion{
+		Version:     updateMessage.Version,
+		Release:     release,
+		UpdateStamp: time.Now(),
+	}
+
+	UpdateChan <- newVersion
 }
 
 // listings
@@ -348,6 +355,81 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func setFilter(in *set.Set[string], prefix string) (*set.Set[string], error) {
+	txn := Db.Txn(false)
+	defer txn.Abort()
+
+	it, err := txn.Get("item-type-ids", "id")
+	if err != nil || it == nil {
+		return nil, err
+	}
+
+	typeIds := set.NewHashset(10, g.Equals[string], g.HashString)
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		effectElement := obj.(*ItemTypeId)
+		typeIds.Put(effectElement.EnName)
+	}
+
+	out := set.NewHashset(10, g.Equals[string], g.HashString)
+	for _, str := range in.Keys() {
+		noPrefix := str
+		if prefix == "" {
+			disallowedPrefixes := []string{"-", "+"}
+			hasDisallowedPrefix := false
+			for _, disallowedPrefix := range disallowedPrefixes {
+				if strings.HasPrefix(str, disallowedPrefix) {
+					hasDisallowedPrefix = true
+					break
+				}
+			}
+			if !hasDisallowedPrefix {
+				if typeIds.Has(noPrefix) {
+					out.Put(noPrefix)
+				} else {
+					return &out, fmt.Errorf("unknown type: " + noPrefix)
+				}
+			}
+		} else {
+			if strings.HasPrefix(str, prefix) {
+				noPrefix = strings.TrimPrefix(str, prefix)
+				if typeIds.Has(noPrefix) {
+					out.Put(noPrefix)
+				} else {
+					return &out, fmt.Errorf("unknown type: " + noPrefix)
+				}
+			}
+		}
+	}
+
+	return &out, nil
+}
+
+func excludeTypes(all *set.Set[string]) (*set.Set[string], error) {
+	return setFilter(all, "-")
+}
+
+func includeTypes(all *set.Set[string]) (*set.Set[string], error) {
+	explicitAdd, err := setFilter(all, "+")
+	if err != nil {
+		return nil, err
+	}
+
+	implicitAdd, err := setFilter(all, "")
+	if err != nil {
+		return nil, err
+	}
+
+	res := set.NewHashset(10, g.Equals[string], g.HashString)
+	for _, str := range implicitAdd.Keys() {
+		res.Put(str)
+	}
+
+	for _, str := range explicitAdd.Keys() {
+		res.Put(str)
+	}
+	return &res, nil
+}
+
 func parseFields(expansionsParam string) *set.Set[string] {
 	expansions := set.NewHashset[string](10, g.Equals[string], g.HashString)
 	expansionContainsDiv := strings.Contains(expansionsParam, ",")
@@ -393,6 +475,20 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	filterset := parseFields(typeFiltering)
+	additiveTypes, err := includeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	removedTypes, err := excludeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterTypeName := strings.ToLower(r.URL.Query().Get("filter[type_name]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
@@ -418,6 +514,16 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	var items []APIListItem
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangItem)
+
+		enTypeName := strings.ToLower(p.Type.Name["en"])
+
+		if removedTypes.Has(enTypeName) {
+			continue
+		}
+
+		if additiveTypes.Size() > 0 && !additiveTypes.Has(enTypeName) {
+			continue
+		}
 
 		if filterTypeName != "" {
 			if strings.ToLower(p.Type.Name[lang]) != filterTypeName {
@@ -859,9 +965,39 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[item_type_enum]"))
+	filterset := parseFields(typeFiltering)
+	additiveTypes, err := includeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	removedTypes, err := excludeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
 	index := client.Index(indexName)
-	filterString := "stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=")
+
+	filterString := ""
+	if additiveTypes.Size() > 0 {
+		if filterString != "" {
+			filterString += " AND "
+		}
+		filterString += "(type_id=" + strings.Join(additiveTypes.Keys(), " OR type_id=") + ")"
+	}
+
+	if removedTypes.Size() > 0 {
+		if filterString != "" {
+			filterString += " AND "
+		}
+		filterString += "NOT (type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
+	}
+
+	filterString += " AND (stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
 
 	request := &meilisearch.SearchRequest{
 		Limit:  searchLimit,
@@ -986,6 +1122,35 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	filterset := parseFields(typeFiltering)
+	additiveTypes, err := includeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	removedTypes, err := excludeTypes(filterset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if additiveTypes.Size() > 0 {
+		if filterString != "" {
+			filterString += " AND "
+		}
+		filterString += "(type_id=" + strings.Join(additiveTypes.Keys(), " OR type_id=") + ")"
+	}
+
+	if removedTypes.Size() > 0 {
+		if filterString != "" {
+			filterString += " AND "
+		}
+
+		filterString += "NOT (type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
 	}
 
 	index := client.Index(fmt.Sprintf("%s-all_items-%s", CurrentRedBlueVersionStr(Version.Search), lang))

@@ -18,13 +18,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AutoUpdate(version *VersionT, updateHook chan bool, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes, almanaxBonusTicker *time.Ticker) {
+func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes, almanaxBonusTicker *time.Ticker) {
 	for {
 		select {
 		case <-almanaxBonusTicker.C:
 			added := UpdateAlmanaxBonusIndex(false)
 			log.Print("updated almanax bonus index", "added", added)
-		case <-updateHook:
+		case gameVersion, ok := <-updateHook:
+			if !ok {
+				log.Error("updateHook closed")
+				return
+			}
 			var err error
 			updateStart := time.Now()
 			log.Print("Initialize update...")
@@ -104,6 +108,10 @@ func AutoUpdate(version *VersionT, updateHook chan bool, updateDb chan *memdb.Me
 			}
 			log.Info("deleted old in-memory data")
 			log.Print("Updated", "s", time.Since(updateStart).Seconds())
+
+			// update version info for API meta endpoint
+			gameVersion.UpdateStamp = time.Now()
+			CurrentVersion = gameVersion
 		}
 	}
 }
@@ -122,7 +130,7 @@ func isChannelClosed[T any](ch chan T) bool {
 
 var httpDataServer *http.Server
 var httpMetricsServer *http.Server
-var UpdateChan chan bool
+var UpdateChan chan GameVersion
 
 var (
 	rootCmd = &cobra.Command{
@@ -205,7 +213,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 
 	updateDb := make(chan *memdb.MemDB)
 	updateSearchIndex := make(chan map[string]SearchIndexes)
-	UpdateChan = make(chan bool)
+	UpdateChan = make(chan GameVersion)
 
 	if isChannelClosed(feedbackChan) {
 		os.Exit(1)
@@ -251,17 +259,21 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 
 	log.Print("updated almanax bonus index", "added", added)
 
-	var channelLog string
+	var releaseLog string
 	if IsBeta {
-		channelLog = "beta"
+		releaseLog = "beta"
 	} else {
-		channelLog = "main"
+		releaseLog = "main"
 	}
 
+	CurrentVersion.Version = DofusVersion
+	CurrentVersion.UpdateStamp = time.Now()
+	CurrentVersion.Release = releaseLog
+
 	if PrometheusEnabled {
-		log.Print("Listening...", "port", apiPort, "metrics", apiPort+1, "channel", channelLog)
+		log.Print("Listening...", "port", apiPort, "metrics", apiPort+1, "release", releaseLog)
 	} else {
-		log.Print("Listening...", "port", apiPort, "channel", channelLog)
+		log.Print("Listening...", "port", apiPort, "release", releaseLog)
 	}
 
 	go func() {
