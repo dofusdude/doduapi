@@ -738,8 +738,7 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	indexName := fmt.Sprintf("alm-bonuses-%s", lang)
-	index := client.Index(indexName)
+	index := client.Index(fmt.Sprintf("alm-bonuses-%s", lang))
 
 	request := &meilisearch.SearchRequest{
 		Limit: searchLimit,

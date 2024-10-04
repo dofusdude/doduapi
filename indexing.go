@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -361,6 +362,12 @@ type AlmanaxBonusListing struct {
 	Name string `json:"name"` // translated text
 }
 
+type AlmanaxBonusListingMeili struct {
+	Id   string `json:"id"`   // meili specific id without utf8 guarantees
+	Slug string `json:"slug"` // english-id
+	Name string `json:"name"` // translated text
+}
+
 func UpdateAlmanaxBonusIndex(init bool) int {
 	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
 	defer client.Close()
@@ -381,64 +388,94 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 		var bonuses []AlmanaxBonusListing
 		err = json.NewDecoder(resp.Body).Decode(&bonuses)
 		if err != nil {
-			log.Warn(err, "lang", lang)
+			log.Error(err, "lang", lang)
 			return added
+		}
+
+		var bonusesMeili []AlmanaxBonusListingMeili
+		var counter int = 0
+		for i := range bonuses {
+			bonuses[i].Id = strconv.Itoa(counter)
+			bonusesMeili = append(bonusesMeili, AlmanaxBonusListingMeili{
+				Id:   strconv.Itoa(counter),
+				Slug: bonuses[i].Id,
+				Name: bonuses[i].Name,
+			})
+			counter++
 		}
 
 		indexName := fmt.Sprintf("alm-bonuses-%s", lang)
-
-		var almBonusIndex meilisearch.IndexManager
-
-		// check if index exists
-		indexes, err := client.ListIndexes(&meilisearch.IndexesQuery{
-			Limit: 100,
-		})
+		_, err = client.GetIndex(indexName)
 		if err != nil {
-			log.Warn(err)
-			return added
-		}
+			if !strings.Contains(err.Error(), "not found") {
+				log.Warn("alm bonuses index does not exist yet, creating now", "index", indexName)
+				almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
+					Uid:        indexName,
+					PrimaryKey: "id",
+				})
 
-		for _, index := range indexes.Results {
-			if index.UID == indexName {
-				almBonusIndex = client.Index(indexName)
-				break
+				if err != nil {
+					log.Error("Error while creating alm bonus index in meili", "err", err)
+					return added
+				}
+
+				task, err := client.WaitForTask(almTaskInfo.TaskUID, 500*time.Millisecond)
+				if err != nil {
+					log.Error("Error while waiting alm bonus index creation at meili", "err", err)
+					return added
+				}
+
+				if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+					log.Error("alm bonuses creation failed.", "err", task.Error)
+					return added
+				}
+
+			} else {
+				log.Error("Error while getting alm bonus index in meili", "err", err)
+				return added
 			}
 		}
 
-		if almBonusIndex == nil {
-			almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
-				Uid:        indexName,
-				PrimaryKey: "id",
-			})
+		almBonusIndex := client.Index(indexName)
 
+		if init { // clean index, add all
+			cleanTask, err := almBonusIndex.DeleteAllDocuments()
 			if err != nil {
-				log.Warn(err)
+				log.Error("Error while cleaning alm bonuses in meili.", "err", err)
 				return added
 			}
 
-			if _, err = client.WaitForTask(almTaskInfo.TaskUID, 100*time.Millisecond); err != nil {
-				log.Warn(err)
+			task, err := client.WaitForTask(cleanTask.TaskUID, 100*time.Millisecond)
+			if err != nil {
+				log.Error("Error while waiting for meili to clean alm bonuses.", "err", err)
 				return added
 			}
 
-			almBonusIndex = client.Index(indexName)
-		}
+			if task.Status == "failed" {
+				log.Error("clean alm bonuses task failed.", "err", task.Error)
+				return added
+			}
 
-		if init { // search the item exact matches before adding it
 			var documentsAddTask *meilisearch.TaskInfo
-			if documentsAddTask, err = almBonusIndex.AddDocuments(bonuses); err != nil {
+			if documentsAddTask, err = almBonusIndex.AddDocuments(bonusesMeili); err != nil {
 				log.Error("Error while adding alm bonuses to meili.", "err", err)
 				return added
 			}
 
-			if _, err = client.WaitForTask(documentsAddTask.TaskUID, 100*time.Millisecond); err != nil {
+			task, err = client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond)
+			if err != nil {
 				log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
 				return added
 			}
 
+			if task.Status == "failed" {
+				log.Error("alm bonuses add docs task failed.", "err", task.Error)
+				return added
+			}
+
 			added += len(bonuses)
-		} else { // clean index, add all
-			for _, bonus := range bonuses {
+		} else { // search the item exact matches before adding it
+			for _, bonus := range bonusesMeili {
 				request := &meilisearch.SearchRequest{
 					Limit: 1,
 				}
@@ -459,14 +496,20 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 
 				if !foundIdentical { // add only if not found
 					log.Info("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
-					var documentsAddTask *meilisearch.TaskInfo
-					if documentsAddTask, err = almBonusIndex.AddDocuments([]AlmanaxBonusListing{bonus}); err != nil {
+					documentsAddTask, err := almBonusIndex.AddDocuments([]AlmanaxBonusListingMeili{bonus})
+					if err != nil {
 						log.Error("Error while adding alm bonuses to meili.", "err", err)
 						return added
 					}
 
-					if _, err = client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond); err != nil {
+					task, err := client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond)
+					if err != nil {
 						log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
+						return added
+					}
+
+					if task.Status == "failed" {
+						log.Error("alm bonuses adding failed.", "err", task.Error)
 						return added
 					}
 
@@ -536,20 +579,44 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		}
 
 		// wait for creation end
-		if _, err = client.WaitForTask(createAllIdxTask.TaskUID, 100*time.Millisecond); err != nil {
+		task, err := client.WaitForTask(createAllIdxTask.TaskUID, 100*time.Millisecond)
+		if err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createItemsIdxTask.TaskUID, 100*time.Millisecond); err != nil {
+		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+			log.Error("alm bonuses creation failed.", "err", task.Error)
+			return nil, nil
+		}
+
+		task, err = client.WaitForTask(createItemsIdxTask.TaskUID, 100*time.Millisecond)
+		if err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createSetsIdxTask.TaskUID, 100*time.Millisecond); err != nil {
+		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+			log.Error("alm bonuses creation failed.", "err", task.Error)
+			return nil, nil
+		}
+
+		task, err = client.WaitForTask(createSetsIdxTask.TaskUID, 100*time.Millisecond)
+		if err != nil {
 			log.Fatal(err)
 		}
 
-		if _, err = client.WaitForTask(createMountIdxTask.TaskUID, 100*time.Millisecond); err != nil {
+		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+			log.Error("alm bonuses creation failed.", "err", task.Error)
+			return nil, nil
+		}
+
+		task, err = client.WaitForTask(createMountIdxTask.TaskUID, 100*time.Millisecond)
+		if err != nil {
 			log.Fatal(err)
+		}
+
+		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+			log.Error("alm bonuses creation failed.", "err", task.Error)
+			return nil, nil
 		}
 
 		// add filters

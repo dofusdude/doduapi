@@ -87,9 +87,14 @@ func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *m
 					log.Error("Error while deleting old item index.", "err", err)
 					return
 				}
-				_, err = client.WaitForTask(itemDeleteTask.TaskUID, 500*time.Millisecond)
+				task, err := client.WaitForTask(itemDeleteTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
 					log.Error("Error while deleting old item index.", "err", err)
+					return
+				}
+
+				if task.Status == "failed" {
+					log.Error("Error while deleting old item index.", "err", task.Error)
 					return
 				}
 
@@ -98,9 +103,14 @@ func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *m
 					log.Error("Error while deleting old set index.", "err", err)
 					return
 				}
-				_, err = client.WaitForTask(setDeletionTask.TaskUID, 500*time.Millisecond)
+				task, err = client.WaitForTask(setDeletionTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
 					log.Error("Error while deleting old set index.", "err", err)
+					return
+				}
+
+				if task.Status == "failed" {
+					log.Error("Error while deleting old set index.", "err", task.Error)
 					return
 				}
 
@@ -109,11 +119,17 @@ func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *m
 					log.Error("Error while deleting old mount index.", "err", err)
 					return
 				}
-				_, err = client.WaitForTask(mountDeletionTask.TaskUID, 500*time.Millisecond)
+				task, err = client.WaitForTask(mountDeletionTask.TaskUID, 500*time.Millisecond)
 				if err != nil {
 					log.Error("Error while deleting old mount index.", "err", err)
 					return
 				}
+
+				if task.Status == "failed" {
+					log.Error("Error while deleting old mount index.", "err", task.Error)
+					return
+				}
+
 			}
 			log.Info("deleted old in-memory data")
 			log.Print("Updated", "s", time.Since(updateStart).Seconds())
