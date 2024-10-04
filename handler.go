@@ -120,7 +120,7 @@ func UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Updating to version", updateMessage.Version)
 	err := DownloadImages()
 	if err != nil {
-		log.Error(err)
+		log.Error("Error while downloading images", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -247,6 +247,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -350,6 +351,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -667,6 +669,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -742,8 +745,8 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 
 	var searchResp *meilisearch.SearchResponse
 	if searchResp, err = index.Search(query, request); err != nil {
-		log.Warn("SearchAlmanaxBonuses: index not found", "err", err)
-		w.WriteHeader(http.StatusNotFound)
+		log.Error("SearchAlmanaxBonuses: index not found", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -766,7 +769,9 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteCacheHeader(&w)
-	if json.NewEncoder(w).Encode(results) != nil {
+	err = json.NewEncoder(w).Encode(results)
+	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -844,6 +849,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mounts)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -925,6 +931,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(sets)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -997,14 +1004,15 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		filterString += "NOT (type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
 	}
 
-	filterString += " AND (stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
+	if filterString != "" {
+		filterString += " AND "
+	}
+	filterString += "(stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
 
 	request := &meilisearch.SearchRequest{
 		Limit:  searchLimit,
-		Filter: filterString,
+		Filter: "",
 	}
-
-	log.Info(filterString)
 
 	var searchResp *meilisearch.SearchResponse
 	if searchResp, err = index.Search(query, request); err != nil {
@@ -1047,6 +1055,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			case "items-quest_items":
 				itemType = "quest_items"
 			default:
+				log.Error("Unknown stuff type", "stuff_type", stuffType)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1055,9 +1064,15 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			defer txn.Abort()
 
 			raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
-			if err != nil || raw == nil {
-				w.WriteHeader(http.StatusNotFound)
+			if err != nil {
+				log.Error("Error while getting memdb detailed type", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
 				return
+			}
+
+			if raw == nil {
+				log.Warn("Item not found in memdb.", "id", ankamaId)
+				continue
 			}
 
 			item := raw.(*mapping.MappedMultilangItem)
@@ -1093,7 +1108,9 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteCacheHeader(&w)
-	if json.NewEncoder(w).Encode(stuffs) != nil {
+	err = json.NewEncoder(w).Encode(stuffs)
+	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1158,24 +1175,24 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	if all {
 		if filterTypeName != "" {
 			if filterString == "" {
-				filterString = fmt.Sprintf("type_name=%s", filterTypeName)
+				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
 			} else {
-				filterString = fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
+				filterString += fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
 			}
 		}
 	} else {
 		if filterTypeName != "" {
 			if filterString == "" { // not already set with MinMaxLevels
-				filterString = fmt.Sprintf("type_name=%s", filterTypeName)
+				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
 			} else {
-				filterString = fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
+				filterString += fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
 			}
 		}
 
 		if filterString == "" {
-			filterString = fmt.Sprintf("super_type=%s", itemType)
+			filterString += fmt.Sprintf("super_type=%s", itemType)
 		} else {
-			filterString = fmt.Sprintf("%s AND super_type=%s", filterString, itemType)
+			filterString += fmt.Sprintf("%s AND super_type=%s", filterString, itemType)
 		}
 	}
 
@@ -1219,9 +1236,16 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		} else {
 			raw, err = txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", itemId)
 		}
-		if err != nil || raw == nil {
-			w.WriteHeader(http.StatusNotFound)
+
+		if err != nil {
+			log.Error("Error while getting memdb detailed type", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
+		}
+
+		if raw == nil {
+			log.Warn("Item not found in memdb.", "id", itemId)
+			continue
 		}
 
 		item := raw.(*mapping.MappedMultilangItem)
@@ -1240,6 +1264,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		encodeErr = json.NewEncoder(w).Encode(items)
 	}
 	if encodeErr != nil {
+		log.Error("Error while encoding JSON", "error", encodeErr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1292,6 +1317,7 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(set)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1317,6 +1343,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mount)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1346,6 +1373,7 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(resource)
 	if err != nil {
+		log.Error("Error while encoding JSON", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1393,6 +1421,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(weapon)
 		if err != nil {
+			log.Error("Error while encoding JSON", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -1405,6 +1434,7 @@ func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
 		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(equipment)
 		if err != nil {
+			log.Error("Error while encoding JSON", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
