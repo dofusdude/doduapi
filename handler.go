@@ -1187,7 +1187,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			if filterString == "" {
 				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
 			} else {
-				filterString += fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
+				filterString += fmt.Sprintf(" AND type_name=%s", filterTypeName)
 			}
 		}
 	} else {
@@ -1195,14 +1195,14 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			if filterString == "" { // not already set with MinMaxLevels
 				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
 			} else {
-				filterString += fmt.Sprintf("%s AND type_name=%s", filterString, filterTypeName)
+				filterString += fmt.Sprintf(" AND type_name=%s", filterTypeName)
 			}
 		}
 
 		if filterString == "" {
 			filterString += fmt.Sprintf("super_type=%s", itemType)
 		} else {
-			filterString += fmt.Sprintf("%s AND super_type=%s", filterString, itemType)
+			filterString += fmt.Sprintf(" AND super_type=%s", itemType)
 		}
 	}
 
