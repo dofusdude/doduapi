@@ -357,16 +357,22 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func setFilter(in *set.Set[string], prefix string) (*set.Set[string], error) {
+func setFilter(in *set.Set[string], prefix string, exceptions *[]string) (set.Set[string], error) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get("item-type-ids", "id")
 	if err != nil || it == nil {
-		return nil, err
+		return set.NewHashset(0, g.Equals[string], g.HashString), err
 	}
 
 	typeIds := set.NewHashset(10, g.Equals[string], g.HashString)
+	if exceptions != nil {
+		for _, exception := range *exceptions {
+			typeIds.Put(exception)
+		}
+	}
+
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		effectElement := obj.(*ItemTypeId)
 		typeIds.Put(effectElement.EnName)
@@ -388,7 +394,7 @@ func setFilter(in *set.Set[string], prefix string) (*set.Set[string], error) {
 				if typeIds.Has(noPrefix) {
 					out.Put(noPrefix)
 				} else {
-					return &out, fmt.Errorf("unknown type: " + noPrefix)
+					return out, fmt.Errorf("unknown type: " + noPrefix)
 				}
 			}
 		} else {
@@ -397,28 +403,28 @@ func setFilter(in *set.Set[string], prefix string) (*set.Set[string], error) {
 				if typeIds.Has(noPrefix) {
 					out.Put(noPrefix)
 				} else {
-					return &out, fmt.Errorf("unknown type: " + noPrefix)
+					return out, fmt.Errorf("unknown type: " + noPrefix)
 				}
 			}
 		}
 	}
 
-	return &out, nil
+	return out, nil
 }
 
-func excludeTypes(all *set.Set[string]) (*set.Set[string], error) {
-	return setFilter(all, "-")
+func excludeTypes(all *set.Set[string], exceptions *[]string) (set.Set[string], error) {
+	return setFilter(all, "-", exceptions)
 }
 
-func includeTypes(all *set.Set[string]) (*set.Set[string], error) {
-	explicitAdd, err := setFilter(all, "+")
+func includeTypes(all *set.Set[string], exceptions *[]string) (set.Set[string], error) {
+	explicitAdd, err := setFilter(all, "+", exceptions)
 	if err != nil {
-		return nil, err
+		return set.NewHashset(0, g.Equals[string], g.HashString), err
 	}
 
-	implicitAdd, err := setFilter(all, "")
+	implicitAdd, err := setFilter(all, "", exceptions)
 	if err != nil {
-		return nil, err
+		return set.NewHashset(0, g.Equals[string], g.HashString), err
 	}
 
 	res := set.NewHashset(10, g.Equals[string], g.HashString)
@@ -429,7 +435,7 @@ func includeTypes(all *set.Set[string]) (*set.Set[string], error) {
 	for _, str := range explicitAdd.Keys() {
 		res.Put(str)
 	}
-	return &res, nil
+	return res, nil
 }
 
 func parseFields(expansionsParam string) *set.Set[string] {
@@ -449,7 +455,7 @@ func parseFields(expansionsParam string) *set.Set[string] {
 }
 
 func validateFields(expansions *set.Set[string], list []string) bool {
-	allowedFields := set.NewHashset[string](10, g.Equals[string], g.HashString)
+	allowedFields := set.NewHashset(10, g.Equals[string], g.HashString)
 	for _, expansion := range list {
 		allowedFields.Put(expansion)
 	}
@@ -479,13 +485,13 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
 	filterset := parseFields(typeFiltering)
-	additiveTypes, err := includeTypes(filterset)
+	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	removedTypes, err := excludeTypes(filterset)
+	removedTypes, err := excludeTypes(filterset, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -979,15 +985,16 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[item_type_enum]"))
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	exceptions := []string{"mount", "set"}
 	filterset := parseFields(typeFiltering)
-	additiveTypes, err := includeTypes(filterset)
+	additiveTypes, err := includeTypes(filterset, &exceptions)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	removedTypes, err := excludeTypes(filterset)
+	removedTypes, err := excludeTypes(filterset, &exceptions)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -996,25 +1003,82 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
 	index := client.Index(indexName)
 
+	exceptionSet := set.NewHashset(2, g.Equals[string], g.HashString)
+	for _, exception := range exceptions {
+		exceptionSet.Put(exception)
+	}
+
+	additiveTypesExceptions := exceptionSet.Intersection(additiveTypes)
+	removedTypesExceptions := exceptionSet.Intersection(removedTypes)
+
+	additiveTypes = additiveTypes.Difference(exceptionSet)
+	removedTypes = removedTypes.Difference(exceptionSet)
+
 	filterString := ""
-	if additiveTypes.Size() > 0 {
+	if additiveTypes.Size() > 0 || additiveTypesExceptions.Size() > 0 {
 		if filterString != "" {
 			filterString += " AND "
 		}
-		filterString += "(type_id=" + strings.Join(additiveTypes.Keys(), " OR type_id=") + ")"
+		// A single type is singular but the category is plural.
+		plural := []string{}
+		for _, elem := range additiveTypesExceptions.Keys() {
+			plural = append(plural, elem+"s")
+		}
+
+		addTypesArr := additiveTypes.Keys()
+
+		filterString += "("
+		if len(addTypesArr) > 0 {
+			filterString += "type_id=" + strings.Join(addTypesArr, " OR type_id=")
+		}
+
+		if len(plural) > 0 && len(addTypesArr) > 0 {
+			filterString += " OR "
+		}
+
+		if len(plural) > 0 {
+			filterString += "stuff_type=" + strings.Join(plural, " OR stuff_type=")
+		}
+
+		filterString += ")"
 	}
 
-	if removedTypes.Size() > 0 {
+	if removedTypes.Size() > 0 || removedTypesExceptions.Size() > 0 {
 		if filterString != "" {
 			filterString += " AND "
 		}
-		filterString += "(NOT type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
+		plural := []string{}
+		for _, elem := range removedTypesExceptions.Keys() {
+			plural = append(plural, elem+"s")
+		}
+
+		remTypesArr := removedTypes.Keys()
+
+		filterString += "("
+		if len(remTypesArr) > 0 {
+			filterString += "NOT type_id=" + strings.Join(remTypesArr, " AND NOT type_id=")
+		}
+
+		if len(plural) > 0 && len(remTypesArr) > 0 {
+			filterString += " AND "
+		}
+
+		if len(plural) > 0 {
+			filterString += "NOT stuff_type=" + strings.Join(plural, " AND NOT stuff_type=")
+		}
+
+		filterString += ")"
 	}
 
-	if filterString != "" {
-		filterString += " AND "
+	if parsedIndices.Size() > 0 || additiveTypesExceptions.Size() > 0 || removedTypesExceptions.Size() > 0 {
+		if parsedIndices.Size() > 0 {
+			if filterString != "" {
+				filterString += " AND "
+			}
+
+			filterString += "(stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
+		}
 	}
-	filterString += "(stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
 
 	request := &meilisearch.SearchRequest{
 		Limit:  searchLimit,
@@ -1152,13 +1216,13 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
 	filterset := parseFields(typeFiltering)
-	additiveTypes, err := includeTypes(filterset)
+	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	removedTypes, err := excludeTypes(filterset)
+	removedTypes, err := excludeTypes(filterset, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
