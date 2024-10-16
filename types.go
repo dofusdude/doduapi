@@ -561,10 +561,11 @@ func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 }
 
 type APIListSet struct {
-	Id    int    `json:"ankama_id"`
-	Name  string `json:"name"`
-	Items int    `json:"items"`
-	Level int    `json:"level"`
+	Id         int    `json:"ankama_id"`
+	Name       string `json:"name"`
+	Items      int    `json:"items"`
+	Level      int    `json:"level"`
+	IsCosmetic bool   `json:"is_cosmetic"`
 
 	// extra fields
 	Effects [][]ApiSetEffect `json:"effects,omitempty"`
@@ -573,19 +574,21 @@ type APIListSet struct {
 
 func RenderSetListEntry(set *mapping.MappedMultilangSet, lang string) APIListSet {
 	return APIListSet{
-		Id:    set.AnkamaId,
-		Name:  set.Name[lang],
-		Items: len(set.ItemIds),
-		Level: set.Level,
+		Id:         set.AnkamaId,
+		Name:       set.Name[lang],
+		Items:      len(set.ItemIds),
+		Level:      set.Level,
+		IsCosmetic: set.IsCosmetic,
 	}
 }
 
 type APISet struct {
-	AnkamaId int              `json:"ankama_id"`
-	Name     string           `json:"name"`
-	ItemIds  []int            `json:"equipment_ids"`
-	Effects  [][]ApiSetEffect `json:"effects,omitempty"`
-	Level    int              `json:"highest_equipment_level"`
+	AnkamaId   int              `json:"ankama_id"`
+	Name       string           `json:"name"`
+	ItemIds    []int            `json:"equipment_ids"`
+	Effects    [][]ApiSetEffect `json:"effects,omitempty"`
+	Level      int              `json:"highest_equipment_level"`
+	IsCosmetic bool             `json:"is_cosmetic"`
 }
 
 func RenderSet(set *mapping.MappedMultilangSet, lang string) APISet {
@@ -595,11 +598,12 @@ func RenderSet(set *mapping.MappedMultilangSet, lang string) APISet {
 	}
 
 	resSet := APISet{
-		AnkamaId: set.AnkamaId,
-		Name:     set.Name[lang],
-		ItemIds:  set.ItemIds,
-		Effects:  effects,
-		Level:    set.Level,
+		AnkamaId:   set.AnkamaId,
+		Name:       set.Name[lang],
+		ItemIds:    set.ItemIds,
+		Effects:    effects,
+		Level:      set.Level,
+		IsCosmetic: set.IsCosmetic,
 	}
 
 	if len(effects) == 0 {

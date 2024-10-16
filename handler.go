@@ -266,6 +266,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
+	filterIsCosmeticStr := strings.ToLower(r.URL.Query().Get("filter[is_cosmetic]"))
 	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, "highest_equipment_level")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -287,6 +288,18 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	var sets []APIListSet
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangSet)
+
+		if filterIsCosmeticStr != "" {
+			filterIsCosmetic, err := strconv.ParseBool(filterIsCosmeticStr)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if p.IsCosmetic != filterIsCosmetic {
+				continue
+			}
+		}
 
 		if filterMinLevel != "" {
 			if p.Level < filterMinLevelInt {
@@ -877,10 +890,24 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
+	filterIsCosmeticStr := strings.ToLower(r.URL.Query().Get("filter[is_cosmetic]"))
 	filterString, err := MinMaxLevelMeiliFilterFromParams(filterMinLevel, filterMaxLevel, "highest_equipment_level")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	if filterIsCosmeticStr != "" {
+		filterIsCosmetic, err := strconv.ParseBool(filterIsCosmeticStr)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		isCosmeticMeiliFilterBoolString := strconv.FormatBool(filterIsCosmetic)
+		if filterString != "" {
+			filterString += " AND "
+		}
+		filterString += fmt.Sprintf("is_cosmetic=%s", isCosmeticMeiliFilterBoolString)
 	}
 
 	var searchLimit int64
@@ -901,10 +928,6 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 			Limit:  searchLimit,
 			Filter: filterString,
 		}
-	}
-
-	request = &meilisearch.SearchRequest{
-		Limit: searchLimit,
 	}
 
 	searchResp, err := index.Search(query, request)

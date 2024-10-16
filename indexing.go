@@ -37,10 +37,11 @@ type SearchIndexedMount struct {
 }
 
 type SearchIndexedSet struct {
-	Id        int    `json:"id"`
-	Name      string `json:"name"`
-	Level     int    `json:"highest_equipment_level"`
-	StuffType string `json:"stuff_type"`
+	Id         int    `json:"id"`
+	Name       string `json:"name"`
+	Level      int    `json:"highest_equipment_level"`
+	IsCosmetic bool   `json:"is_cosmetic"`
+	StuffType  string `json:"stuff_type"`
 }
 
 type EffectConditionDbEntry struct {
@@ -647,6 +648,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		setsIdx := client.Index(setIndexUid)
 		if _, err = setsIdx.UpdateFilterableAttributes(&[]string{
 			"highest_equipment_level",
+			"is_cosmetic",
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -766,10 +768,11 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 
 		for _, lang := range Languages {
 			object := SearchIndexedSet{
-				Name:      setCp.Name[lang],
-				Id:        setCp.AnkamaId,
-				Level:     setCp.Level,
-				StuffType: "sets",
+				Name:       setCp.Name[lang],
+				Id:         setCp.AnkamaId,
+				Level:      setCp.Level,
+				IsCosmetic: setCp.IsCosmetic,
+				StuffType:  "sets",
 			}
 
 			setIndexBatch[lang] = append(setIndexBatch[lang], object)
