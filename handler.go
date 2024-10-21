@@ -482,7 +482,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
 	var expansions *set.Set[string]
-	if itemType == "equipment" {
+	if itemType == "equipment" || itemType == "cosmetics" {
 		expansions = parseFields(expansionsParam)
 		if !validateFields(expansions, equipmentAllowedExpandFields) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1488,17 +1488,28 @@ func GetSingleQuestItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetSingleCosmeticHandler(w http.ResponseWriter, r *http.Request) {
-	GetSingleItemWithOptionalRecipeHandler("cosmetics", w, r)
+	GetSingleEquipmentLikeHandler(true, w, r)
 }
 
 func GetSingleEquipmentHandler(w http.ResponseWriter, r *http.Request) {
+	GetSingleEquipmentLikeHandler(false, w, r)
+}
+
+func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-equipment", CurrentRedBlueVersionStr(Version.MemDb)), "id", ankamaId)
+	dbType := ""
+	if cosmetic {
+		dbType = "cosmetics"
+	} else {
+		dbType = "equipment"
+	}
+
+	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), dbType), "id", ankamaId)
 	if err != nil || raw == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
