@@ -1393,7 +1393,6 @@ func SearchAllItems(w http.ResponseWriter, r *http.Request) {
 // single
 
 func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("GetSingleSetHandler")
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
