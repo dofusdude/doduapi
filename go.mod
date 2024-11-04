@@ -15,7 +15,7 @@ require (
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.28.0
+	github.com/meilisearch/meilisearch-go v0.29.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
@@ -23,6 +23,7 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
