@@ -26,8 +26,6 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dofusdude/ankabuffer v0.0.9 h1:EDVBf60QUq2TQr2mEjHrauUrkM7E3kEY0VUqNGeHRaI=
 github.com/dofusdude/ankabuffer v0.0.9/go.mod h1:H84vCl3zg8ibH+h6mFGvYxrLEIBOpnjYVi3WJXBFbNg=
-github.com/dofusdude/dodumap v0.4.0 h1:yrmQZZ6/abfpbxdfSuH/7UggjSVrB9eMYe2uEg4GkhY=
-github.com/dofusdude/dodumap v0.4.0/go.mod h1:51KG2eMd02UJnXErOubAukVftYuJproDHqJcbIHSzIE=
 github.com/dofusdude/dodumap v0.5.0 h1:wl5TaVr0A3ue2aYx9aTJYCEubCTG1aspR2h/YJ+IkH4=
 github.com/dofusdude/dodumap v0.5.0/go.mod h1:51KG2eMd02UJnXErOubAukVftYuJproDHqJcbIHSzIE=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=

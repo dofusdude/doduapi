@@ -123,7 +123,7 @@ func RenderResource(item *mapping.MappedMultilangItemUnity, lang string) APIReso
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		Recipe:      nil,
 	}
 
@@ -173,7 +173,7 @@ func RenderEquipment(item *mapping.MappedMultilangItemUnity, lang string) APIEqu
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		IsWeapon:    false,
 		Recipe:      nil,
 		ParentSet:   setLink,
@@ -239,7 +239,7 @@ func RenderWeapon(item *mapping.MappedMultilangItemUnity, lang string) APIWeapon
 		Description:            item.Description[lang],
 		Level:                  item.Level,
 		Pods:                   item.Pods,
-		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		Recipe:                 nil,
 		CriticalHitBonus:       item.CriticalHitBonus,
 		CriticalHitProbability: item.CriticalHitProbability,
@@ -382,7 +382,7 @@ func RenderItemListEntry(item *mapping.MappedMultilangItemUnity, lang string) AP
 			Id:   item.Type.ItemTypeId,
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 	}
 }
 
@@ -413,7 +413,7 @@ func RenderTypedItemListEntry(item *mapping.MappedMultilangItemUnity, lang strin
 			NameId: CategoryIdApiMapping(item.Type.CategoryId),
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 	}
 }
 
@@ -431,7 +431,7 @@ func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIL
 	return APIListMount{
 		Id:        mount.AnkamaId,
 		Name:      mount.Name[lang],
-		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
+		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
 		Family: APIMountFamily{
 			Id:   mount.AnkamaId,
 			Name: mount.FamilyName[lang],
@@ -507,7 +507,7 @@ func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 			Id:   mount.AnkamaId,
 			Name: mount.FamilyName[lang],
 		},
-		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
+		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
 	}
 
 	effects := RenderEffects(&mount.Effects, lang)

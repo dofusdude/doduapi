@@ -19,6 +19,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	DoduapiMajor       = 1                                          // Major version also used for prefixing API routes.
+	DoduapiVersion     = fmt.Sprintf("v%d.0.0-beta1", DoduapiMajor) // change with every release
+	DoduapiShort       = "doduapi - Unofficial Dofus Encyclopedia API."
+	DoduapiLong        = ""
+	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
+	httpDataServer     *http.Server
+	httpMetricsServer  *http.Server
+	UpdateChan         chan GameVersion
+)
+
 func AutoUpdate(version *VersionT, updateHook chan GameVersion, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes, almanaxBonusTicker *time.Ticker) {
 	for {
 		select {
@@ -154,17 +165,6 @@ func isChannelClosed[T any](ch chan T) bool {
 }
 
 var (
-	DoduapiMajor       = 1                                    // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.0", DoduapiMajor) // change with every release
-	DoduapiShort       = "doduapi - Unofficial Dofus Encyclopedia API."
-	DoduapiLong        = ""
-	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
-	httpDataServer     *http.Server
-	httpMetricsServer  *http.Server
-	UpdateChan         chan GameVersion
-)
-
-var (
 	rootCmd = &cobra.Command{
 		Use:   "doduapi",
 		Short: DoduapiShort,
@@ -174,8 +174,6 @@ var (
 )
 
 func main() {
-	ReadEnvs()
-
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
 	rootCmd.PersistentFlags().Bool("version", false, "Print API version.")
 	rootCmd.PersistentFlags().Int32("alm-bonus-interval", 12, "Almanax bonuses search index interval in hours.")
@@ -189,6 +187,8 @@ func main() {
 func rootCommand(ccmd *cobra.Command, args []string) {
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+
+	ReadEnvs()
 
 	var err error
 

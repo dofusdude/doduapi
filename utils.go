@@ -24,7 +24,8 @@ import (
 
 var (
 	Languages           = []string{"de", "en", "es", "fr", "pt"}
-	ImgResolutions      = []string{"64", "128"}
+	ItemImgResolutions  = []string{"64", "128"}
+	MountImgResolutions = []string{"64", "256"}
 	ApiHostName         string
 	ApiPort             string
 	ApiScheme           string
@@ -92,6 +93,10 @@ func ExtractTarGz(baseDir string, gzipStream io.Reader) error {
 				return fmt.Errorf("ExtractTarGz: Mkdir() failed: %w", err)
 			}
 		case tar.TypeReg:
+			fileDir := filepath.Dir(header.Name)
+			if err := os.MkdirAll(filepath.Join(baseDir, fileDir), 0755); err != nil {
+				return fmt.Errorf("ExtractTarGz: Mkdir() failed: %w", err)
+			}
 			outFile, err := os.Create(filepath.Join(baseDir, header.Name))
 			if err != nil {
 				return fmt.Errorf("ExtractTarGz: Create() failed: %w", err)
@@ -120,9 +125,56 @@ func DownloadExtract(filename string) error {
 	if err != nil {
 		return err
 	}
-	err = ExtractTarGz("", response.Body)
+	err = ExtractTarGz(DockerMountDataPath, response.Body)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile)
+	return err
+}
+
+func copyDir(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		switch entry.Type() {
+		case os.ModeDir:
+			if _, err := os.Stat(dstPath); os.IsNotExist(err) {
+				if err := os.Mkdir(dstPath, 0755); err != nil {
+					return err
+				}
+			}
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		default:
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -131,11 +183,74 @@ func DownloadExtract(filename string) error {
 func DownloadImages() error {
 	var err error
 
-	for _, resolution := range ImgResolutions {
-		err = DownloadExtract(fmt.Sprintf("items_images_%s", resolution))
-		if err != nil {
-			return fmt.Errorf("could not download items_images %s", resolution)
-		}
+	// -- items --
+	err = DownloadExtract(fmt.Sprintf("items_images_64"))
+	if err != nil {
+		return fmt.Errorf("could not download items_images: %v", err)
+	}
+
+	err = DownloadExtract(fmt.Sprintf("items_images_128"))
+	if err != nil {
+		return fmt.Errorf("could not download items_images: %v", err)
+	}
+
+	oldPath1x := filepath.Join(DockerMountDataPath, "data", "img", "item", "1x")
+	oldPath2x := filepath.Join(DockerMountDataPath, "data", "img", "item", "2x")
+	newPath := filepath.Join(DockerMountDataPath, "data", "img", "item")
+
+	err = copyDir(oldPath1x, newPath)
+	if err != nil {
+		return fmt.Errorf("could not copy images to path: %v", err)
+	}
+
+	err = copyDir(oldPath2x, newPath)
+	if err != nil {
+		return fmt.Errorf("could not copy images to path: %v", err)
+	}
+
+	err = os.RemoveAll(oldPath1x)
+	if err != nil {
+		return fmt.Errorf("could not remove old images dir: %v", err)
+	}
+
+	err = os.RemoveAll(oldPath2x)
+	if err != nil {
+		return fmt.Errorf("could not remove old images dir: %v", err)
+	}
+
+	// -- mounts --
+	err = DownloadExtract(fmt.Sprintf("mounts_images_64"))
+	if err != nil {
+		return fmt.Errorf("could not download items_images: %v", err)
+	}
+
+	err = DownloadExtract(fmt.Sprintf("mounts_images_256"))
+	if err != nil {
+		return fmt.Errorf("could not download items_images: %v", err)
+	}
+
+	oldPathSmall := filepath.Join(DockerMountDataPath, "data", "img", "mount", "small")
+	oldPathBig := filepath.Join(DockerMountDataPath, "data", "img", "mount", "big")
+	newPathMounts := filepath.Join(DockerMountDataPath, "data", "img", "mount")
+
+	err = copyDir(oldPathSmall, newPathMounts)
+	if err != nil {
+		return fmt.Errorf("could not copy images to path: %v", err)
+	}
+
+	err = copyDir(oldPathBig, newPathMounts)
+	if err != nil {
+		return fmt.Errorf("could not copy images to path: %v", err)
+	}
+
+	err = os.RemoveAll(oldPathSmall)
+	if err != nil {
+		return fmt.Errorf("could not remove old images dir: %v", err)
+	}
+
+	err = os.RemoveAll(oldPathBig)
+	if err != nil {
+		return fmt.Errorf("could not remove old images dir: %v", err)
 	}
 
 	return nil
@@ -203,7 +318,7 @@ func ReadEnvs() {
 
 	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.%s.json", betaStr)
 	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.%s.json", betaStr)
-	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", betaStr, DofusVersion)
+	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus3-%s/releases/download/%s", betaStr, DofusVersion)
 
 	ApiScheme = viper.GetString("API_SCHEME")
 	ApiHostName = viper.GetString("API_HOSTNAME")
@@ -216,20 +331,15 @@ func ReadEnvs() {
 	DockerMountDataPath = viper.GetString("DIR")
 }
 
-func ImageUrls(iconId int, apiType string) []string {
+func ImageUrls(iconId int, apiType string, resolutions []string) []string {
 	betaImage := ""
 	if IsBeta {
 		betaImage = "beta"
 	}
-	baseUrl := fmt.Sprintf("%s://%s/dofus2%s/img/%s", ApiScheme, ApiHostName, betaImage, apiType)
+	baseUrl := fmt.Sprintf("%s://%s/dofus3%s/v%d/img/%s", ApiScheme, ApiHostName, betaImage, DoduapiMajor, apiType)
 	var urls []string
-	urls = append(urls, fmt.Sprintf("%s/%d.png", baseUrl, iconId))
 
-	if ImgResolutions == nil {
-		return urls
-	}
-
-	for _, resolution := range ImgResolutions {
+	for _, resolution := range resolutions {
 		resolutionUrl := fmt.Sprintf("%s/%d-%s.png", baseUrl, iconId, resolution)
 		urls = append(urls, resolutionUrl)
 	}
