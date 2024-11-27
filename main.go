@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	DoduapiMajor       = 1                                          // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.0-beta1", DoduapiMajor) // change with every release
+	DoduapiMajor       = 1                                         // Major version also used for prefixing API routes.
+	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.1", DoduapiMajor) // change with every release
 	DoduapiShort       = "doduapi - Unofficial Dofus Encyclopedia API."
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
