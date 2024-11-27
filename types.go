@@ -41,11 +41,15 @@ type ApiAllSearchItem struct {
 	ImageUrls *ApiImageUrls `json:"image_urls,omitempty"`
 }
 
+type ApiAllSearchResultType struct {
+	NameId string `json:"name_id"`
+}
+
 type ApiAllSearchResult struct {
-	Name       string            `json:"name"`
-	Id         int               `json:"ankama_id"`
-	Type       string            `json:"type"`
-	ItemFields *ApiAllSearchItem `json:"item_fields,omitempty"`
+	Name       string                 `json:"name"`
+	Id         int                    `json:"ankama_id"`
+	Type       ApiAllSearchResultType `json:"type"`
+	ItemFields *ApiAllSearchItem      `json:"item_fields,omitempty"`
 }
 
 type ApiEffect struct {
@@ -82,42 +86,6 @@ func RenderEffects(effects *[]mapping.MappedMultilangEffect, lang string) []ApiE
 	return nil
 }
 
-type ApiSetEffect struct {
-	MinInt          int           `json:"int_minimum"`
-	MaxInt          int           `json:"int_maximum"`
-	Type            ApiEffectType `json:"type"`
-	IgnoreMinInt    bool          `json:"ignore_int_min"`
-	IgnoreMaxInt    bool          `json:"ignore_int_max"`
-	Formatted       string        `json:"formatted"`
-	ItemCombination uint          `json:"item_combination"`
-}
-
-func RenderSetEffects(effects *[]mapping.MappedMultilangSetEffect, lang string) []ApiSetEffect {
-	var retEffects []ApiSetEffect
-	for _, effect := range *effects {
-		retEffects = append(retEffects, ApiSetEffect{
-			MinInt:       effect.Min,
-			MaxInt:       effect.Max,
-			IgnoreMinInt: effect.IsMeta || effect.MinMaxIrrelevant == -2,
-			IgnoreMaxInt: effect.IsMeta || effect.MinMaxIrrelevant <= -1,
-			Type: ApiEffectType{
-				Name:     effect.Type[lang],
-				Id:       effect.ElementId,
-				IsMeta:   effect.IsMeta,
-				IsActive: effect.Active,
-			},
-			Formatted:       effect.Templated[lang],
-			ItemCombination: effect.ItemCombination,
-		})
-	}
-
-	if len(retEffects) > 0 {
-		return retEffects
-	}
-
-	return nil
-}
-
 type ApiCondition struct {
 	Operator string           `json:"operator"`
 	IntValue int              `json:"int_value"`
@@ -132,20 +100,19 @@ type ApiConditionNode struct {
 }
 
 type APIResource struct {
-	Id            int               `json:"ankama_id"`
-	Name          string            `json:"name"`
-	Description   string            `json:"description"`
-	Type          ApiType           `json:"type"`
-	Level         int               `json:"level"`
-	Pods          int               `json:"pods"`
-	ImageUrls     ApiImageUrls      `json:"image_urls,omitempty"`
-	Effects       []ApiEffect       `json:"effects,omitempty"`
-	Conditions    []ApiCondition    `json:"conditions,omitempty"`
-	ConditionTree *ApiConditionNode `json:"condition_tree,omitempty"`
-	Recipe        []APIRecipe       `json:"recipe,omitempty"`
+	Id          int               `json:"ankama_id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Type        ApiType           `json:"type"`
+	Level       int               `json:"level"`
+	Pods        int               `json:"pods"`
+	ImageUrls   ApiImageUrls      `json:"image_urls,omitempty"`
+	Effects     []ApiEffect       `json:"effects,omitempty"`
+	Conditions  *ApiConditionNode `json:"conditions,omitempty"`
+	Recipe      []APIRecipe       `json:"recipe,omitempty"`
 }
 
-func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource {
+func RenderResource(item *mapping.MappedMultilangItemUnity, lang string) APIResource {
 	resource := APIResource{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -156,17 +123,11 @@ func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource 
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		Recipe:      nil,
 	}
 
-	resource.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
-	conditions := RenderConditions(&item.Conditions, lang)
-	if len(conditions) == 0 {
-		resource.Conditions = nil
-	} else {
-		resource.Conditions = conditions
-	}
+	resource.Conditions = RenderConditionTree(item.Conditions, lang)
 
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
@@ -179,22 +140,21 @@ func RenderResource(item *mapping.MappedMultilangItem, lang string) APIResource 
 }
 
 type APIEquipment struct {
-	Id            int                `json:"ankama_id"`
-	Name          string             `json:"name"`
-	Description   string             `json:"description"`
-	Type          ApiType            `json:"type"`
-	IsWeapon      bool               `json:"is_weapon"`
-	Level         int                `json:"level"`
-	Pods          int                `json:"pods"`
-	ImageUrls     ApiImageUrls       `json:"image_urls,omitempty"`
-	Effects       []ApiEffect        `json:"effects,omitempty"`
-	Conditions    []ApiCondition     `json:"conditions,omitempty"`
-	ConditionTree *ApiConditionNode  `json:"condition_tree,omitempty"`
-	Recipe        []APIRecipe        `json:"recipe,omitempty"`
-	ParentSet     *APISetReverseLink `json:"parent_set,omitempty"`
+	Id          int                `json:"ankama_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Type        ApiType            `json:"type"`
+	IsWeapon    bool               `json:"is_weapon"`
+	Level       int                `json:"level"`
+	Pods        int                `json:"pods"`
+	ImageUrls   ApiImageUrls       `json:"image_urls,omitempty"`
+	Effects     []ApiEffect        `json:"effects,omitempty"`
+	Conditions  *ApiConditionNode  `json:"conditions,omitempty"`
+	Recipe      []APIRecipe        `json:"recipe,omitempty"`
+	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
-func RenderEquipment(item *mapping.MappedMultilangItem, lang string) APIEquipment {
+func RenderEquipment(item *mapping.MappedMultilangItemUnity, lang string) APIEquipment {
 	var setLink *APISetReverseLink = nil
 	if item.HasParentSet {
 		setLink = &APISetReverseLink{
@@ -213,20 +173,13 @@ func RenderEquipment(item *mapping.MappedMultilangItem, lang string) APIEquipmen
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		IsWeapon:    false,
 		Recipe:      nil,
 		ParentSet:   setLink,
 	}
 
-	equip.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
-	conditions := RenderConditions(&item.Conditions, lang)
-	if len(conditions) == 0 {
-		equip.Conditions = nil
-	} else {
-		equip.Conditions = conditions
-	}
-
+	equip.Conditions = RenderConditionTree(item.Conditions, lang)
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
 		equip.Effects = nil
@@ -257,11 +210,9 @@ type APIWeapon struct {
 	Pods                   int                `json:"pods"`
 	ImageUrls              ApiImageUrls       `json:"image_urls,omitempty"`
 	Effects                []ApiEffect        `json:"effects,omitempty"`
-	Conditions             []ApiCondition     `json:"conditions,omitempty"`
-	ConditionTree          *ApiConditionNode  `json:"condition_tree,omitempty"`
+	Conditions             *ApiConditionNode  `json:"conditions,omitempty"`
 	CriticalHitProbability int                `json:"critical_hit_probability"`
 	CriticalHitBonus       int                `json:"critical_hit_bonus"`
-	TwoHanded              bool               `json:"is_two_handed"`
 	MaxCastPerTurn         int                `json:"max_cast_per_turn"`
 	ApCost                 int                `json:"ap_cost"`
 	Range                  APIRange           `json:"range"`
@@ -269,7 +220,7 @@ type APIWeapon struct {
 	ParentSet              *APISetReverseLink `json:"parent_set,omitempty"`
 }
 
-func RenderWeapon(item *mapping.MappedMultilangItem, lang string) APIWeapon {
+func RenderWeapon(item *mapping.MappedMultilangItemUnity, lang string) APIWeapon {
 	var setLink *APISetReverseLink = nil
 	if item.HasParentSet {
 		setLink = &APISetReverseLink{
@@ -288,11 +239,10 @@ func RenderWeapon(item *mapping.MappedMultilangItem, lang string) APIWeapon {
 		Description:            item.Description[lang],
 		Level:                  item.Level,
 		Pods:                   item.Pods,
-		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 		Recipe:                 nil,
 		CriticalHitBonus:       item.CriticalHitBonus,
 		CriticalHitProbability: item.CriticalHitProbability,
-		TwoHanded:              item.TwoHanded,
 		MaxCastPerTurn:         item.MaxCastPerTurn,
 		ApCost:                 item.ApCost,
 		Range: APIRange{
@@ -303,14 +253,7 @@ func RenderWeapon(item *mapping.MappedMultilangItem, lang string) APIWeapon {
 		ParentSet: setLink,
 	}
 
-	weapon.ConditionTree = RenderConditionTree(item.ConditionTree, lang)
-	conditions := RenderConditions(&item.Conditions, lang)
-	if len(conditions) == 0 {
-		weapon.Conditions = nil
-	} else {
-		weapon.Conditions = conditions
-	}
-
+	weapon.Conditions = RenderConditionTree(item.Conditions, lang)
 	effects := RenderEffects(&item.Effects, lang)
 	if len(effects) == 0 {
 		weapon.Effects = nil
@@ -412,11 +355,10 @@ type APIListItem struct {
 	ImageUrls ApiImageUrls `json:"image_urls,omitempty"`
 
 	// extra fields
-	Description   *string           `json:"description,omitempty"`
-	Recipe        []APIRecipe       `json:"recipe,omitempty"`
-	Conditions    []ApiCondition    `json:"conditions,omitempty"`
-	ConditionTree *ApiConditionNode `json:"condition_tree,omitempty"`
-	Effects       []ApiEffect       `json:"effects,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Recipe      []APIRecipe       `json:"recipe,omitempty"`
+	Conditions  *ApiConditionNode `json:"conditions,omitempty"`
+	Effects     []ApiEffect       `json:"effects,omitempty"`
 
 	// extra equipment
 	IsWeapon  *bool              `json:"is_weapon,omitempty"`
@@ -426,13 +368,12 @@ type APIListItem struct {
 	// extra weapon
 	CriticalHitProbability *int      `json:"critical_hit_probability,omitempty"`
 	CriticalHitBonus       *int      `json:"critical_hit_bonus,omitempty"`
-	TwoHanded              *bool     `json:"is_two_handed,omitempty"`
 	MaxCastPerTurn         *int      `json:"max_cast_per_turn,omitempty"`
 	ApCost                 *int      `json:"ap_cost,omitempty"`
 	Range                  *APIRange `json:"range,omitempty"`
 }
 
-func RenderItemListEntry(item *mapping.MappedMultilangItem, lang string) APIListItem {
+func RenderItemListEntry(item *mapping.MappedMultilangItemUnity, lang string) APIListItem {
 	return APIListItem{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -441,20 +382,25 @@ func RenderItemListEntry(item *mapping.MappedMultilangItem, lang string) APIList
 			Id:   item.Type.ItemTypeId,
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 	}
 }
 
-type APIListTypedItem struct {
-	Id          int          `json:"ankama_id"`
-	Name        string       `json:"name"`
-	Type        ApiType      `json:"type"`
-	ItemSubtype string       `json:"item_subtype"`
-	Level       int          `json:"level"`
-	ImageUrls   ApiImageUrls `json:"image_urls,omitempty"`
+type APIListItemType struct {
+	Id     int    `json:"ankama_id"`
+	NameId string `json:"name_id"` // not translated
 }
 
-func RenderTypedItemListEntry(item *mapping.MappedMultilangItem, lang string) APIListTypedItem {
+type APIListTypedItem struct {
+	Id          int             `json:"ankama_id"`
+	Name        string          `json:"name"`
+	Type        ApiType         `json:"type"`
+	ItemSubtype APIListItemType `json:"item_subtype"`
+	Level       int             `json:"level"`
+	ImageUrls   ApiImageUrls    `json:"image_urls,omitempty"`
+}
+
+func RenderTypedItemListEntry(item *mapping.MappedMultilangItemUnity, lang string) APIListTypedItem {
 	return APIListTypedItem{
 		Id:   item.AnkamaId,
 		Name: item.Name[lang],
@@ -462,17 +408,20 @@ func RenderTypedItemListEntry(item *mapping.MappedMultilangItem, lang string) AP
 			Name: item.Type.Name[lang],
 			Id:   item.Type.ItemTypeId,
 		},
-		ItemSubtype: CategoryIdApiMapping(item.Type.CategoryId),
-		Level:       item.Level,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item")),
+		ItemSubtype: APIListItemType{
+			Id:     item.Type.CategoryId,
+			NameId: CategoryIdApiMapping(item.Type.CategoryId),
+		},
+		Level:     item.Level,
+		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
 	}
 }
 
 type APIListMount struct {
-	Id         int          `json:"ankama_id"`
-	Name       string       `json:"name"`
-	FamilyName string       `json:"family_name"`
-	ImageUrls  ApiImageUrls `json:"image_urls,omitempty"`
+	Id        int            `json:"ankama_id"`
+	Name      string         `json:"name"`
+	Family    APIMountFamily `json:"family"`
+	ImageUrls ApiImageUrls   `json:"image_urls,omitempty"`
 
 	// extra fields
 	Effects []ApiEffect `json:"effects,omitempty"`
@@ -480,10 +429,13 @@ type APIListMount struct {
 
 func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIListMount {
 	return APIListMount{
-		Id:         mount.AnkamaId,
-		Name:       mount.Name[lang],
-		ImageUrls:  RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
-		FamilyName: mount.FamilyName[lang],
+		Id:        mount.AnkamaId,
+		Name:      mount.Name[lang],
+		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
+		Family: APIMountFamily{
+			Id:   mount.AnkamaId,
+			Name: mount.FamilyName[lang],
+		},
 	}
 }
 
@@ -508,7 +460,7 @@ func RenderRecipe(recipe mapping.MappedMultilangRecipe, db *memdb.MemDB) []APIRe
 			log.Error(err)
 			return nil
 		}
-		item := raw.(*mapping.MappedMultilangItem)
+		item := raw.(*mapping.MappedMultilangItemUnity)
 
 		apiRecipes = append(apiRecipes, APIRecipe{
 			AnkamaId: entry.ItemId,
@@ -534,20 +486,28 @@ type APIPageSet struct {
 	Items []APIListSet    `json:"sets"`
 }
 
+type APIMountFamily struct {
+	Id   int    `json:"ankama_id"`
+	Name string `json:"name"`
+}
+
 type APIMount struct {
-	Id         int          `json:"ankama_id"`
-	Name       string       `json:"name"`
-	FamilyName string       `json:"family_name"`
-	ImageUrls  ApiImageUrls `json:"image_urls,omitempty"`
-	Effects    []ApiEffect  `json:"effects,omitempty"`
+	Id        int            `json:"ankama_id"`
+	Name      string         `json:"name"`
+	Family    APIMountFamily `json:"family"`
+	ImageUrls ApiImageUrls   `json:"image_urls,omitempty"`
+	Effects   []ApiEffect    `json:"effects,omitempty"`
 }
 
 func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 	resMount := APIMount{
-		Id:         mount.AnkamaId,
-		Name:       mount.Name[lang],
-		FamilyName: mount.FamilyName[lang],
-		ImageUrls:  RenderImageUrls(ImageUrls(mount.AnkamaId, "mount")),
+		Id:   mount.AnkamaId,
+		Name: mount.Name[lang],
+		Family: APIMountFamily{
+			Id:   mount.AnkamaId,
+			Name: mount.FamilyName[lang],
+		},
+		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
 	}
 
 	effects := RenderEffects(&mount.Effects, lang)
@@ -561,49 +521,53 @@ func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 }
 
 type APIListSet struct {
-	Id         int    `json:"ankama_id"`
-	Name       string `json:"name"`
-	Items      int    `json:"items"`
-	Level      int    `json:"level"`
-	IsCosmetic bool   `json:"is_cosmetic"`
+	Id                    int    `json:"ankama_id"`
+	Name                  string `json:"name"`
+	Items                 int    `json:"items"`
+	Level                 int    `json:"level"`
+	ContainsCosmetics     bool   `json:"contains_cosmetics"`
+	ContainsCosmeticsOnly bool   `json:"contains_cosmetics_only"`
 
 	// extra fields
-	Effects [][]ApiSetEffect `json:"effects,omitempty"`
-	ItemIds []int            `json:"equipment_ids,omitempty"`
+	Effects map[int][]ApiEffect `json:"effects,omitempty"`
+	ItemIds []int               `json:"equipment_ids,omitempty"`
 }
 
-func RenderSetListEntry(set *mapping.MappedMultilangSet, lang string) APIListSet {
+func RenderSetListEntry(set *mapping.MappedMultilangSetUnity, lang string) APIListSet {
 	return APIListSet{
-		Id:         set.AnkamaId,
-		Name:       set.Name[lang],
-		Items:      len(set.ItemIds),
-		Level:      set.Level,
-		IsCosmetic: set.IsCosmetic,
+		Id:                    set.AnkamaId,
+		Name:                  set.Name[lang],
+		Items:                 len(set.ItemIds),
+		Level:                 set.Level,
+		ContainsCosmetics:     set.ContainsCosmetics,
+		ContainsCosmeticsOnly: set.ContainsCosmeticsOnly,
 	}
 }
 
 type APISet struct {
-	AnkamaId   int              `json:"ankama_id"`
-	Name       string           `json:"name"`
-	ItemIds    []int            `json:"equipment_ids"`
-	Effects    [][]ApiSetEffect `json:"effects,omitempty"`
-	Level      int              `json:"highest_equipment_level"`
-	IsCosmetic bool             `json:"is_cosmetic"`
+	AnkamaId              int                 `json:"ankama_id"`
+	Name                  string              `json:"name"`
+	ItemIds               []int               `json:"equipment_ids"`
+	Effects               map[int][]ApiEffect `json:"effects,omitempty"`
+	Level                 int                 `json:"highest_equipment_level"`
+	ContainsCosmetics     bool                `json:"contains_cosmetics"`
+	ContainsCosmeticsOnly bool                `json:"contains_cosmetics_only"`
 }
 
-func RenderSet(set *mapping.MappedMultilangSet, lang string) APISet {
-	var effects [][]ApiSetEffect
-	for _, effect := range set.Effects {
-		effects = append(effects, RenderSetEffects(&effect, lang))
+func RenderSet(set *mapping.MappedMultilangSetUnity, lang string) APISet {
+	effects := make(map[int][]ApiEffect)
+	for itemCombination, effect := range set.Effects {
+		effects[itemCombination] = RenderEffects(&effect, lang)
 	}
 
 	resSet := APISet{
-		AnkamaId:   set.AnkamaId,
-		Name:       set.Name[lang],
-		ItemIds:    set.ItemIds,
-		Effects:    effects,
-		Level:      set.Level,
-		IsCosmetic: set.IsCosmetic,
+		AnkamaId:              set.AnkamaId,
+		Name:                  set.Name[lang],
+		ItemIds:               set.ItemIds,
+		Effects:               effects,
+		Level:                 set.Level,
+		ContainsCosmetics:     set.ContainsCosmetics,
+		ContainsCosmeticsOnly: set.ContainsCosmeticsOnly,
 	}
 
 	if len(effects) == 0 {

@@ -64,7 +64,7 @@ func languageChecker(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := strings.ToLower(chi.URLParam(r, "lang"))
 		switch lang {
-		case "en", "fr", "de", "es", "it", "pt":
+		case "en", "fr", "de", "es", "pt":
 			ctx := context.WithValue(r.Context(), "lang", lang)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		default:

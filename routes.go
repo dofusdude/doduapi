@@ -43,18 +43,18 @@ func Router() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
-	var routePrefix string
+	var gameRelease string
 	if IsBeta {
-		routePrefix = "/dofus2beta"
+		gameRelease = "dofus3beta"
 	} else {
-		routePrefix = "/dofus2"
+		gameRelease = "dofus3"
 	}
 
-	r.With(useCors).With(languageChecker).Route("/dofus2/meta/{lang}/almanax/bonuses/search", func(r chi.Router) {
+	r.With(useCors).With(languageChecker).Route(fmt.Sprintf("/dofus3/v%d/meta/{lang}/almanax/bonuses/search", DoduapiMajor), func(r chi.Router) {
 		r.Get("/", SearchAlmanaxBonuses)
 	})
 
-	r.With(useCors).Route(routePrefix, func(r chi.Router) {
+	r.With(useCors).Route(fmt.Sprintf("/%s/v%d", gameRelease, DoduapiMajor), func(r chi.Router) {
 
 		if PublishFileServer {
 			imagesDir := http.Dir(filepath.Join(DockerMountDataPath, "data", "img"))

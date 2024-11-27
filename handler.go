@@ -34,7 +34,7 @@ var (
 	mountAllowedExpandFields     = []string{"effects"}
 	setAllowedExpandFields       = Concat(mountAllowedExpandFields, []string{"equipment_ids"})
 	itemAllowedExpandFields      = Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
-	equipmentAllowedExpandFields = Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "is_two_handed", "max_cast_per_turn", "ap_cost"})
+	equipmentAllowedExpandFields = Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
 )
 
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecipe, bool) {
@@ -103,8 +103,7 @@ type UpdateMessage struct {
 func UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	var updateMessage UpdateMessage
 	if err := json.NewDecoder(r.Body).Decode(&updateMessage); err != nil {
-		log.Error(err)
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidJsonResponse(w, err.Error())
 		return
 	}
 
@@ -115,13 +114,12 @@ func UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		release = "main"
 	}
 
-	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus2-%s/releases/download/%s", release, updateMessage.Version)
+	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus3-%s/releases/download/%s", release, updateMessage.Version)
 
 	log.Info("Updating to version", updateMessage.Version)
 	err := DownloadImages()
 	if err != nil {
-		log.Error("Error while downloading images", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not download images: "+err.Error())
 		return
 	}
 
@@ -185,11 +183,12 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	pagination := PageninationWithState(r.Context().Value("pagination").(string))
 
-	filterFamilyName := r.URL.Query().Get("filter[family_name]")
+	filterFamilyName := r.URL.Query().Get("filter[family.name]")
+	filterFamilyIdStr := r.URL.Query().Get("filter[family.id]")
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[mount]"))
 	expansions := parseFields(expansionsParam)
 	if !validateFields(expansions, mountAllowedExpandFields) {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "fields[mount] has invalid fields.")
 		return
 	}
 
@@ -198,7 +197,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 
 	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id")
 	if err != nil || it == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No mounts found.")
 		return
 	}
 
@@ -210,6 +209,16 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 		p := obj.(*mapping.MappedMultilangMount)
 		if filterFamilyName != "" {
 			if !strings.EqualFold(p.FamilyName[lang], filterFamilyName) {
+				continue
+			}
+		}
+		if filterFamilyIdStr != "" {
+			filterFamilyId, err := strconv.Atoi(filterFamilyIdStr)
+			if err != nil {
+				writeInvalidFilterResponse(w, "filter[family.id] is not a number.")
+				return
+			}
+			if p.FamilyId != filterFamilyId {
 				continue
 			}
 		}
@@ -226,12 +235,12 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 
 	total := len(mounts)
 	if total == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No mounts left after filtering.")
 		return
 	}
 
 	if pagination.ValidatePagination(total) != 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Invalid pagination parameters.")
 		return
 	}
 
@@ -247,8 +256,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -260,16 +268,17 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[set]"))
 	expansions := parseFields(expansionsParam)
 	if !validateFields(expansions, setAllowedExpandFields) {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "fields[set] has invalid fields.")
 		return
 	}
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
-	filterIsCosmeticStr := strings.ToLower(r.URL.Query().Get("filter[is_cosmetic]"))
+	filterContainsCosmeticsStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics]"))
+	filterContainsCosmeticsOnlyStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics_only]"))
 	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, "highest_equipment_level")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[min_level] or filter[max_level] has invalid fields: "+err.Error())
 		return
 	}
 
@@ -278,7 +287,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 
 	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id")
 	if err != nil || it == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No sets found.")
 		return
 	}
 
@@ -287,16 +296,28 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 
 	var sets []APIListSet
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*mapping.MappedMultilangSet)
+		p := obj.(*mapping.MappedMultilangSetUnity)
 
-		if filterIsCosmeticStr != "" {
-			filterIsCosmetic, err := strconv.ParseBool(filterIsCosmeticStr)
+		if filterContainsCosmeticsOnlyStr != "" {
+			filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsOnlyStr)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
+				writeInvalidFilterResponse(w, "filter[contains_cosmetics_only] is not a boolean.")
 				return
 			}
 
-			if p.IsCosmetic != filterIsCosmetic {
+			if p.ContainsCosmeticsOnly != filterIsCosmetic {
+				continue
+			}
+		}
+
+		if filterContainsCosmeticsStr != "" {
+			filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsStr)
+			if err != nil {
+				writeInvalidFilterResponse(w, "filter[contains_cosmetics] is not a boolean.")
+				return
+			}
+
+			if p.ContainsCosmetics != filterIsCosmetic {
 				continue
 			}
 		}
@@ -316,8 +337,9 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 		set := RenderSetListEntry(p, lang)
 
 		if expansions.Has("effects") {
-			for _, effect := range p.Effects {
-				set.Effects = append(set.Effects, RenderSetEffects(&effect, lang))
+			set.Effects = make(map[int][]ApiEffect, 0)
+			for itemCombination, effect := range p.Effects {
+				set.Effects[itemCombination] = RenderEffects(&effect, lang)
 			}
 		}
 
@@ -330,7 +352,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 
 	total := len(sets)
 	if total == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No sets left after filtering.")
 		return
 	}
 
@@ -348,7 +370,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if pagination.ValidatePagination(total) != 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Invalid pagination parameters.")
 		return
 	}
 
@@ -364,8 +386,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -485,38 +506,37 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	if itemType == "equipment" || itemType == "cosmetics" {
 		expansions = parseFields(expansionsParam)
 		if !validateFields(expansions, equipmentAllowedExpandFields) {
-			w.WriteHeader(http.StatusBadRequest)
+			writeInvalidQueryResponse(w, "fields[item] has invalid fields.")
 			return
 		}
 	} else {
 		expansions = parseFields(expansionsParam)
 		if !validateFields(expansions, itemAllowedExpandFields) {
-			w.WriteHeader(http.StatusBadRequest)
+			writeInvalidQueryResponse(w, "fields[item] has invalid fields.")
 			return
 		}
 	}
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
 	filterset := parseFields(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "filter[type.name_id] has invalid fields: "+err.Error())
 		return
 	}
 
 	removedTypes, err := excludeTypes(filterset, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "filter[type.name_id] has invalid fields: "+err.Error())
 		return
 	}
 
 	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
-	filterTypeName := strings.ToLower(r.URL.Query().Get("filter[type_name]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_level]"))
 	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, "level")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[min_level] or filter[max_level] has invalid fields: "+err.Error())
 		return
 	}
 
@@ -525,7 +545,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 	it, err := txn.Get(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id")
 	if err != nil || it == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No items found.")
 		return
 	}
 
@@ -534,7 +554,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 	var items []APIListItem
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*mapping.MappedMultilangItem)
+		p := obj.(*mapping.MappedMultilangItemUnity)
 
 		enTypeName := strings.ToLower(p.Type.Name["en"])
 
@@ -544,12 +564,6 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 		if additiveTypes.Size() > 0 && !additiveTypes.Has(enTypeName) {
 			continue
-		}
-
-		if filterTypeName != "" {
-			if strings.ToLower(p.Type.Name[lang]) != filterTypeName {
-				continue
-			}
 		}
 
 		if filterMinLevel != "" {
@@ -582,11 +596,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 		if expansions.Has("conditions") {
 			if p.Conditions != nil {
-				item.Conditions = RenderConditions(&p.Conditions, lang)
-			}
-
-			if p.ConditionTree != nil {
-				item.ConditionTree = RenderConditionTree(p.ConditionTree, lang)
+				item.Conditions = RenderConditionTree(p.Conditions, lang)
 			}
 		}
 
@@ -628,10 +638,6 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 				item.CriticalHitBonus = &p.CriticalHitBonus
 			}
 
-			if expansions.Has("is_two_handed") {
-				item.TwoHanded = &p.TwoHanded
-			}
-
 			if expansions.Has("max_cast_per_turn") {
 				item.MaxCastPerTurn = &p.MaxCastPerTurn
 			}
@@ -652,7 +658,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(items) == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No items left after filtering.")
 		return
 	}
 
@@ -672,7 +678,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	total := len(items)
 
 	if pagination.ValidatePagination(total) != 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Invalid pagination parameters.")
 		return
 	}
 
@@ -688,8 +694,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -738,22 +743,21 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
 	lang := r.Context().Value("lang").(string)
 
 	if lang == "pt" {
-		log.Info("SearchAlmanaxBonuses: pt is not supported")
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Portuguese language is not translated for Almanax Bonuses.")
 		return
 	}
 
 	var searchLimit int64
 	var err error
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Invalid limit value: "+err.Error())
 		return
 	}
 
@@ -765,8 +769,7 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 
 	var searchResp *meilisearch.SearchResponse
 	if searchResp, err = index.Search(query, request); err != nil {
-		log.Error("SearchAlmanaxBonuses: index not found", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not search: "+err.Error())
 		return
 	}
 
@@ -774,7 +777,7 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 	requestsSearchTotal.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
@@ -791,8 +794,7 @@ func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(results)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -804,25 +806,40 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	var err error
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
 	var searchLimit int64
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Invalid limit value: "+err.Error())
 		return
 	}
 
-	familyName := strings.ToLower(r.URL.Query().Get("filter[family_name]"))
+	filterFamilyName := r.URL.Query().Get("filter[family.name]")
+	filterFamilyIdStr := r.URL.Query().Get("filter[family.id]")
 
 	lang := r.Context().Value("lang").(string)
 
 	index := client.Index(fmt.Sprintf("%s-mounts-%s", CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
 	filterString := ""
-	if familyName != "" {
-		filterString = fmt.Sprintf("family_name=%s", familyName)
+	if filterFamilyName != "" {
+		filterString = fmt.Sprintf("family.name=%s", filterFamilyName)
+	}
+
+	if filterFamilyIdStr != "" {
+		filterFamilyId, err := strconv.Atoi(filterFamilyIdStr)
+		if err != nil {
+			writeInvalidQueryResponse(w, "Family ID must be an integer.")
+			return
+		}
+
+		if filterString != "" {
+			filterString = fmt.Sprintf("%s AND family.id=%d", filterString, filterFamilyId)
+		} else {
+			filterString = fmt.Sprintf("family.id=%d", filterFamilyId)
+		}
 	}
 
 	if filterString == "" {
@@ -838,7 +855,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 
 	searchResp, err := index.Search(query, request)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not search: "+err.Error())
 		return
 	}
 
@@ -846,7 +863,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	requestsMountsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
@@ -860,7 +877,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 
 		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", itemId)
 		if err != nil || raw == nil {
-			w.WriteHeader(http.StatusNotFound)
+			writeServerErrorResponse(w, "Could not find mount in database: "+err.Error())
 			return
 		}
 
@@ -871,8 +888,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mounts)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -883,36 +899,50 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
 	lang := r.Context().Value("lang").(string)
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
-	filterIsCosmeticStr := strings.ToLower(r.URL.Query().Get("filter[is_cosmetic]"))
+	filterContainsCosmeticsStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics]"))
+	filterContainsCosmeticsOnlyStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics_only]"))
 	filterString, err := MinMaxLevelMeiliFilterFromParams(filterMinLevel, filterMaxLevel, "highest_equipment_level")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "Min/Max level filter is invalid: "+err.Error())
 		return
 	}
 
-	if filterIsCosmeticStr != "" {
-		filterIsCosmetic, err := strconv.ParseBool(filterIsCosmeticStr)
+	if filterContainsCosmeticsOnlyStr != "" {
+		filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsOnlyStr)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			writeInvalidFilterResponse(w, "filter[contains_cosmetics_only] must be a boolean.")
 			return
 		}
 		isCosmeticMeiliFilterBoolString := strconv.FormatBool(filterIsCosmetic)
 		if filterString != "" {
 			filterString += " AND "
 		}
-		filterString += fmt.Sprintf("is_cosmetic=%s", isCosmeticMeiliFilterBoolString)
+		filterString += fmt.Sprintf("contains_cosmetics_only=%s", isCosmeticMeiliFilterBoolString)
+	}
+
+	if filterContainsCosmeticsStr != "" {
+		filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsStr)
+		if err != nil {
+			writeInvalidFilterResponse(w, "filter[contains_cosmetics] must be a boolean.")
+			return
+		}
+		isCosmeticMeiliFilterBoolString := strconv.FormatBool(filterIsCosmetic)
+		if filterString != "" {
+			filterString += " AND "
+		}
+		filterString += fmt.Sprintf("contains_cosmetics=%s", isCosmeticMeiliFilterBoolString)
 	}
 
 	var searchLimit int64
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
 		return
 	}
 
@@ -932,7 +962,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 
 	searchResp, err := index.Search(query, request)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not search: "+err.Error())
 		return
 	}
 
@@ -940,7 +970,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	requestsSetsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
@@ -954,19 +984,18 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 
 		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", itemId)
 		if err != nil || raw == nil {
-			w.WriteHeader(http.StatusNotFound)
+			writeServerErrorResponse(w, "Could not find set in database: "+err.Error())
 			return
 		}
 
-		item := raw.(*mapping.MappedMultilangSet)
+		item := raw.(*mapping.MappedMultilangSetUnity)
 		sets = append(sets, RenderSetListEntry(item, lang))
 	}
 
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(sets)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -977,7 +1006,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
@@ -988,14 +1017,14 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	parsedIndices := parseFields(filterSearchIndex)
 	if !validateFields(parsedIndices, searchAllowedIndices) {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[type] has invalid fields.")
 		return
 	}
 
 	itemExpansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
 	itemExpansions := parseFields(itemExpansionsParam)
 	if !validateFields(itemExpansions, searchAllItemAllowedExpandFields) {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "fields[item] has invalid fields.")
 		return
 	}
 
@@ -1004,22 +1033,22 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	var searchLimit int64
 	var err error
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
 		return
 	}
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
 	exceptions := []string{"mount", "set"}
 	filterset := parseFields(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, &exceptions)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
 		return
 	}
 
 	removedTypes, err := excludeTypes(filterset, &exceptions)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
 		return
 	}
 
@@ -1052,7 +1081,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 		filterString += "("
 		if len(addTypesArr) > 0 {
-			filterString += "type_id=" + strings.Join(addTypesArr, " OR type_id=")
+			filterString += "type.name_id=" + strings.Join(addTypesArr, " OR type.name_id=")
 		}
 
 		if len(plural) > 0 && len(addTypesArr) > 0 {
@@ -1060,7 +1089,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(plural) > 0 {
-			filterString += "stuff_type=" + strings.Join(plural, " OR stuff_type=")
+			filterString += "stuff_type.name_id=" + strings.Join(plural, " OR stuff_type.name_id=")
 		}
 
 		filterString += ")"
@@ -1079,7 +1108,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 		filterString += "("
 		if len(remTypesArr) > 0 {
-			filterString += "NOT type_id=" + strings.Join(remTypesArr, " AND NOT type_id=")
+			filterString += "NOT type.name_id=" + strings.Join(remTypesArr, " AND NOT type.name_id=")
 		}
 
 		if len(plural) > 0 && len(remTypesArr) > 0 {
@@ -1087,7 +1116,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(plural) > 0 {
-			filterString += "NOT stuff_type=" + strings.Join(plural, " AND NOT stuff_type=")
+			filterString += "NOT stuff_type.name_id=" + strings.Join(plural, " AND NOT stuff_type.name_id=")
 		}
 
 		filterString += ")"
@@ -1099,7 +1128,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				filterString += " AND "
 			}
 
-			filterString += "(stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
+			filterString += "(stuff_type.name_id=" + strings.Join(parsedIndices.Keys(), " OR stuff_type.name_id=") + ")"
 		}
 	}
 
@@ -1110,8 +1139,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	var searchResp *meilisearch.SearchResponse
 	if searchResp, err = index.Search(query, request); err != nil {
-		log.Warn("SearchAllIndices: index not found: ", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Failed to search for query: "+err.Error())
 		return
 	}
 
@@ -1119,7 +1147,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	requestsSearchTotal.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
@@ -1130,9 +1158,12 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	for _, hit := range searchResp.Hits {
 		indexed := hit.(map[string]interface{})
 
-		isItem := strings.HasPrefix(indexed["stuff_type"].(string), "items-")
+		stuffType := indexed["stuff_type"].(struct {
+			NameId string `json:"name_id"`
+		}).NameId
+
+		isItem := strings.HasPrefix(stuffType, "items-")
 		ankamaId := int(indexed["id"].(float64))
-		stuffType := indexed["stuff_type"].(string)
 
 		var itemInclude *ApiAllSearchItem
 		if isItem {
@@ -1149,8 +1180,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			case "items-quest_items":
 				itemType = "quest_items"
 			default:
-				log.Error("Unknown stuff type", "stuff_type", stuffType)
-				w.WriteHeader(http.StatusInternalServerError)
+				writeServerErrorResponse(w, "Unknown stuff type: "+stuffType)
 				return
 			}
 
@@ -1159,17 +1189,16 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 			raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
 			if err != nil {
-				log.Error("Error while getting memdb detailed type", "err", err)
-				w.WriteHeader(http.StatusInternalServerError)
+				writeServerErrorResponse(w, "Could not find entity in database: "+err.Error())
 				return
 			}
 
 			if raw == nil {
-				log.Warn("Item not found in memdb.", "id", ankamaId)
+				log.Warn("Could not find item in memdb", "id", ankamaId)
 				continue
 			}
 
-			item := raw.(*mapping.MappedMultilangItem)
+			item := raw.(*mapping.MappedMultilangItemUnity)
 			itemFields := RenderItemListEntry(item, lang)
 
 			itemInclude = &ApiAllSearchItem{}
@@ -1192,9 +1221,11 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		}
 
 		result := ApiAllSearchResult{
-			Id:         ankamaId,
-			Name:       indexed["name"].(string),
-			Type:       stuffType,
+			Id:   ankamaId,
+			Name: indexed["name"].(string),
+			Type: ApiAllSearchResultType{
+				NameId: stuffType,
+			},
 			ItemFields: itemInclude,
 		}
 
@@ -1204,8 +1235,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(stuffs)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -1216,16 +1246,15 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
-	filterTypeName := strings.ToLower(r.URL.Query().Get("filter[type_name]"))
 	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
 	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_level]"))
 	filterString, err := MinMaxLevelMeiliFilterFromParams(filterMinLevel, filterMaxLevel, "level")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "Min/Max level filter is invalid: "+err.Error())
 		return
 	}
 
@@ -1233,21 +1262,21 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	var searchLimit int64
 	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
 		return
 	}
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type_enum]"))
+	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
 	filterset := parseFields(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
 		return
 	}
 
 	removedTypes, err := excludeTypes(filterset, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		writeInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
 		return
 	}
 
@@ -1255,7 +1284,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		if filterString != "" {
 			filterString += " AND "
 		}
-		filterString += "(type_id=" + strings.Join(additiveTypes.Keys(), " OR type_id=") + ")"
+		filterString += "(type.name_id=" + strings.Join(additiveTypes.Keys(), " OR type.name_id=") + ")"
 	}
 
 	if removedTypes.Size() > 0 {
@@ -1263,32 +1292,16 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			filterString += " AND "
 		}
 
-		filterString += "(NOT type_id=" + strings.Join(removedTypes.Keys(), " AND NOT type_id=") + ")"
+		filterString += "(NOT type.name_id=" + strings.Join(removedTypes.Keys(), " AND NOT type.name_id=") + ")"
 	}
 
 	index := client.Index(fmt.Sprintf("%s-all_items-%s", CurrentRedBlueVersionStr(Version.Search), lang))
 	var request *meilisearch.SearchRequest
-	if all {
-		if filterTypeName != "" {
-			if filterString == "" {
-				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
-			} else {
-				filterString += fmt.Sprintf(" AND type_name=%s", filterTypeName)
-			}
-		}
-	} else {
-		if filterTypeName != "" {
-			if filterString == "" { // not already set with MinMaxLevels
-				filterString += fmt.Sprintf("type_name=%s", filterTypeName)
-			} else {
-				filterString += fmt.Sprintf(" AND type_name=%s", filterTypeName)
-			}
-		}
-
+	if !all {
 		if filterString == "" {
-			filterString += fmt.Sprintf("super_type=%s", itemType)
+			filterString += fmt.Sprintf("super_type.name_id=%s", itemType)
 		} else {
-			filterString += fmt.Sprintf(" AND super_type=%s", itemType)
+			filterString += fmt.Sprintf(" AND super_type.name_id=%s", itemType)
 		}
 	}
 
@@ -1305,7 +1318,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	searchResp, err := index.Search(query, request)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not search: "+err.Error())
 		return
 	}
 
@@ -1313,7 +1326,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	requestsItemsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
@@ -1334,8 +1347,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		}
 
 		if err != nil {
-			log.Error("Error while getting memdb detailed type", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeServerErrorResponse(w, "Could not find item in database: "+err.Error())
 			return
 		}
 
@@ -1344,7 +1356,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
-		item := raw.(*mapping.MappedMultilangItem)
+		item := raw.(*mapping.MappedMultilangItemUnity)
 		if all {
 			typedItems = append(typedItems, RenderTypedItemListEntry(item, lang))
 		} else {
@@ -1360,8 +1372,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		encodeErr = json.NewEncoder(w).Encode(items)
 	}
 	if encodeErr != nil {
-		log.Error("Error while encoding JSON", "error", encodeErr)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -1401,19 +1412,18 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 
 	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", ankamaId)
 	if err != nil || raw == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not find set in database: "+err.Error())
 		return
 	}
 
 	requestsTotal.Inc()
 	requestsSetsSingle.Inc()
 
-	set := RenderSet(raw.(*mapping.MappedMultilangSet), lang)
+	set := RenderSet(raw.(*mapping.MappedMultilangSetUnity), lang)
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(set)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -1427,7 +1437,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 
 	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", ankamaId)
 	if err != nil || raw == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not find mount in database: "+err.Error())
 		return
 	}
 
@@ -1438,8 +1448,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mount)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -1453,14 +1462,14 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 
 	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
 	if err != nil || raw == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeServerErrorResponse(w, "Could not find item in database: "+err.Error())
 		return
 	}
 
 	requestsTotal.Inc()
 	requestsItemsSingle.Inc()
 
-	resource := RenderResource(raw.(*mapping.MappedMultilangItem), lang)
+	resource := RenderResource(raw.(*mapping.MappedMultilangItemUnity), lang)
 	recipe, exists := GetRecipeIfExists(ankamaId, txn)
 	if exists {
 		resource.Recipe = RenderRecipe(recipe, Db)
@@ -1468,8 +1477,7 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(resource)
 	if err != nil {
-		log.Error("Error while encoding JSON", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 		return
 	}
 }
@@ -1510,14 +1518,14 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 
 	raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), dbType), "id", ankamaId)
 	if err != nil || raw == nil {
-		w.WriteHeader(http.StatusNotFound)
+		writeNotFoundResponse(w, "Item not found: "+strconv.Itoa(ankamaId))
 		return
 	}
 
 	requestsTotal.Inc()
 	requestsItemsSingle.Inc()
 
-	item := raw.(*mapping.MappedMultilangItem)
+	item := raw.(*mapping.MappedMultilangItemUnity)
 	if item.Type.SuperTypeId == 2 { // is weapon
 		weapon := RenderWeapon(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
@@ -1527,8 +1535,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(weapon)
 		if err != nil {
-			log.Error("Error while encoding JSON", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 			return
 		}
 	} else {
@@ -1540,8 +1547,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(equipment)
 		if err != nil {
-			log.Error("Error while encoding JSON", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			writeServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 			return
 		}
 
