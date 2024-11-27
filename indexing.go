@@ -18,30 +18,39 @@ import (
 	mapping "github.com/dofusdude/dodumap"
 )
 
+type SearchStuffType struct {
+	NameId string `json:"name_id"`
+}
+
+type SearchType struct {
+	Name   string `json:"name"`    // old "type_name"
+	NameId string `json:"name_id"` // old "type_id"
+}
+
 type SearchIndexedItem struct {
-	Id          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	SuperType   string `json:"super_type"`
-	TypeName    string `json:"type_name"`
-	TypeId      string `json:"type_id"`
-	Level       int    `json:"level"`
-	StuffType   string `json:"stuff_type"`
+	Id          int             `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	SuperType   SearchStuffType `json:"super_type"`
+	Type        SearchType      `json:"type"`
+	Level       int             `json:"level"`
+	StuffType   SearchStuffType `json:"stuff_type"`
 }
 
 type SearchIndexedMount struct {
-	Id         int    `json:"id"`
-	Name       string `json:"name"`
-	FamilyName string `json:"family_name"`
-	StuffType  string `json:"stuff_type"`
+	Id        int             `json:"id"`
+	Name      string          `json:"name"`
+	Family    ApiType         `json:"family"` // family_name before, now with id and translated name
+	StuffType SearchStuffType `json:"stuff_type"`
 }
 
 type SearchIndexedSet struct {
-	Id         int    `json:"id"`
-	Name       string `json:"name"`
-	Level      int    `json:"highest_equipment_level"`
-	IsCosmetic bool   `json:"is_cosmetic"`
-	StuffType  string `json:"stuff_type"`
+	Id                    int             `json:"id"`
+	Name                  string          `json:"name"`
+	Level                 int             `json:"highest_equipment_level"`
+	ContainsCosmetics     bool            `json:"contains_cosmetics"`
+	ContainsCosmeticsOnly bool            `json:"contains_cosmetics_only"`
+	StuffType             SearchStuffType `json:"stuff_type"`
 }
 
 type EffectConditionDbEntry struct {
@@ -55,8 +64,8 @@ type ItemTypeId struct {
 }
 
 func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
-	var items []mapping.MappedMultilangItem
-	var sets []mapping.MappedMultilangSet
+	var items []mapping.MappedMultilangItemUnity
+	var sets []mapping.MappedMultilangSetUnity
 	var recipes []mapping.MappedMultilangRecipe
 	var mounts []mapping.MappedMultilangMount
 
@@ -522,7 +531,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 	return added
 }
 
-func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.MappedMultilangSet, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
+func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -640,7 +649,8 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 
 		mountsIdx := client.Index(mountIndexUid)
 		if _, err = mountsIdx.UpdateFilterableAttributes(&[]string{
-			"family_name",
+			"family.name",
+			"family.id",
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -648,7 +658,8 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 		setsIdx := client.Index(setIndexUid)
 		if _, err = setsIdx.UpdateFilterableAttributes(&[]string{
 			"highest_equipment_level",
-			"is_cosmetic",
+			"constains_cosmetics",
+			"constains_cosmetics_only",
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -725,11 +736,17 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 				Name:        itemCp.Name[lang],
 				Id:          itemCp.AnkamaId,
 				Description: itemCp.Description[lang],
-				SuperType:   insertCategoryTable,
-				TypeName:    strings.ToLower(itemCp.Type.Name[lang]),
-				TypeId:      enTypeId,
-				Level:       itemCp.Level,
-				StuffType:   fmt.Sprintf("items-%s", insertCategoryTable),
+				SuperType: SearchStuffType{
+					NameId: insertCategoryTable,
+				},
+				Type: SearchType{
+					Name:   strings.ToLower(itemCp.Type.Name[lang]),
+					NameId: enTypeId,
+				},
+				Level: itemCp.Level,
+				StuffType: SearchStuffType{
+					NameId: fmt.Sprintf("items-%s", insertCategoryTable),
+				},
 			}
 
 			itemTypeIds.Put(enTypeId)
@@ -768,11 +785,14 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 
 		for _, lang := range Languages {
 			object := SearchIndexedSet{
-				Name:       setCp.Name[lang],
-				Id:         setCp.AnkamaId,
-				Level:      setCp.Level,
-				IsCosmetic: setCp.IsCosmetic,
-				StuffType:  "sets",
+				Name:                  setCp.Name[lang],
+				Id:                    setCp.AnkamaId,
+				Level:                 setCp.Level,
+				ContainsCosmetics:     setCp.ContainsCosmetics,
+				ContainsCosmeticsOnly: setCp.ContainsCosmeticsOnly,
+				StuffType: SearchStuffType{
+					NameId: "sets",
+				},
 			}
 
 			setIndexBatch[lang] = append(setIndexBatch[lang], object)
@@ -801,10 +821,15 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItem, sets *[]mapping.Mapp
 
 		for _, lang := range Languages {
 			object := SearchIndexedMount{
-				Name:       mountCp.Name[lang],
-				Id:         mountCp.AnkamaId,
-				FamilyName: strings.ToLower(mountCp.FamilyName[lang]),
-				StuffType:  "mounts",
+				Name: mountCp.Name[lang],
+				Id:   mountCp.AnkamaId,
+				Family: ApiType{
+					Name: strings.ToLower(mountCp.FamilyName[lang]),
+					Id:   mountCp.FamilyId,
+				},
+				StuffType: SearchStuffType{
+					NameId: "mounts",
+				},
 			}
 
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)

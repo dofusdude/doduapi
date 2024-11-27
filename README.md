@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://docs.dofusdu.de/logo_cropped.png" width="120">
   <h3 align="center">doduapi</h3>
-  <p align="center">The Dofus encyclopedia API.</p>
+  <p align="center">Unofficial Dofus Encyclopedia API.</p>
   <p align="center"><a href="https://docs.dofusdu.de">Try it!</a></p>
   <p align="center"><a href="https://goreportcard.com/report/github.com/dofusdude/doduapi"><img src="https://goreportcard.com/badge/github.com/dofusdude/doduapi" alt=""></a> <a href="https://github.com/dofusdude/doduda/actions/workflows/tests.yml"><img src="https://github.com/dofusdude/doduapi/actions/workflows/tests.yml/badge.svg" alt=""></a>
   </p>

@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	Languages           = []string{"de", "en", "es", "fr", "it", "pt"}
-	ImgResolutions      = []string{"200", "400", "800"}
+	Languages           = []string{"de", "en", "es", "fr", "pt"}
+	ImgResolutions      = []string{"64", "128"}
 	ApiHostName         string
 	ApiPort             string
 	ApiScheme           string
@@ -43,8 +43,8 @@ var (
 	ReleaseUrl          string
 	UpdateHookToken     string
 	DofusVersion        string
-	FullImg             bool
 	CurrentVersion      GameVersion
+	ApiVersion          string
 )
 
 var currentWd string
@@ -130,33 +130,11 @@ func DownloadExtract(filename string) error {
 
 func DownloadImages() error {
 	var err error
-	resolutions := []string{"200", "400", "800"}
 
-	err = DownloadExtract("items_images")
-	if err != nil {
-		return fmt.Errorf("could not download items_images")
-	}
-
-	if FullImg {
-		for _, resolution := range resolutions {
-			err = DownloadExtract(fmt.Sprintf("items_images_%s", resolution))
-			if err != nil {
-				return fmt.Errorf("could not download items_images %s", resolution)
-			}
-		}
-	}
-
-	err = DownloadExtract("mounts_images")
-	if err != nil {
-		return fmt.Errorf("could not download mount_images")
-	}
-
-	if FullImg {
-		for _, resolution := range resolutions {
-			err = DownloadExtract(fmt.Sprintf("mounts_images_%s", resolution))
-			if err != nil {
-				return fmt.Errorf("could not download mount_images %s", resolution)
-			}
+	for _, resolution := range ImgResolutions {
+		err = DownloadExtract(fmt.Sprintf("items_images_%s", resolution))
+		if err != nil {
+			return fmt.Errorf("could not download items_images %s", resolution)
 		}
 	}
 
@@ -197,7 +175,7 @@ func ReadEnvs() {
 
 	dofusVersion := viper.GetString("DOFUS_VERSION")
 	if dofusVersion == "" {
-		releaseApiResponse, err := http.Get(fmt.Sprintf("https://api.github.com/repos/dofusdude/dofus2-%s/releases/latest", betaStr))
+		releaseApiResponse, err := http.Get(fmt.Sprintf("https://api.github.com/repos/dofusdude/dofus3-%s/releases/latest", betaStr))
 		if err != nil {
 			log.Fatal(err)
 		}

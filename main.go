@@ -153,15 +153,22 @@ func isChannelClosed[T any](ch chan T) bool {
 	return false
 }
 
-var httpDataServer *http.Server
-var httpMetricsServer *http.Server
-var UpdateChan chan GameVersion
+var (
+	DoduapiMajor       = 1                                    // Major version also used for prefixing API routes.
+	DoduapiVersion     = fmt.Sprintf("v%d.0.0", DoduapiMajor) // change with every release
+	DoduapiShort       = "doduapi - Unofficial Dofus Encyclopedia API."
+	DoduapiLong        = ""
+	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
+	httpDataServer     *http.Server
+	httpMetricsServer  *http.Server
+	UpdateChan         chan GameVersion
+)
 
 var (
 	rootCmd = &cobra.Command{
 		Use:   "doduapi",
-		Short: "doduapi – The Dofus encyclopedia API.",
-		Long:  ``,
+		Short: DoduapiShort,
+		Long:  DoduapiLong,
 		Run:   rootCommand,
 	}
 )
@@ -170,7 +177,7 @@ func main() {
 	ReadEnvs()
 
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
-	rootCmd.PersistentFlags().Bool("full-img", false, "Load images in prerendered resolutions (~2.5 GB).")
+	rootCmd.PersistentFlags().Bool("version", false, "Print API version.")
 	rootCmd.PersistentFlags().Int32("alm-bonus-interval", 12, "Almanax bonuses search index interval in hours.")
 
 	err := rootCmd.Execute()
@@ -184,12 +191,18 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
 
 	var err error
-	headless, err := ccmd.Flags().GetBool("headless")
+
+	printVersion, err := ccmd.Flags().GetBool("version")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	FullImg, err = ccmd.Flags().GetBool("full-img")
+	if printVersion {
+		fmt.Println(DoduapiVersionHelp)
+		return
+	}
+
+	headless, err := ccmd.Flags().GetBool("headless")
 	if err != nil {
 		log.Fatal(err)
 	}
