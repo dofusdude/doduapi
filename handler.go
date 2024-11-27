@@ -1108,7 +1108,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 		filterString += "("
 		if len(remTypesArr) > 0 {
-			filterString += "NOT type_id=" + strings.Join(remTypesArr, " AND NOT type_id=")
+			filterString += "NOT type.name_id=" + strings.Join(remTypesArr, " AND NOT type.name_id=")
 		}
 
 		if len(plural) > 0 && len(remTypesArr) > 0 {
@@ -1116,7 +1116,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(plural) > 0 {
-			filterString += "NOT stuff_type=" + strings.Join(plural, " AND NOT stuff_type=")
+			filterString += "NOT stuff_type.name_id=" + strings.Join(plural, " AND NOT stuff_type.name_id=")
 		}
 
 		filterString += ")"
@@ -1128,7 +1128,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				filterString += " AND "
 			}
 
-			filterString += "(stuff_type=" + strings.Join(parsedIndices.Keys(), " OR stuff_type=") + ")"
+			filterString += "(stuff_type.name_id=" + strings.Join(parsedIndices.Keys(), " OR stuff_type.name_id=") + ")"
 		}
 	}
 
@@ -1158,9 +1158,12 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	for _, hit := range searchResp.Hits {
 		indexed := hit.(map[string]interface{})
 
-		isItem := strings.HasPrefix(indexed["stuff_type"].(string), "items-")
+		stuffType := indexed["stuff_type"].(struct {
+			NameId string `json:"name_id"`
+		}).NameId
+
+		isItem := strings.HasPrefix(stuffType, "items-")
 		ankamaId := int(indexed["id"].(float64))
-		stuffType := indexed["stuff_type"].(string)
 
 		var itemInclude *ApiAllSearchItem
 		if isItem {

@@ -18,7 +18,7 @@ var (
 	ERR_INVALID_JSON_MESSAGE = "The JSON body you provided is not valid. Please check the format and try again."
 
 	ERR_SERVER_ERROR   = "SERVER_ERROR"
-	ERR_SERVER_MESSAGE = "A server error occurred. This is not your fault. Please try again later or contact the administrator."
+	ERR_SERVER_MESSAGE = "A server error occurred. This is not your fault. Please try again later and contact the administrator."
 
 	ERR_NOT_FOUND         = "NOT_FOUND"
 	ERR_NOT_FOUND_MESSAGE = "The requested resource was not found."

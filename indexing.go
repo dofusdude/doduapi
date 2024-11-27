@@ -631,17 +631,16 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		// add filters
 		allStuffIdx := client.Index(allIndexUid)
 		if _, err = allStuffIdx.UpdateFilterableAttributes(&[]string{
-			"stuff_type",
-			"type_id",
+			"stuff_type.name_id",
+			"type.name_id",
 		}); err != nil {
 			log.Fatal(err)
 		}
 
 		allItemsIdx := client.Index(itemIndexUid)
 		if _, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
-			"super_type",
-			"type_name",
-			"type_id",
+			"super_type.name_id",
+			"type.name_id",
 			"level",
 		}); err != nil {
 			log.Fatal(err)
