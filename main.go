@@ -22,7 +22,7 @@ import (
 var (
 	DoduapiMajor       = 1                                         // Major version also used for prefixing API routes.
 	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.1", DoduapiMajor) // change with every release
-	DoduapiShort       = "doduapi - Unofficial Dofus Encyclopedia API."
+	DoduapiShort       = "doduapi - Open Dofus Encyclopedia API"
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
 	httpDataServer     *http.Server
@@ -188,8 +188,6 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
 
-	ReadEnvs()
-
 	var err error
 
 	printVersion, err := ccmd.Flags().GetBool("version")
@@ -211,6 +209,8 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	ReadEnvs()
 
 	feedbackChan := make(chan string, 5)
 	var wg sync.WaitGroup
