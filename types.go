@@ -417,18 +417,8 @@ func RenderTypedItemListEntry(item *mapping.MappedMultilangItemUnity, lang strin
 	}
 }
 
-type APIListMount struct {
-	Id        int            `json:"ankama_id"`
-	Name      string         `json:"name"`
-	Family    APIMountFamily `json:"family"`
-	ImageUrls ApiImageUrls   `json:"image_urls,omitempty"`
-
-	// extra fields
-	Effects []ApiEffect `json:"effects,omitempty"`
-}
-
-func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIListMount {
-	return APIListMount{
+func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIMount {
+	return APIMount{
 		Id:        mount.AnkamaId,
 		Name:      mount.Name[lang],
 		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
@@ -478,7 +468,7 @@ type APIPageItem struct {
 
 type APIPageMount struct {
 	Links PaginationLinks `json:"_links,omitempty"`
-	Items []APIListMount  `json:"mounts"`
+	Items []APIMount      `json:"mounts"`
 }
 
 type APIPageSet struct {

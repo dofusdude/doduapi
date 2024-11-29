@@ -204,7 +204,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	requestsTotal.Inc()
 	requestsMountsList.Inc()
 
-	var mounts []APIListMount
+	var mounts []APIMount
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangMount)
 		if filterFamilyName != "" {
@@ -870,7 +870,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	txn := Db.Txn(false)
 	defer txn.Abort()
 
-	var mounts []APIListMount
+	var mounts []APIMount
 	for _, hit := range searchResp.Hits {
 		indexed := hit.(map[string]interface{})
 		itemId := int(indexed["id"].(float64))
@@ -1010,7 +1010,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filterSearchIndex := strings.ToLower(r.URL.Query().Get("filter[type]"))
+	filterSearchIndex := strings.ToLower(r.URL.Query().Get("filter[search_index]"))
 	if filterSearchIndex == "" {
 		filterSearchIndex = strings.Join(searchAllowedIndices, ",")
 	}
