@@ -316,8 +316,13 @@ func ReadEnvs() {
 	}
 	log.SetLevel(parsedLevel)
 
-	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements.%s.json", betaStr)
-	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types.%s.json", betaStr)
+	dofus3Prefix := ""
+	if strings.HasPrefix(DofusVersion, "3") {
+		dofus3Prefix = ".dofus3"
+	}
+
+	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements%s.%s.json", dofus3Prefix, betaStr)
+	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types%s.%s.json", dofus3Prefix, betaStr)
 	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus3-%s/releases/download/%s", betaStr, DofusVersion)
 
 	ApiScheme = viper.GetString("API_SCHEME")
