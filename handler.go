@@ -1055,7 +1055,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
 	index := client.Index(indexName)
 
-	exceptionSet := set.NewHashset(2, g.Equals[string], g.HashString)
+	exceptionSet := set.NewHashset(uint64(len(exceptions)), g.Equals[string], g.HashString)
 	for _, exception := range exceptions {
 		exceptionSet.Put(exception)
 	}
