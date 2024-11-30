@@ -1158,9 +1158,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	for _, hit := range searchResp.Hits {
 		indexed := hit.(map[string]interface{})
 
-		stuffType := indexed["stuff_type"].(struct {
-			NameId string `json:"name_id"`
-		}).NameId
+		stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
 
 		isItem := strings.HasPrefix(stuffType, "items-")
 		ankamaId := int(indexed["id"].(float64))
