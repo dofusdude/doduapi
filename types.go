@@ -423,7 +423,7 @@ func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIM
 		Name:      mount.Name[lang],
 		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
 		Family: APIMountFamily{
-			Id:   mount.AnkamaId,
+			Id:   mount.FamilyId,
 			Name: mount.FamilyName[lang],
 		},
 	}
@@ -494,7 +494,7 @@ func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 		Id:   mount.AnkamaId,
 		Name: mount.Name[lang],
 		Family: APIMountFamily{
-			Id:   mount.AnkamaId,
+			Id:   mount.FamilyId,
 			Name: mount.FamilyName[lang],
 		},
 		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
