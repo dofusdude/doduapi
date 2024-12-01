@@ -882,7 +882,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if raw == nil {
-			writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "mount", strconv.Itoa(itemId)))
+			writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(itemId)))
 			return
 		}
 
@@ -994,7 +994,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if raw == nil {
-			writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "set", strconv.Itoa(itemId)))
+			writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "set", strconv.Itoa(itemId)))
 			return
 		}
 
@@ -1256,7 +1256,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if raw == nil {
-					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "set", strconv.Itoa(setId)))
+					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "set", strconv.Itoa(setId)))
 					setRetChan <- nil
 					return
 				}
@@ -1332,7 +1332,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if raw == nil {
-					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "mount", strconv.Itoa(mountId)))
+					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(mountId)))
 					mountRetChan <- nil
 					return
 				}
@@ -1574,7 +1574,7 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if raw == nil {
-		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "set", strconv.Itoa(ankamaId)))
+		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "set", strconv.Itoa(ankamaId)))
 		return
 	}
 
@@ -1604,7 +1604,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if raw == nil {
-		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "mount", strconv.Itoa(ankamaId)))
+		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(ankamaId)))
 		return
 	}
 
@@ -1634,7 +1634,7 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	}
 
 	if raw == nil {
-		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", itemType, strconv.Itoa(ankamaId)))
+		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", itemType, strconv.Itoa(ankamaId)))
 		return
 	}
 
@@ -1695,7 +1695,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 	}
 
 	if raw == nil {
-		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "item", strconv.Itoa(ankamaId)))
+		writeNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "item", strconv.Itoa(ankamaId)))
 		return
 	}
 
