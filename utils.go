@@ -318,6 +318,7 @@ func ReadEnvs() {
 
 	dofus3Prefix := ""
 	if strings.HasPrefix(DofusVersion, "3") {
+		log.Print("Dofus 3 detected") // Todo: remove
 		dofus3Prefix = ".dofus3"
 	}
 

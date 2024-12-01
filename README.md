@@ -22,7 +22,7 @@ The dofusdude server is always running with the latest Dofus version and it is h
 - [Typescript](https://github.com/dofusdude/dofusdude-ts) `npm i dofusdude-ts --save`
 - [Go](https://github.com/dofusdude/dodugo) `go get -u github.com/dofusdude/dodugo`
 - [Python](https://github.com/dofusdude/dofusdude-py) `pip install dofusdude`
-- [PHP](https://github.com/dofusdude/dofusdude-php)
+- [Java](https://github.com/dofusdude/dofusdude-java) Maven with GitHub packages setup
 
 If you host your own instance you have to update it yourself. You can use a [doduda Watchdog](https://github.com/dofusdude/doduda#watchdog) as a trigger.
 
