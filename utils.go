@@ -72,9 +72,9 @@ func SetJsonHeader(w *http.ResponseWriter) {
 
 func WriteCacheHeader(w *http.ResponseWriter) {
 	SetJsonHeader(w)
-	(*w).Header().Set("Cache-Control", "max-age:300, public")
-	(*w).Header().Set("Last-Modified", LastUpdate.Format(http.TimeFormat))
-	(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
+	//(*w).Header().Set("Cache-Control", "max-age:300, public")
+	//(*w).Header().Set("Last-Modified", LastUpdate.Format(http.TimeFormat))
+	//(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
 }
 
 // from Armatorix https://codereview.stackexchange.com/questions/272457/decompress-tar-gz-file-in-go
