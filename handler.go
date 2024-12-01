@@ -1116,7 +1116,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var items []ApiAllSearchResultScore
+			items := make([]ApiAllSearchResultScore, 0)
 			for _, hit := range searchResp.Hits {
 				indexed := hit.(map[string]interface{})
 				//stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
@@ -1236,7 +1236,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var sets []ApiAllSearchResultScore
+			sets := make([]ApiAllSearchResultScore, 0)
 			for _, hit := range searchResp.Hits {
 				indexed := hit.(map[string]interface{})
 
@@ -1312,7 +1312,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var mounts []ApiAllSearchResultScore
+			mounts := make([]ApiAllSearchResultScore, 0)
 			for _, hit := range searchResp.Hits {
 				indexed := hit.(map[string]interface{})
 
