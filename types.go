@@ -52,6 +52,11 @@ type ApiAllSearchResult struct {
 	ItemFields *ApiAllSearchItem      `json:"item_fields,omitempty"`
 }
 
+type ApiAllSearchResultScore struct {
+	Result ApiAllSearchResult `json:"result"`
+	Score  float64            `json:"score"`
+}
+
 type ApiEffect struct {
 	MinInt       int           `json:"int_minimum"`
 	MaxInt       int           `json:"int_maximum"`

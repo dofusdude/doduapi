@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -361,7 +363,6 @@ func GetItemSuperType(id int) int {
 }
 
 type SearchIndexes struct {
-	AllStuff meilisearch.IndexManager
 	AllItems meilisearch.IndexManager
 	Sets     meilisearch.IndexManager
 	Mounts   meilisearch.IndexManager
@@ -417,7 +418,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 		_, err = client.GetIndex(indexName)
 		if err != nil {
 			if strings.Contains(err.Error(), "not found") {
-				log.Warn("alm bonuses index does not exist yet, creating now", "index", indexName)
+				log.Info("alm bonuses index does not exist yet, creating now", "index", indexName)
 				almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
 					Uid:        indexName,
 					PrimaryKey: "id",
@@ -548,129 +549,101 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
 	defer client.Close()
 
+	// generate all indexes with %version-%lang
+	//meiliPullInterval := 100 * time.Millisecond
+	updateTasks := make([]*meilisearch.TaskInfo, 0)
+
 	for _, lang := range Languages {
-		allIndexUid := fmt.Sprintf("%s-all_stuff-%s", NextRedBlueVersionStr(version.Search), lang)
 		itemIndexUid := fmt.Sprintf("%s-all_items-%s", NextRedBlueVersionStr(version.Search), lang)
 		setIndexUid := fmt.Sprintf("%s-sets-%s", NextRedBlueVersionStr(version.Search), lang)
 		mountIndexUid := fmt.Sprintf("%s-mounts-%s", NextRedBlueVersionStr(version.Search), lang)
 
-		// creation
-		createAllIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        allIndexUid,
-			PrimaryKey: "id",
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
+		createClearIndices([]string{
+			itemIndexUid,
+			setIndexUid,
+			mountIndexUid,
+		}, client)
 
-		createItemsIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        itemIndexUid,
-			PrimaryKey: "id",
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		createSetsIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        setIndexUid,
-			PrimaryKey: "id",
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		createMountIdxTask, err := client.CreateIndex(&meilisearch.IndexConfig{
-			Uid:        mountIndexUid,
-			PrimaryKey: "id",
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// wait for creation end
-		task, err := client.WaitForTask(createAllIdxTask.TaskUID, 100*time.Millisecond)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
-			log.Error("alm bonuses creation failed.", "err", task.Error)
-			return nil, nil
-		}
-
-		task, err = client.WaitForTask(createItemsIdxTask.TaskUID, 100*time.Millisecond)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
-			log.Error("alm bonuses creation failed.", "err", task.Error)
-			return nil, nil
-		}
-
-		task, err = client.WaitForTask(createSetsIdxTask.TaskUID, 100*time.Millisecond)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
-			log.Error("alm bonuses creation failed.", "err", task.Error)
-			return nil, nil
-		}
-
-		task, err = client.WaitForTask(createMountIdxTask.TaskUID, 100*time.Millisecond)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
-			log.Error("alm bonuses creation failed.", "err", task.Error)
-			return nil, nil
-		}
-
-		// add filters
-		allStuffIdx := client.Index(allIndexUid)
-		if _, err = allStuffIdx.UpdateFilterableAttributes(&[]string{
-			"stuff_type.name_id",
-			"type.name_id",
-		}); err != nil {
-			log.Fatal(err)
-		}
-
+		// add filters and searchable attributes
+		// -- all items --
 		allItemsIdx := client.Index(itemIndexUid)
-		if _, err = allItemsIdx.UpdateFilterableAttributes(&[]string{
+		allItemsFilterTask, err := allItemsIdx.UpdateFilterableAttributes(&[]string{
 			"super_type.name_id",
 			"type.name_id",
 			"level",
-		}); err != nil {
+		})
+		if err != nil {
 			log.Fatal(err)
 		}
+		updateTasks = append(updateTasks, allItemsFilterTask)
 
+		allItemsSearchableTask, err := allItemsIdx.UpdateSearchableAttributes(&[]string{
+			"name",
+			"type.name",
+			"description",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		updateTasks = append(updateTasks, allItemsSearchableTask)
+
+		// -- mounts --
 		mountsIdx := client.Index(mountIndexUid)
-		if _, err = mountsIdx.UpdateFilterableAttributes(&[]string{
+		mountFilterTask, err := mountsIdx.UpdateFilterableAttributes(&[]string{
 			"family.name",
 			"family.id",
-		}); err != nil {
+		})
+		if err != nil {
 			log.Fatal(err)
 		}
+		updateTasks = append(updateTasks, mountFilterTask)
 
+		mountSearchableTask, err := mountsIdx.UpdateSearchableAttributes(&[]string{
+			"name",
+			"family.name",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		updateTasks = append(updateTasks, mountSearchableTask)
+
+		// -- sets --
 		setsIdx := client.Index(setIndexUid)
-		if _, err = setsIdx.UpdateFilterableAttributes(&[]string{
+		setFilterUpdateTask, err := setsIdx.UpdateFilterableAttributes(&[]string{
 			"highest_equipment_level",
 			"constains_cosmetics",
 			"constains_cosmetics_only",
-		}); err != nil {
+		})
+		if err != nil {
 			log.Fatal(err)
 		}
+		updateTasks = append(updateTasks, setFilterUpdateTask)
+
+		setSearchableTask, err := setsIdx.UpdateSearchableAttributes(&[]string{
+			"name",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		updateTasks = append(updateTasks, setSearchableTask)
 
 		multilangSearchIndexes[lang] = SearchIndexes{
-			AllStuff: allStuffIdx,
 			AllItems: allItemsIdx,
 			Sets:     setsIdx,
 			Mounts:   mountsIdx,
 		}
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func(tasks []*meilisearch.TaskInfo, client meilisearch.ServiceManager) {
+		defer wg.Done()
+		waitForTasks(tasks, client, false)
+	}(updateTasks, client)
+	log.Info("waiting for all indexes to be updated")
+	wg.Wait()
+
+	// create in-memory db
 	schema := GetMemDBSchema()
 
 	var err error
@@ -681,6 +654,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 	txn := db.Txn(true)
 
+	// persistent elements are also in db. TODO does this update automatically?
 	persIt := PersistedElements.Entries.Iterator()
 	for persIt.Next() {
 		if err = txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
@@ -691,11 +665,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
-	langItems := make(map[string]map[int][]SearchIndexedItem)
-	for _, lang := range Languages {
-		langItems[lang] = make(map[int][]SearchIndexedItem)
-	}
-
+	// db prepare insertions
 	maxBatchSize := 250
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
 	itemsTable := fmt.Sprintf("%s-all_items", NextRedBlueVersionStr(version.MemDb))
@@ -757,12 +727,20 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 					log.Fatal(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
-				if taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(itemIndexBatch[lang]); err != nil {
-					log.Fatal(err)
-				}
-				indexTasks = append(indexTasks, taskInfo)
-				itemIndexBatch[lang] = nil
+				itemIndexBatch[lang] = make([]SearchIndexedItem, 0)
 			}
+		}
+	}
+
+	// leftover items
+	for _, lang := range Languages {
+		if len(itemIndexBatch[lang]) > 0 {
+			var taskInfo *meilisearch.TaskInfo
+			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang]); err != nil {
+				log.Fatal(err)
+			}
+			indexTasks = append(indexTasks, taskInfo)
+			itemIndexBatch[lang] = make([]SearchIndexedItem, 0)
 		}
 	}
 
@@ -775,6 +753,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
+	// sets
 	setIndexBatch := make(map[string][]SearchIndexedSet)
 	for _, set := range *sets {
 		setCp := set
@@ -798,12 +777,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			if len(setIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
 				if err != nil {
-					log.Warn(err)
-				}
-				indexTasks = append(indexTasks, taskInfo)
-				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(setIndexBatch[lang])
-				if err != nil {
-					log.Warn(err)
+					log.Fatal(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				setIndexBatch[lang] = nil
@@ -811,6 +785,19 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
+	// leftover sets
+	for _, lang := range Languages {
+		if len(setIndexBatch[lang]) > 0 {
+			var taskInfo *meilisearch.TaskInfo
+			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(setIndexBatch[lang]); err != nil {
+				log.Fatal(err)
+			}
+			indexTasks = append(indexTasks, taskInfo)
+			setIndexBatch[lang] = make([]SearchIndexedSet, 0)
+		}
+	}
+
+	// mounts
 	mountIndexBatch := make(map[string][]SearchIndexedMount)
 	for _, mount := range *mounts {
 		mountCp := mount
@@ -835,12 +822,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
 				if err != nil {
-					log.Warn(err)
-				}
-				indexTasks = append(indexTasks, taskInfo)
-				taskInfo, err = multilangSearchIndexes[lang].AllStuff.AddDocuments(mountIndexBatch[lang])
-				if err != nil {
-					log.Warn(err)
+					log.Fatal(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
 				mountIndexBatch[lang] = nil
@@ -848,74 +830,105 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
+	// leftover mounts
+	for _, lang := range Languages {
+		if len(mountIndexBatch[lang]) > 0 {
+			var taskInfo *meilisearch.TaskInfo
+			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(mountIndexBatch[lang]); err != nil {
+				log.Fatal(err)
+			}
+			indexTasks = append(indexTasks, taskInfo)
+			mountIndexBatch[lang] = make([]SearchIndexedMount, 0)
+		}
+	}
+
 	txn.Commit()
 
-	// add everything not indexed because still under max batch size
-	for _, lang := range Languages {
-		if len(itemIndexBatch[lang]) > 0 {
-			taskInfo, err := multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang])
-			if err != nil {
-				log.Warn(err)
-			}
-			indexTasks = append(indexTasks, taskInfo)
-		}
-
-		if len(setIndexBatch[lang]) > 0 {
-			taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
-			if err != nil {
-				log.Warn(err)
-			}
-			indexTasks = append(indexTasks, taskInfo)
-		}
-		if len(mountIndexBatch[lang]) > 0 {
-			taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
-			if err != nil {
-				log.Warn(err)
-			}
-			indexTasks = append(indexTasks, taskInfo)
-		}
-	}
-
-	// wait for all indexing tasks to finish in the background
-	if len(indexTasks) > 0 {
-		ticker := time.NewTicker(3 * time.Second)
-		//go func(done chan bool, indexed *bool, client *meilisearch.Client, ticker *time.Ticker) {
-		var awaited []bool
-		firstRun := true
-		staySelectLoop := true
-		for staySelectLoop {
-			<-ticker.C
-			allTrue := true
-			for i, task := range indexTasks {
-				if !firstRun && awaited[i] { // save result from last run to save requests
-					continue
-				}
-
-				waitingForSucceededOrFailed := true
-				taskResp, err := client.GetTask(task.TaskUID)
-				if err != nil {
-					log.Error(err)
-					break
-				}
-				waitingForSucceededOrFailed = taskResp.Status == meilisearch.TaskStatusSucceeded || taskResp.Status == meilisearch.TaskStatusFailed
-				if !waitingForSucceededOrFailed {
-					allTrue = false
-				}
-				if firstRun {
-					awaited = append(awaited, waitingForSucceededOrFailed)
-				} else {
-					awaited[i] = waitingForSucceededOrFailed
-				}
-			}
-			firstRun = false
-
-			if allTrue {
-				ticker.Stop()
-				staySelectLoop = false
-			}
-		}
-		//}(done, indexed, client, ticker)
-	}
+	// wait for all indexing tasks to finish
+	wg.Add(1)
+	go func(tasks []*meilisearch.TaskInfo, client meilisearch.ServiceManager) {
+		defer wg.Done()
+		waitForTasks(tasks, client, false)
+	}(indexTasks, client)
+	log.Info("waiting for all documents to be indexed")
+	wg.Wait()
 
 	return db, multilangSearchIndexes
+}
+
+func createClearIndices(indexNames []string, client meilisearch.ServiceManager) {
+	for _, indexName := range indexNames {
+		index, err := client.GetIndex(indexName)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				log.Info("index does not exist yet, creating now", "index", indexName)
+				taskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
+					Uid:        indexName,
+					PrimaryKey: "id",
+				})
+				if err != nil {
+					log.Error("Error while creating index in meili", "err", err)
+					return
+				}
+
+				task, err := client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
+				if err != nil {
+					log.Error("Error while waiting index creation at meili", "err", err)
+					return
+				}
+
+				if task.Status != meilisearch.TaskStatusSucceeded {
+					log.Error("Meili", "status", task.Status, "message", task.Error.Message)
+				}
+			} else {
+				log.Error("Error while getting index in meili", "err", err)
+				return
+			}
+		} else { // clear index and start over
+			log.Info("index exists, clearing", "index", indexName)
+			delTask, err := index.DeleteAllDocuments()
+			task, err := client.WaitForTask(delTask.TaskUID, 100*time.Millisecond)
+			if err != nil {
+				log.Error("Error while waiting index creation at meili", "err", err)
+				return
+			}
+
+			if task.Status != meilisearch.TaskStatusSucceeded {
+				log.Error("Meili", "status", task.Status, "message", task.Error.Message)
+			}
+		}
+	}
+}
+
+func waitForTasks(tasks []*meilisearch.TaskInfo, client meilisearch.ServiceManager, ignoreExists bool) {
+	if len(tasks) == 0 {
+		return
+	}
+	wg := sync.WaitGroup{}
+	semap := make(chan struct{}, runtime.NumCPU()*2)
+	for _, task := range tasks {
+		wg.Add(1)
+		go func(taskInfo *meilisearch.TaskInfo, client meilisearch.ServiceManager) {
+			defer wg.Done()
+
+			semap <- struct{}{}
+			defer func() {
+				<-semap
+			}()
+
+			task, err := client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if ignoreExists && task.Status == meilisearch.TaskStatusFailed && !strings.Contains(task.Error.Message, "already exists") {
+				return
+			}
+
+			if task.Status != meilisearch.TaskStatusSucceeded {
+				log.Error("Meili", "status", task.Status, "message", task.Error.Message)
+			}
+		}(task, client)
+	}
+	wg.Wait()
 }

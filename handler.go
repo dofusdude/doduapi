@@ -1027,7 +1027,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	parsedIndices := parseFields(filterSearchIndex)
 	if !validateFields(parsedIndices, searchAllowedIndices) {
-		writeInvalidFilterResponse(w, "filter[type] has invalid fields.")
+		writeInvalidFilterResponse(w, "filter[search_index] has invalid fields.")
 		return
 	}
 
@@ -1062,9 +1062,6 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	indexName := fmt.Sprintf("%s-all_stuff-%s", CurrentRedBlueVersionStr(Version.Search), lang)
-	index := client.Index(indexName)
-
 	exceptionSet := set.NewHashset(uint64(len(exceptions)), g.Equals[string], g.HashString)
 	for _, exception := range exceptions {
 		exceptionSet.Put(exception)
@@ -1077,167 +1074,319 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	removedTypes = removedTypes.Difference(exceptionSet)
 
 	filterString := ""
-	if additiveTypes.Size() > 0 || additiveTypesExceptions.Size() > 0 {
+	if additiveTypes.Size() > 0 {
 		if filterString != "" {
 			filterString += " AND "
 		}
-		// A single type is singular but the category is plural.
-		plural := []string{}
-		for _, elem := range additiveTypesExceptions.Keys() {
-			plural = append(plural, elem+"s")
-		}
-
-		addTypesArr := additiveTypes.Keys()
-
-		filterString += "("
-		if len(addTypesArr) > 0 {
-			filterString += "type.name_id=" + strings.Join(addTypesArr, " OR type.name_id=")
-		}
-
-		if len(plural) > 0 && len(addTypesArr) > 0 {
-			filterString += " OR "
-		}
-
-		if len(plural) > 0 {
-			filterString += "stuff_type.name_id=" + strings.Join(plural, " OR stuff_type.name_id=")
-		}
-
-		filterString += ")"
+		filterString += "(type.name_id=" + strings.Join(additiveTypes.Keys(), " OR type.name_id=") + ")"
 	}
 
-	if removedTypes.Size() > 0 || removedTypesExceptions.Size() > 0 {
+	if removedTypes.Size() > 0 {
 		if filterString != "" {
 			filterString += " AND "
 		}
-		plural := []string{}
-		for _, elem := range removedTypesExceptions.Keys() {
-			plural = append(plural, elem+"s")
-		}
 
-		remTypesArr := removedTypes.Keys()
-
-		filterString += "("
-		if len(remTypesArr) > 0 {
-			filterString += "NOT type.name_id=" + strings.Join(remTypesArr, " AND NOT type.name_id=")
-		}
-
-		if len(plural) > 0 && len(remTypesArr) > 0 {
-			filterString += " AND "
-		}
-
-		if len(plural) > 0 {
-			filterString += "NOT stuff_type.name_id=" + strings.Join(plural, " AND NOT stuff_type.name_id=")
-		}
-
-		filterString += ")"
+		filterString += "(NOT type.name_id=" + strings.Join(removedTypes.Keys(), " AND NOT type.name_id=") + ")"
 	}
 
-	if parsedIndices.Size() > 0 || additiveTypesExceptions.Size() > 0 || removedTypesExceptions.Size() > 0 {
-		if parsedIndices.Size() > 0 {
-			if filterString != "" {
-				filterString += " AND "
+	wordScoreWeight := 0.5
+	typoScoreWeight := 0.5
+
+	searchChans := make([]chan []ApiAllSearchResultScore, 0)
+
+	indicesHasItem := parsedIndices.Has("items-equipment") || parsedIndices.Has("items-consumables") || parsedIndices.Has("items-resources") || parsedIndices.Has("items-quest_items") || parsedIndices.Has("items-cosmetics")
+	needItemSearch := parsedIndices.Size() == 0 || indicesHasItem
+	if needItemSearch {
+		itemRetChan := make(chan []ApiAllSearchResultScore)
+		searchChans = append(searchChans, itemRetChan)
+
+		go func() {
+			indexUid := fmt.Sprintf("%s-all_items-%s", CurrentRedBlueVersionStr(Version.Search), lang)
+			index := client.Index(indexUid)
+
+			request := &meilisearch.SearchRequest{
+				Limit:                   searchLimit * 3,
+				Filter:                  filterString,
+				ShowRankingScoreDetails: true,
 			}
 
-			filterString += "(stuff_type.name_id=" + strings.Join(parsedIndices.Keys(), " OR stuff_type.name_id=") + ")"
+			var searchResp *meilisearch.SearchResponse
+			if searchResp, err = index.Search(query, request); err != nil {
+				writeServerErrorResponse(w, "Failed to search for query: "+err.Error())
+				return
+			}
+
+			var items []ApiAllSearchResultScore
+			for _, hit := range searchResp.Hits {
+				indexed := hit.(map[string]interface{})
+				//stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
+
+				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
+				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+
+				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
+
+				itemId := int(indexed["id"].(float64))
+				txn := Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", itemId)
+
+				if err != nil {
+					writeServerErrorResponse(w, "Could not find item in database: "+err.Error())
+					itemRetChan <- nil
+					return
+				}
+
+				if raw == nil {
+					log.Warn("Item not found in memdb.", "id", itemId)
+					continue
+				}
+
+				item := raw.(*mapping.MappedMultilangItemUnity)
+				itemType := "items-"
+				switch item.Type.CategoryId {
+				case 0:
+					itemType += "equipment"
+				case 1:
+					itemType += "consumables"
+				case 2:
+					itemType += "resources"
+				case 3:
+					itemType += "quest_items"
+				case 5:
+					itemType += "cosmetics"
+				default:
+					writeServerErrorResponse(w, "Unknown stuff type: "+strconv.Itoa(item.Type.SuperTypeId))
+					itemRetChan <- nil
+					return
+				}
+
+				// search_index filter
+				if !parsedIndices.Has(itemType) {
+					continue
+				}
+
+				itemFields := RenderItemListEntry(item, lang)
+
+				itemInclude := &ApiAllSearchItem{}
+
+				if itemExpansions.Has("type") {
+					itemInclude.Type = &itemFields.Type
+				}
+
+				if itemExpansions.Has("level") {
+					itemInclude.Level = &itemFields.Level
+				}
+
+				if itemExpansions.Has("image_urls") {
+					itemInclude.ImageUrls = &itemFields.ImageUrls
+				}
+
+				if itemInclude.ImageUrls == nil && itemInclude.Type == nil && itemInclude.Level == nil {
+					itemInclude = nil
+				}
+
+				result := ApiAllSearchResult{
+					Id:   item.AnkamaId,
+					Name: item.Name[lang],
+					Type: ApiAllSearchResultType{
+						NameId: itemType,
+					},
+					ItemFields: itemInclude,
+				}
+
+				items = append(items, ApiAllSearchResultScore{
+					Result: result,
+					Score:  score,
+				})
+			}
+
+			itemRetChan <- items
+		}()
+	}
+
+	needSetSearch := false
+	setIncluded := additiveTypesExceptions.Has("set")
+	notExcluded := !removedTypesExceptions.Has("set")
+	noIndexGiven := parsedIndices.Size() == 0 && notExcluded
+	if noIndexGiven {
+		needSetSearch = true
+	} else if parsedIndices.Size() != 0 && !parsedIndices.Has("sets") { // index given but no set
+		needSetSearch = false
+	} else {
+		needSetSearch = setIncluded && notExcluded
+	}
+
+	if needSetSearch {
+		setRetChan := make(chan []ApiAllSearchResultScore)
+		searchChans = append(searchChans, setRetChan)
+		go func() {
+			setIndexUid := fmt.Sprintf("%s-sets-%s", CurrentRedBlueVersionStr(Version.Search), lang)
+			setIndex := client.Index(setIndexUid)
+
+			request := &meilisearch.SearchRequest{
+				Limit: searchLimit * 3,
+				//Filter:                  filterString,
+				ShowRankingScoreDetails: true,
+			}
+
+			var searchResp *meilisearch.SearchResponse
+			if searchResp, err = setIndex.Search(query, request); err != nil {
+				writeServerErrorResponse(w, "Failed to search for query: "+err.Error())
+				setRetChan <- nil
+				return
+			}
+
+			var sets []ApiAllSearchResultScore
+			for _, hit := range searchResp.Hits {
+				indexed := hit.(map[string]interface{})
+
+				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
+				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+
+				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
+
+				setId := int(indexed["id"].(float64))
+
+				txn := Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", setId)
+				if err != nil {
+					writeServerErrorResponse(w, "Could not read database: "+err.Error())
+					setRetChan <- nil
+					return
+				}
+
+				if raw == nil {
+					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "set", strconv.Itoa(setId)))
+					setRetChan <- nil
+					return
+				}
+
+				item := raw.(*mapping.MappedMultilangSetUnity)
+
+				result := ApiAllSearchResult{
+					Name: item.Name[lang],
+					Id:   item.AnkamaId,
+					Type: ApiAllSearchResultType{
+						NameId: "sets",
+					},
+					ItemFields: nil,
+				}
+
+				sets = append(sets, ApiAllSearchResultScore{
+					Result: result,
+					Score:  score,
+				})
+			}
+
+			setRetChan <- sets
+		}()
+	}
+
+	needMountSearch := false
+	mountIncluded := additiveTypesExceptions.Has("mount")
+	notExcluded = !removedTypesExceptions.Has("mount")
+	noIndexGiven = parsedIndices.Size() == 0 && notExcluded
+	if noIndexGiven {
+		needMountSearch = true
+	} else if parsedIndices.Size() != 0 && !parsedIndices.Has("mounts") { // index given but no set
+		needMountSearch = false
+	} else {
+		needMountSearch = mountIncluded && notExcluded
+	}
+
+	if needMountSearch {
+		mountIndexUid := fmt.Sprintf("%s-mounts-%s", CurrentRedBlueVersionStr(Version.Search), lang)
+		mountIndex := client.Index(mountIndexUid)
+		mountRetChan := make(chan []ApiAllSearchResultScore)
+		searchChans = append(searchChans, mountRetChan)
+		go func() {
+			request := &meilisearch.SearchRequest{
+				Limit:                   searchLimit * 3,
+				ShowRankingScoreDetails: true,
+			}
+
+			var searchResp *meilisearch.SearchResponse
+			if searchResp, err = mountIndex.Search(query, request); err != nil {
+				writeServerErrorResponse(w, "Failed to search for query: "+err.Error())
+				mountRetChan <- nil
+				return
+			}
+
+			var mounts []ApiAllSearchResultScore
+			for _, hit := range searchResp.Hits {
+				indexed := hit.(map[string]interface{})
+
+				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
+				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+
+				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
+
+				mountId := int(indexed["id"].(float64))
+
+				txn := Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", mountId)
+				if err != nil {
+					writeServerErrorResponse(w, "Could not read database: "+err.Error())
+					mountRetChan <- nil
+					return
+				}
+
+				if raw == nil {
+					writeServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %d in database", "mount", strconv.Itoa(mountId)))
+					mountRetChan <- nil
+					return
+				}
+
+				item := raw.(*mapping.MappedMultilangMount)
+
+				result := ApiAllSearchResult{
+					Name: item.Name[lang],
+					Id:   item.AnkamaId,
+					Type: ApiAllSearchResultType{
+						NameId: "mounts",
+					},
+					ItemFields: nil,
+				}
+
+				mounts = append(mounts, ApiAllSearchResultScore{
+					Result: result,
+					Score:  score,
+				})
+			}
+
+			mountRetChan <- mounts
+		}()
+	}
+
+	// wait for all search results and merge them into one slice
+	var merged []ApiAllSearchResultScore
+
+	for _, searchChan := range searchChans {
+		searchResults := <-searchChan
+		if searchResults == nil {
+			return
 		}
+		merged = append(merged, searchResults...)
 	}
 
-	request := &meilisearch.SearchRequest{
-		Limit:  searchLimit,
-		Filter: filterString,
-	}
-
-	var searchResp *meilisearch.SearchResponse
-	if searchResp, err = index.Search(query, request); err != nil {
-		writeServerErrorResponse(w, "Failed to search for query: "+err.Error())
-		return
-	}
-
-	requestsTotal.Inc()
-	requestsSearchTotal.Inc()
-
-	if searchResp.EstimatedTotalHits == 0 {
+	if len(merged) == 0 {
 		writeNotFoundResponse(w, "No results found.")
 		return
 	}
 
-	txn := Db.Txn(false)
-	defer txn.Abort()
+	// sort by score, highest first
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Score > merged[j].Score
+	})
+
+	// limit to searchLimit
+	if len(merged) > int(searchLimit) {
+		merged = merged[:searchLimit]
+	}
 
 	var stuffs []ApiAllSearchResult
-	for _, hit := range searchResp.Hits {
-		indexed := hit.(map[string]interface{})
-
-		stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
-
-		isItem := strings.HasPrefix(stuffType, "items-")
-		ankamaId := int(indexed["id"].(float64))
-
-		var itemInclude *ApiAllSearchItem
-		if isItem {
-			var itemType string
-			switch stuffType {
-			case "items-consumables":
-				itemType = "consumables"
-			case "items-cosmetics":
-				itemType = "cosmetics"
-			case "items-resources":
-				itemType = "resources"
-			case "items-equipment":
-				itemType = "equipment"
-			case "items-quest_items":
-				itemType = "quest_items"
-			default:
-				writeServerErrorResponse(w, "Unknown stuff type: "+stuffType)
-				return
-			}
-
-			txn := Db.Txn(false)
-			defer txn.Abort()
-
-			raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
-			if err != nil {
-				writeServerErrorResponse(w, "Could not find entity in database: "+err.Error())
-				return
-			}
-
-			if raw == nil {
-				log.Warn("Could not find item in memdb", "id", ankamaId)
-				continue
-			}
-
-			item := raw.(*mapping.MappedMultilangItemUnity)
-			itemFields := RenderItemListEntry(item, lang)
-
-			itemInclude = &ApiAllSearchItem{}
-
-			if itemExpansions.Has("type") {
-				itemInclude.Type = &itemFields.Type
-			}
-
-			if itemExpansions.Has("level") {
-				itemInclude.Level = &itemFields.Level
-			}
-
-			if itemExpansions.Has("image_urls") {
-				itemInclude.ImageUrls = &itemFields.ImageUrls
-			}
-
-			if itemInclude.ImageUrls == nil && itemInclude.Type == nil && itemInclude.Level == nil {
-				itemInclude = nil
-			}
-		}
-
-		result := ApiAllSearchResult{
-			Id:   ankamaId,
-			Name: indexed["name"].(string),
-			Type: ApiAllSearchResultType{
-				NameId: stuffType,
-			},
-			ItemFields: itemInclude,
-		}
-
-		stuffs = append(stuffs, result)
+	for _, item := range merged {
+		stuffs = append(stuffs, item.Result)
 	}
 
 	WriteCacheHeader(&w)

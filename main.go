@@ -21,7 +21,7 @@ import (
 
 var (
 	DoduapiMajor       = 1                                         // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.7", DoduapiMajor) // change with every release
+	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.8", DoduapiMajor) // change with every release
 	DoduapiShort       = "doduapi - Open Dofus Encyclopedia API"
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
@@ -176,6 +176,7 @@ var (
 func main() {
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
 	rootCmd.PersistentFlags().Bool("version", false, "Print API version.")
+	rootCmd.PersistentFlags().Bool("skip-images", false, "Do not load (re)load images from the web.")
 	rootCmd.PersistentFlags().Int32("alm-bonus-interval", 12, "Almanax bonuses search index interval in hours.")
 
 	err := rootCmd.Execute()
@@ -191,6 +192,11 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	var err error
 
 	printVersion, err := ccmd.Flags().GetBool("version")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	skipImages, err := ccmd.Flags().GetBool("skip-images")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -223,13 +229,16 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		}
 	}()
 
-	if isChannelClosed(feedbackChan) {
-		os.Exit(1)
-	}
-	feedbackChan <- "Images"
-	err = DownloadImages()
-	if err != nil {
-		log.Fatal(err)
+	if !skipImages {
+		if isChannelClosed(feedbackChan) {
+			os.Exit(1)
+		}
+
+		feedbackChan <- "Images"
+		err = DownloadImages()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if isChannelClosed(feedbackChan) {
