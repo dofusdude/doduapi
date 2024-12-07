@@ -1517,7 +1517,12 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		if all {
 			typedItems = append(typedItems, RenderTypedItemListEntry(item, lang))
 		} else {
-			items = append(items, RenderItemListEntry(item, lang))
+			itemRendered := RenderItemListEntry(item, lang)
+			recipe, exists := GetRecipeIfExists(itemRendered.Id, txn)
+			if exists {
+				itemRendered.Recipe = RenderRecipe(recipe, Db)
+			}
+			items = append(items, itemRendered)
 		}
 	}
 
