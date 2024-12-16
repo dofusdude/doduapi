@@ -1,14 +1,11 @@
 <p align="center">
-  <img src="https://docs.dofusdu.de/logo_cropped.png" width="120">
+  <img src="https://docs.dofusdu.de/dofus2/logo_cropped.png" width="120">
   <h3 align="center">doduapi</h3>
   <p align="center">Open Dofus Encyclopedia API</p>
   <p align="center"><a href="https://docs.dofusdu.de">Try it!</a></p>
   <p align="center"><a href="https://goreportcard.com/report/github.com/dofusdude/doduapi"><img src="https://goreportcard.com/badge/github.com/dofusdude/doduapi" alt=""></a> <a href="https://github.com/dofusdude/doduda/actions/workflows/tests.yml"><img src="https://github.com/dofusdude/doduapi/actions/workflows/tests.yml/badge.svg" alt=""></a>
   </p>
 </p>
-
-> [!NOTE]
-> Dofus 3 is now supported via the beta channel. Documentation will follow soon, see the release notes of this repo for the changelog. If you are upgrading, replace `dofus2` with `dofus3beta/v1` for testing in your paths.
 
 <p align="center">
   <img src="https://vhs.charm.sh/vhs-2mgsbcqX7zIII0IvqV5uw0.gif" width="600">
