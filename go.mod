@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/charmbracelet/log v0.4.0
-	github.com/dofusdude/ankabuffer v0.0.9
+	github.com/dofusdude/ankabuffer v0.1.0
 	github.com/dofusdude/dodumap v0.5.5
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.2.0
