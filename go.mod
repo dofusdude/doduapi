@@ -9,17 +9,21 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/charmbracelet/log v0.4.0
-	github.com/dofusdude/ankabuffer v0.0.9
-	github.com/dofusdude/dodumap v0.5.5
+	github.com/dofusdude/ankabuffer v0.1.0
+	github.com/dofusdude/dodumap v0.6.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.2.0
+	github.com/golang-migrate/migrate v3.5.4+incompatible
+	github.com/google/go-github/v67 v67.0.0
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/joho/godotenv v1.5.1
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/meilisearch/meilisearch-go v0.29.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/zyedidia/generic v1.2.1
+
 )
 
 require (
@@ -34,6 +38,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

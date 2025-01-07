@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/dofusdude/doduapi/almanax"
+	"github.com/dofusdude/doduapi/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-memdb"
@@ -44,25 +46,21 @@ func Router() chi.Router {
 	r.Use(middleware.Timeout(10 * time.Second))
 
 	var gameRelease string
-	if IsBeta {
+	if config.IsBeta {
 		gameRelease = "dofus3beta"
 	} else {
 		gameRelease = "dofus3"
 	}
 
-	r.With(useCors).With(languageChecker).Route(fmt.Sprintf("/dofus3/v%d/meta/{lang}/almanax/bonuses/search", DoduapiMajor), func(r chi.Router) {
-		r.Get("/", SearchAlmanaxBonuses)
-	})
-
 	r.With(useCors).Route(fmt.Sprintf("/%s/v%d", gameRelease, DoduapiMajor), func(r chi.Router) {
 
-		if PublishFileServer {
-			imagesDir := http.Dir(filepath.Join(DockerMountDataPath, "data", "img"))
+		if config.PublishFileServer {
+			imagesDir := http.Dir(filepath.Join(config.DockerMountDataPath, "data", "img"))
 			FileServer(r, "/img", imagesDir)
 		}
 
 		r.Route("/update", func(r chi.Router) {
-			r.Post(fmt.Sprintf("/%s", UpdateHookToken), UpdateHandler)
+			r.Post(fmt.Sprintf("/%s", config.UpdateHookToken), UpdateHandler)
 		})
 
 		r.Route("/meta", func(r chi.Router) {
@@ -70,11 +68,21 @@ func Router() chi.Router {
 			r.Get("/elements", ListEffectConditionElements)
 			r.Get("/items/types", ListItemTypeIds)
 			r.Get("/search/types", ListSearchAllTypes)
+
+			r.With(languageChecker).Route("{lang}/almanax/bonuses", func(r chi.Router) {
+				r.Get("/", almanax.ListBonuses)
+				r.Get("/search", almanax.SearchBonuses)
+			})
 		})
 
 		r.With(languageChecker).Route("/{lang}", func(r chi.Router) {
 			r.Route("/search", func(r chi.Router) {
 				r.Get("/", SearchAllIndices)
+			})
+
+			r.Route("/almanax", func(r chi.Router) {
+				r.Get("/", almanax.GetAlmanaxRange)
+				r.Get("/{date}", almanax.GetAlmanaxSingle)
 			})
 
 			r.Route("/items", func(r chi.Router) {

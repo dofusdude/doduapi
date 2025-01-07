@@ -17,6 +17,8 @@ import (
 	g "github.com/zyedidia/generic"
 	"github.com/zyedidia/generic/set"
 
+	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 )
 
@@ -72,7 +74,7 @@ func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	var mounts []mapping.MappedMultilangMount
 
 	// --
-	itemsResponse, err := http.Get(ReleaseUrl + "/MAPPED_ITEMS.json")
+	itemsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_ITEMS.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -88,7 +90,7 @@ func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	}
 
 	// --
-	setsResponse, err := http.Get(ReleaseUrl + "/MAPPED_SETS.json")
+	setsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_SETS.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	}
 
 	// --
-	recipesResponse, err := http.Get(ReleaseUrl + "/MAPPED_RECIPES.json")
+	recipesResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_RECIPES.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,7 +122,7 @@ func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
 	}
 
 	// --
-	mountsResponse, err := http.Get(ReleaseUrl + "/MAPPED_MOUNTS.json")
+	mountsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_MOUNTS.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -380,12 +382,12 @@ type AlmanaxBonusListingMeili struct {
 }
 
 func UpdateAlmanaxBonusIndex(init bool) int {
-	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
 	added := 0
 
-	for _, lang := range Languages {
+	for _, lang := range config.Languages {
 		if lang == "pt" {
 			continue // no portuguese almanax bonuses
 		}
@@ -546,17 +548,17 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	multilangSearchIndexes := make(map[string]SearchIndexes)
 	var indexTasks []*meilisearch.TaskInfo
 
-	client := meilisearch.New(MeiliHost, meilisearch.WithAPIKey(MeiliKey))
+	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
 	// generate all indexes with %version-%lang
 	//meiliPullInterval := 100 * time.Millisecond
 	updateTasks := make([]*meilisearch.TaskInfo, 0)
 
-	for _, lang := range Languages {
-		itemIndexUid := fmt.Sprintf("%s-all_items-%s", NextRedBlueVersionStr(version.Search), lang)
-		setIndexUid := fmt.Sprintf("%s-sets-%s", NextRedBlueVersionStr(version.Search), lang)
-		mountIndexUid := fmt.Sprintf("%s-mounts-%s", NextRedBlueVersionStr(version.Search), lang)
+	for _, lang := range config.Languages {
+		itemIndexUid := fmt.Sprintf("%s-all_items-%s", utils.NextRedBlueVersionStr(version.Search), lang)
+		setIndexUid := fmt.Sprintf("%s-sets-%s", utils.NextRedBlueVersionStr(version.Search), lang)
+		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 
 		createClearIndices([]string{
 			itemIndexUid,
@@ -655,7 +657,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	txn := db.Txn(true)
 
 	// persistent elements are also in db. TODO does this update automatically?
-	persIt := PersistedElements.Entries.Iterator()
+	persIt := config.PersistedElements.Entries.Iterator()
 	for persIt.Next() {
 		if err = txn.Insert("effect-condition-elements", &EffectConditionDbEntry{
 			Id:   persIt.Key().(int),
@@ -668,10 +670,10 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	// db prepare insertions
 	maxBatchSize := 250
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
-	itemsTable := fmt.Sprintf("%s-all_items", NextRedBlueVersionStr(version.MemDb))
-	setsTable := fmt.Sprintf("%s-sets", NextRedBlueVersionStr(version.MemDb))
-	mountsTable := fmt.Sprintf("%s-mounts", NextRedBlueVersionStr(version.MemDb))
-	recipesTable := fmt.Sprintf("%s-recipes", NextRedBlueVersionStr(version.MemDb))
+	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
+	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
+	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
+	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
 		recipeCt := recipe
@@ -689,9 +691,9 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		if itemCp.Type.CategoryId == 4 {
 			continue
 		}
-		insertCategoryTable = CategoryIdMapping(itemCp.Type.CategoryId)
+		insertCategoryTable = utils.CategoryIdMapping(itemCp.Type.CategoryId)
 
-		if err = txn.Insert(fmt.Sprintf("%s-%s", NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
+		if err = txn.Insert(fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), insertCategoryTable), &itemCp); err != nil {
 			log.Fatal(err)
 		}
 
@@ -699,7 +701,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			log.Fatal(err)
 		}
 
-		for _, lang := range Languages {
+		for _, lang := range config.Languages {
 			enTypeId := strings.ToLower(strings.ReplaceAll(itemCp.Type.Name["en"], " ", "-"))
 			object := SearchIndexedItem{
 				Name:        itemCp.Name[lang],
@@ -733,7 +735,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	}
 
 	// leftover items
-	for _, lang := range Languages {
+	for _, lang := range config.Languages {
 		if len(itemIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
 			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang]); err != nil {
@@ -761,7 +763,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			log.Fatal(err)
 		}
 
-		for _, lang := range Languages {
+		for _, lang := range config.Languages {
 			object := SearchIndexedSet{
 				Name:                  setCp.Name[lang],
 				Id:                    setCp.AnkamaId,
@@ -786,7 +788,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	}
 
 	// leftover sets
-	for _, lang := range Languages {
+	for _, lang := range config.Languages {
 		if len(setIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
 			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(setIndexBatch[lang]); err != nil {
@@ -805,7 +807,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			log.Fatal(err)
 		}
 
-		for _, lang := range Languages {
+		for _, lang := range config.Languages {
 			object := SearchIndexedMount{
 				Name: mountCp.Name[lang],
 				Id:   mountCp.AnkamaId,
@@ -831,7 +833,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	}
 
 	// leftover mounts
-	for _, lang := range Languages {
+	for _, lang := range config.Languages {
 		if len(mountIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
 			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(mountIndexBatch[lang]); err != nil {

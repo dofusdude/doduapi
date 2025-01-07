@@ -2,10 +2,12 @@ package main
 
 import (
 	"testing"
+
+	"github.com/dofusdude/doduapi/utils"
 )
 
 func TestPaginationSet(t *testing.T) {
-	pagination := PageninationWithState("30,3")
+	pagination := utils.PageninationWithState("30,3")
 
 	if pagination.PageSize != 3 {
 		t.Error("Expected 3, got ", t)
@@ -17,7 +19,7 @@ func TestPaginationSet(t *testing.T) {
 }
 
 func TestPaginationValidation(t *testing.T) {
-	pagination := PageninationWithState("31,3")
+	pagination := utils.PageninationWithState("31,3")
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
@@ -37,7 +39,7 @@ func TestPaginationValidation(t *testing.T) {
 }
 
 func TestPaginationValidationFail(t *testing.T) {
-	pagination := PageninationWithState("32,3")
+	pagination := utils.PageninationWithState("32,3")
 	listSize := 91
 
 	valid := pagination.ValidatePagination(listSize)
@@ -48,7 +50,7 @@ func TestPaginationValidationFail(t *testing.T) {
 }
 
 func TestPaginationValidation1(t *testing.T) {
-	pagination := PageninationWithState("1,6")
+	pagination := utils.PageninationWithState("1,6")
 	listSize := 6
 
 	valid := pagination.ValidatePagination(listSize)
@@ -68,7 +70,7 @@ func TestPaginationValidation1(t *testing.T) {
 }
 
 func TestPaginationLastSite(t *testing.T) {
-	pagination := PageninationWithState("30,3")
+	pagination := utils.PageninationWithState("30,3")
 	listSize := 90
 	valid := pagination.ValidatePagination(listSize)
 	if valid != 0 {
@@ -86,7 +88,7 @@ func TestPaginationLastSite(t *testing.T) {
 }
 
 func TestPaginationFirstSite(t *testing.T) {
-	pagination := PageninationWithState("1,3")
+	pagination := utils.PageninationWithState("1,3")
 	listSize := 266
 	valid := pagination.ValidatePagination(listSize)
 	if valid != 0 {

@@ -1,4 +1,4 @@
-package main
+package errmsg
 
 import (
 	"encoding/json"
@@ -32,27 +32,27 @@ type ApiError struct {
 	Details string `json:"details,omitempty"`
 }
 
-func writeNotFoundResponse(w http.ResponseWriter, details string) {
-	writeErrorResponse(w, http.StatusNotFound, ERR_NOT_FOUND, ERR_NOT_FOUND_MESSAGE, details)
+func WriteNotFoundResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusNotFound, ERR_NOT_FOUND, ERR_NOT_FOUND_MESSAGE, details)
 }
 
-func writeServerErrorResponse(w http.ResponseWriter, details string) {
-	writeErrorResponse(w, http.StatusInternalServerError, ERR_SERVER_ERROR, ERR_SERVER_MESSAGE, details)
+func WriteServerErrorResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusInternalServerError, ERR_SERVER_ERROR, ERR_SERVER_MESSAGE, details)
 }
 
-func writeInvalidFilterResponse(w http.ResponseWriter, details string) {
-	writeErrorResponse(w, http.StatusBadRequest, ERR_INVALID_FILTER_VALUE, ERR_INVALID_FILTER_VALUE_MESSAGE, details)
+func WriteInvalidFilterResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusBadRequest, ERR_INVALID_FILTER_VALUE, ERR_INVALID_FILTER_VALUE_MESSAGE, details)
 }
 
-func writeInvalidQueryResponse(w http.ResponseWriter, details string) {
-	writeErrorResponse(w, http.StatusBadRequest, ERR_INVALID_QUERY_VALUE, ERR_INVALID_QUERY_MESSAGE, details)
+func WriteInvalidQueryResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusBadRequest, ERR_INVALID_QUERY_VALUE, ERR_INVALID_QUERY_MESSAGE, details)
 }
 
-func writeInvalidJsonResponse(w http.ResponseWriter, details string) {
-	writeErrorResponse(w, http.StatusBadRequest, ERR_INVALID_JSON_BODY, ERR_INVALID_JSON_MESSAGE, details)
+func WriteInvalidJsonResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusBadRequest, ERR_INVALID_JSON_BODY, ERR_INVALID_JSON_MESSAGE, details)
 }
 
-func writeErrorResponse(w http.ResponseWriter, status int, code, message, details string) {
+func WriteErrorResponse(w http.ResponseWriter, status int, code, message, details string) {
 	apiErr := ApiError{
 		Status:  status,
 		Error:   http.StatusText(status),

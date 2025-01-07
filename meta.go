@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/utils"
 )
 
 func ListSearchAllTypes(w http.ResponseWriter, r *http.Request) {
-	WriteCacheHeader(&w)
+	utils.WriteCacheHeader(&w)
 	if err := json.NewEncoder(w).Encode(searchAllowedIndices); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -14,8 +17,8 @@ func ListSearchAllTypes(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetGameVersion(w http.ResponseWriter, r *http.Request) {
-	WriteCacheHeader(&w)
-	if err := json.NewEncoder(w).Encode(CurrentVersion); err != nil {
+	utils.WriteCacheHeader(&w)
+	if err := json.NewEncoder(w).Encode(config.CurrentVersion); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -37,7 +40,7 @@ func ListItemTypeIds(w http.ResponseWriter, r *http.Request) {
 		typeIds = append(typeIds, effectElement.EnName)
 	}
 
-	WriteCacheHeader(&w)
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(typeIds)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -61,7 +64,7 @@ func ListEffectConditionElements(w http.ResponseWriter, r *http.Request) {
 		effects = append(effects, effectElement.Name)
 	}
 
-	WriteCacheHeader(&w)
+	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(effects)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
