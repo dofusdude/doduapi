@@ -739,69 +739,6 @@ func getLimitInBoundary(limitStr string) (int64, error) {
 }
 
 // search
-
-func SearchAlmanaxBonuses(w http.ResponseWriter, r *http.Request) {
-	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
-	defer client.Close()
-
-	query := r.URL.Query().Get("query")
-	if query == "" {
-		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
-		return
-	}
-
-	lang := r.Context().Value("lang").(string)
-
-	if lang == "pt" {
-		e.WriteInvalidQueryResponse(w, "Portuguese language is not translated for Almanax Bonuses.")
-		return
-	}
-
-	var searchLimit int64
-	var err error
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Invalid limit value: "+err.Error())
-		return
-	}
-
-	index := client.Index(fmt.Sprintf("alm-bonuses-%s", lang))
-
-	request := &meilisearch.SearchRequest{
-		Limit: searchLimit,
-	}
-
-	var searchResp *meilisearch.SearchResponse
-	if searchResp, err = index.Search(query, request); err != nil {
-		e.WriteServerErrorResponse(w, "Could not search: "+err.Error())
-		return
-	}
-
-	requestsTotal.Inc()
-	requestsSearchTotal.Inc()
-
-	if searchResp.EstimatedTotalHits == 0 {
-		e.WriteNotFoundResponse(w, "No results found.")
-		return
-	}
-
-	var results []AlmanaxBonusListing
-	for _, hit := range searchResp.Hits {
-		almBonusJson := hit.(map[string]interface{})
-		almBonus := AlmanaxBonusListing{
-			Id:   almBonusJson["slug"].(string),
-			Name: almBonusJson["name"].(string),
-		}
-		results = append(results, almBonus)
-	}
-
-	utils.WriteCacheHeader(&w)
-	err = json.NewEncoder(w).Encode(results)
-	if err != nil {
-		e.WriteServerErrorResponse(w, "Could not encode JSON: "+err.Error())
-		return
-	}
-}
-
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
