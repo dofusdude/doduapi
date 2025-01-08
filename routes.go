@@ -12,13 +12,7 @@ import (
 	"github.com/dofusdude/doduapi/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/hashicorp/go-memdb"
 )
-
-var Db *memdb.MemDB
-var Indexes map[string]SearchIndexes
-
-var Version VersionT
 
 func FileServer(r chi.Router, path string, root http.FileSystem) {
 	if strings.ContainsAny(path, "{}*") {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
@@ -452,7 +453,7 @@ func RenderRecipe(recipe mapping.MappedMultilangRecipe, db *memdb.MemDB) []APIRe
 
 	var apiRecipes []APIRecipe
 	for _, entry := range recipe.Entries {
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", entry.ItemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", entry.ItemId)
 		if err != nil {
 			log.Error(err)
 			return nil

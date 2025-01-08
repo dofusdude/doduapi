@@ -1,4 +1,4 @@
-package almanax
+package database
 
 import (
 	"context"
@@ -257,9 +257,9 @@ func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilan
 			ItemNameDe:     almanax.Offering.ItemName["de"],
 			ItemNamePt:     almanax.Offering.ItemName["pt"],
 			ItemAnkamaID:   int64(almanax.Offering.ItemId),
-			ItemCategoryId: int64(almanax.Offering.ItemCategoryId),
+			ItemCategoryId: almanax.Offering.ItemCategoryId,
 			ItemDoduapiUri: itemApiUri,
-			Quantity:       int64(almanax.Offering.Quantity),
+			Quantity:       almanax.Offering.Quantity,
 		})
 		if err != nil {
 			return -1, err

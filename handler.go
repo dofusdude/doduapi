@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	e "github.com/dofusdude/doduapi/errmsg"
 	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
@@ -43,7 +44,7 @@ var (
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecipe, bool) {
 	var err error
 	var raw interface{}
-	if raw, err = txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(Version.MemDb)), "id", itemId); err != nil {
+	if raw, err = txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(database.Version.MemDb)), "id", itemId); err != nil {
 		log.Fatal(err)
 	}
 
@@ -195,17 +196,17 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id")
 	if err != nil || it == nil {
 		e.WriteNotFoundResponse(w, "No mounts found.")
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsMountsList.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsMountsList.Inc()
 
 	var mounts []APIMount
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -285,17 +286,17 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id")
 	if err != nil || it == nil {
 		e.WriteNotFoundResponse(w, "No sets found.")
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsSetsList.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsSetsList.Inc()
 
 	var sets []APIListSet
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -395,7 +396,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 }
 
 func setFilter(in *set.Set[string], prefix string, exceptions *[]string) (set.Set[string], error) {
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get("item-type-ids", "id")
@@ -543,17 +544,17 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id")
+	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), itemType), "id")
 	if err != nil || it == nil {
 		e.WriteNotFoundResponse(w, "No items found.")
 		return
 	}
 
-	requestsItemsList.Inc()
-	requestsTotal.Inc()
+	utils.RequestsItemsList.Inc()
+	utils.RequestsTotal.Inc()
 
 	var items []APIListItem
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -586,7 +587,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		if expansions.Has("recipe") {
 			recipe, exists := GetRecipeIfExists(item.Id, txn)
 			if exists {
-				item.Recipe = RenderRecipe(recipe, Db)
+				item.Recipe = RenderRecipe(recipe, database.Db)
 			} else {
 				item.Recipe = nil
 			}
@@ -761,7 +762,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 
 	lang := r.Context().Value("lang").(string)
 
-	index := client.Index(fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang))
 	var request *meilisearch.SearchRequest
 	filterString := ""
 	if filterFamilyName != "" {
@@ -799,15 +800,15 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsMountsSearch.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsMountsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
 		e.WriteNotFoundResponse(w, "No results found.")
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	var mounts []APIMount
@@ -815,7 +816,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		indexed := hit.(map[string]interface{})
 		itemId := int(indexed["id"].(float64))
 
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", itemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", itemId)
 		if err != nil {
 			e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 			return
@@ -891,7 +892,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang))
 	var request *meilisearch.SearchRequest
 
 	if filterString == "" {
@@ -911,15 +912,15 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsSetsSearch.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsSetsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
 		e.WriteNotFoundResponse(w, "No results found.")
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	var sets []APIListSet
@@ -927,7 +928,7 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		indexed := hit.(map[string]interface{})
 		itemId := int(indexed["id"].(float64))
 
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", itemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", itemId)
 		if err != nil {
 			e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 			return
@@ -1041,7 +1042,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		searchChans = append(searchChans, itemRetChan)
 
 		go func() {
-			indexUid := fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang)
+			indexUid := fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
 			index := client.Index(indexUid)
 
 			request := &meilisearch.SearchRequest{
@@ -1067,8 +1068,8 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
 
 				itemId := int(indexed["id"].(float64))
-				txn := Db.Txn(false)
-				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", itemId)
+				txn := database.Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", itemId)
 
 				if err != nil {
 					e.WriteServerErrorResponse(w, "Could not find item in database: "+err.Error())
@@ -1160,7 +1161,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 		setRetChan := make(chan []ApiAllSearchResultScore)
 		searchChans = append(searchChans, setRetChan)
 		go func() {
-			setIndexUid := fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang)
+			setIndexUid := fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
 			setIndex := client.Index(setIndexUid)
 
 			request := &meilisearch.SearchRequest{
@@ -1187,8 +1188,8 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 				setId := int(indexed["id"].(float64))
 
-				txn := Db.Txn(false)
-				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", setId)
+				txn := database.Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", setId)
 				if err != nil {
 					e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 					setRetChan <- nil
@@ -1235,7 +1236,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if needMountSearch {
-		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang)
+		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
 		mountIndex := client.Index(mountIndexUid)
 		mountRetChan := make(chan []ApiAllSearchResultScore)
 		searchChans = append(searchChans, mountRetChan)
@@ -1263,8 +1264,8 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 				mountId := int(indexed["id"].(float64))
 
-				txn := Db.Txn(false)
-				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", mountId)
+				txn := database.Db.Txn(false)
+				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", mountId)
 				if err != nil {
 					e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 					mountRetChan <- nil
@@ -1392,7 +1393,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		filterString += "(NOT type.name_id=" + strings.Join(removedTypes.Keys(), " AND NOT type.name_id=") + ")"
 	}
 
-	index := client.Index(fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(Version.Search), lang))
+	index := client.Index(fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang))
 	var request *meilisearch.SearchRequest
 	if !all {
 		if filterString == "" {
@@ -1419,15 +1420,15 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsItemsSearch.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsItemsSearch.Inc()
 
 	if searchResp.EstimatedTotalHits == 0 {
 		e.WriteNotFoundResponse(w, "No results found.")
 		return
 	}
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	var items []APIListItem
@@ -1438,9 +1439,9 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 		var raw interface{}
 		if all {
-			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", itemId)
+			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", itemId)
 		} else {
-			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", itemId)
+			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), itemType), "id", itemId)
 		}
 
 		if err != nil {
@@ -1460,7 +1461,7 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 			itemRendered := RenderItemListEntry(item, lang)
 			recipe, exists := GetRecipeIfExists(itemRendered.Id, txn)
 			if exists {
-				itemRendered.Recipe = RenderRecipe(recipe, Db)
+				itemRendered.Recipe = RenderRecipe(recipe, database.Db)
 			}
 			items = append(items, itemRendered)
 		}
@@ -1509,10 +1510,10 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "sets"), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", ankamaId)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 		return
@@ -1523,8 +1524,8 @@ func GetSingleSetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsSetsSingle.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsSetsSingle.Inc()
 
 	set := RenderSet(raw.(*mapping.MappedMultilangSetUnity), lang)
 	utils.WriteCacheHeader(&w)
@@ -1539,10 +1540,10 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), "mounts"), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", ankamaId)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 		return
@@ -1553,8 +1554,8 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsMountsSingle.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsMountsSingle.Inc()
 
 	mount := RenderMount(raw.(*mapping.MappedMultilangMount), lang)
 	utils.WriteCacheHeader(&w)
@@ -1569,10 +1570,10 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), itemType), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), itemType), "id", ankamaId)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 		return
@@ -1583,13 +1584,13 @@ func GetSingleItemWithOptionalRecipeHandler(itemType string, w http.ResponseWrit
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsItemsSingle.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsItemsSingle.Inc()
 
 	resource := RenderResource(raw.(*mapping.MappedMultilangItemUnity), lang)
 	recipe, exists := GetRecipeIfExists(ankamaId, txn)
 	if exists {
-		resource.Recipe = RenderRecipe(recipe, Db)
+		resource.Recipe = RenderRecipe(recipe, database.Db)
 	}
 	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(resource)
@@ -1623,7 +1624,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 	lang := r.Context().Value("lang").(string)
 	ankamaId := r.Context().Value("ankamaId").(int)
 
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	dbType := ""
@@ -1633,7 +1634,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		dbType = "equipment"
 	}
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(Version.MemDb), dbType), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), dbType), "id", ankamaId)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 		return
@@ -1644,15 +1645,15 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		return
 	}
 
-	requestsTotal.Inc()
-	requestsItemsSingle.Inc()
+	utils.RequestsTotal.Inc()
+	utils.RequestsItemsSingle.Inc()
 
 	item := raw.(*mapping.MappedMultilangItemUnity)
 	if item.Type.SuperTypeId == 2 { // is weapon
 		weapon := RenderWeapon(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
-			weapon.Recipe = RenderRecipe(recipe, Db)
+			weapon.Recipe = RenderRecipe(recipe, database.Db)
 		}
 		utils.WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(weapon)
@@ -1664,7 +1665,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		equipment := RenderEquipment(item, lang)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
-			equipment.Recipe = RenderRecipe(recipe, Db)
+			equipment.Recipe = RenderRecipe(recipe, database.Db)
 		}
 		utils.WriteCacheHeader(&w)
 		err = json.NewEncoder(w).Encode(equipment)

@@ -18,6 +18,7 @@ import (
 	"github.com/zyedidia/generic/set"
 
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 )
@@ -67,7 +68,7 @@ type ItemTypeId struct {
 	EnName string
 }
 
-func IndexApiData(version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
+func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
 	var items []mapping.MappedMultilangItemUnity
 	var sets []mapping.MappedMultilangSetUnity
 	var recipes []mapping.MappedMultilangRecipe
@@ -364,12 +365,6 @@ func GetItemSuperType(id int) int {
 	return 0
 }
 
-type SearchIndexes struct {
-	AllItems meilisearch.IndexManager
-	Sets     meilisearch.IndexManager
-	Mounts   meilisearch.IndexManager
-}
-
 type AlmanaxBonusListing struct {
 	Id   string `json:"id"`   // english-id
 	Name string `json:"name"` // translated text
@@ -534,7 +529,7 @@ func UpdateAlmanaxBonusIndex(init bool) int {
 	return added
 }
 
-func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *VersionT) (*memdb.MemDB, map[string]SearchIndexes) {
+func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -545,7 +540,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		item_category_Put(5, 764933) // Ausschmückungen
 	*/
 
-	multilangSearchIndexes := make(map[string]SearchIndexes)
+	multilangSearchIndexes := make(map[string]database.SearchIndexes)
 	var indexTasks []*meilisearch.TaskInfo
 
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
@@ -629,7 +624,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 		updateTasks = append(updateTasks, setSearchableTask)
 
-		multilangSearchIndexes[lang] = SearchIndexes{
+		multilangSearchIndexes[lang] = database.SearchIndexes{
 			AllItems: allItemsIdx,
 			Sets:     setsIdx,
 			Mounts:   mountsIdx,

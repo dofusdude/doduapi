@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/almanax"
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/doduapi/ui"
 	"github.com/dofusdude/doduapi/utils"
 	"github.com/golang-migrate/migrate"
@@ -42,11 +43,6 @@ var (
 
 var currentWd string
 
-type VersionT struct {
-	Search bool
-	MemDb  bool
-}
-
 func ReadEnvs() {
 	config.MajorVersion = DoduapiMajor
 
@@ -59,6 +55,8 @@ func ReadEnvs() {
 	viper.SetDefault("MEILI_HOST", "127.0.0.1")
 	viper.SetDefault("PROMETHEUS", "false")
 	viper.SetDefault("FILESERVER", "true")
+	viper.SetDefault("ALMANAX_MAX_LOOKAHEAD_DAYS", 365)
+	viper.SetDefault("ALMANAX_DEFAULT_LOOKAHEAD_DAYS", 6)
 	viper.SetDefault("IS_BETA", "false")
 	viper.SetDefault("UPDATE_HOOK_TOKEN", "")
 	viper.SetDefault("DOFUS_VERSION", "")
@@ -80,6 +78,9 @@ func ReadEnvs() {
 	} else {
 		betaStr = "main"
 	}
+
+	config.AlmanaxMaxLookAhead = viper.GetInt("ALMANAX_MAX_LOOKAHEAD_DAYS")
+	config.AlmanaxDefaultLookAhead = viper.GetInt("ALMANAX_DEFAULT_LOOKAHEAD_DAYS")
 
 	dofusVersion := viper.GetString("DOFUS_VERSION")
 	if dofusVersion == "" {
@@ -129,7 +130,7 @@ func ReadEnvs() {
 	config.DockerMountDataPath = viper.GetString("DIR")
 }
 
-func AutoUpdate(version *VersionT, updateHook chan utils.GameVersion, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]SearchIndexes) {
+func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]database.SearchIndexes) {
 	for {
 		select {
 		case gameVersion, ok := <-updateHook:
@@ -299,7 +300,7 @@ var (
 )
 
 func migrateUp(cmd *cobra.Command, args []string) {
-	database := almanax.NewDatabaseRepository(context.Background(), ".")
+	database := database.NewDatabaseRepository(context.Background(), ".")
 
 	dbDriver, err := sqlite3.WithInstance(database.Db, &sqlite3.Config{})
 	if err != nil {
@@ -324,7 +325,7 @@ func migrateUp(cmd *cobra.Command, args []string) {
 }
 
 func migrateDown(cmd *cobra.Command, args []string) {
-	database := almanax.NewDatabaseRepository(context.Background(), ".")
+	database := database.NewDatabaseRepository(context.Background(), ".")
 
 	dbDriver, err := sqlite3.WithInstance(database.Db, &sqlite3.Config{})
 	if err != nil {
@@ -444,12 +445,12 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	feedbackChan <- "Database"
-	Db, Indexes = IndexApiData(&Version)
-	Version.Search = !Version.Search
-	Version.MemDb = !Version.MemDb
+	database.Db, database.Indexes = IndexApiData(&database.Version)
+	database.Version.Search = !database.Version.Search
+	database.Version.MemDb = !database.Version.MemDb
 
 	updateDb := make(chan *memdb.MemDB)
-	updateSearchIndex := make(chan map[string]SearchIndexes)
+	updateSearchIndex := make(chan map[string]database.SearchIndexes)
 	UpdateChan = make(chan utils.GameVersion)
 
 	if isChannelClosed(feedbackChan) {
@@ -483,7 +484,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		}
 	}()
 
-	go AutoUpdate(&Version, UpdateChan, updateDb, updateSearchIndex)
+	go AutoUpdate(&database.Version, UpdateChan, updateDb, updateSearchIndex)
 
 	added := UpdateAlmanaxBonusIndex(true)
 
@@ -514,8 +515,8 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	go func() {
 		for {
 			select {
-			case Db = <-updateDb: // override main memory with updated data
-			case Indexes = <-updateSearchIndex:
+			case database.Db = <-updateDb: // override main memory with updated data
+			case database.Indexes = <-updateSearchIndex:
 			}
 		}
 	}()

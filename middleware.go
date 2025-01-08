@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	e "github.com/dofusdude/doduapi/errmsg"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -29,7 +31,7 @@ func paginate(next http.Handler) http.Handler {
 		if pageNumStr != "" {
 			pageNum, err = strconv.Atoi(pageNumStr)
 			if err != nil || pageNum <= 0 {
-				w.WriteHeader(http.StatusBadRequest)
+				e.WriteInvalidUrlResponse(w, "Invalid page number: "+pageNumStr)
 				return
 			}
 		} else {
@@ -39,7 +41,7 @@ func paginate(next http.Handler) http.Handler {
 		if pageSizeStr != "" {
 			pageSize, err = strconv.Atoi(pageSizeStr)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
+				e.WriteInvalidUrlResponse(w, "Invalid page size: "+pageSizeStr)
 				return
 			}
 		} else {
@@ -68,7 +70,7 @@ func languageChecker(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), "lang", lang)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		default:
-			w.WriteHeader(http.StatusBadRequest)
+			e.WriteInvalidUrlResponse(w, "Invalid language: "+chi.URLParam(r, "lang"))
 		}
 	})
 }
@@ -77,10 +79,23 @@ func ankamaIdExtractor(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ankamaId, err := strconv.Atoi(chi.URLParam(r, "ankamaId"))
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			e.WriteInvalidUrlResponse(w, "Invalid ankamaId: "+chi.URLParam(r, "ankamaId"))
 			return
 		}
 		ctx := context.WithValue(r.Context(), "ankamaId", ankamaId)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func dateExtractor(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parsedDate, err := time.Parse("2006-01-02", chi.URLParam(r, "date"))
+		if err != nil {
+			e.WriteInvalidUrlResponse(w, "Invalid date format: "+chi.URLParam(r, "date"))
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "date", parsedDate)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -11,6 +11,9 @@ var (
 	ERR_INVALID_FILTER_VALUE         = "INVALID_FILTER_NAME"
 	ERR_INVALID_FILTER_VALUE_MESSAGE = "The filter value you provided is not valid. Please check the format and try again."
 
+	ERR_INVALID_URL_VALUE   = "INVALID_QUERY_PARAMETER"
+	ERR_INVALID_URL_MESSAGE = "The URL parameter you provided is not valid. Please check the format and try again."
+
 	ERR_INVALID_QUERY_VALUE   = "INVALID_QUERY_PARAMETER"
 	ERR_INVALID_QUERY_MESSAGE = "The query parameter you provided is not valid. Please check the format and try again."
 
@@ -30,6 +33,10 @@ type ApiError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Details string `json:"details,omitempty"`
+}
+
+func WriteInvalidUrlResponse(w http.ResponseWriter, details string) {
+	WriteErrorResponse(w, http.StatusBadRequest, ERR_INVALID_URL_VALUE, ERR_INVALID_URL_MESSAGE, details)
 }
 
 func WriteNotFoundResponse(w http.ResponseWriter, details string) {

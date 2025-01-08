@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/doduapi/utils"
 )
 
@@ -25,7 +26,7 @@ func GetGameVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListItemTypeIds(w http.ResponseWriter, r *http.Request) {
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get("item-type-ids", "id")
@@ -49,7 +50,7 @@ func ListItemTypeIds(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListEffectConditionElements(w http.ResponseWriter, r *http.Request) {
-	txn := Db.Txn(false)
+	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get("effect-condition-elements", "id")

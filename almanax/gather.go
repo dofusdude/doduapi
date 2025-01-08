@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/dodumap"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/google/go-github/v67/github"
@@ -33,7 +34,7 @@ func dateRange(from, to time.Time) ([]string, error) {
 }
 
 func GatherAlmanaxData(initial bool, headless bool) error {
-	db := NewDatabaseRepository(context.Background(), config.DbDir)
+	db := database.NewDatabaseRepository(context.Background(), config.DbDir)
 	defer db.Deinit()
 
 	almanaxData, err := loadAlmanaxData(config.DofusVersion)

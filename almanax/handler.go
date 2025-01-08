@@ -11,66 +11,277 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
 	e "github.com/dofusdude/doduapi/errmsg"
 	"github.com/dofusdude/doduapi/utils"
+	mapping "github.com/dofusdude/dodumap"
+	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
 )
 
 func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
-	// TODO
-	//
+	lang := r.Context().Value("lang").(string)
+	date := r.Context().Value("date").(time.Time)
+
+	almDb := database.NewDatabaseRepository(context.Background(), config.DbDir)
+	defer almDb.Deinit()
+
+	dateStr := date.Format("2006-01-02")
+	mappedAlmanax, err := almDb.GetAlmanaxByDateRange(dateStr, dateStr)
+	if err != nil {
+		e.WriteServerErrorResponse(w, "Database error while getting almanax.")
+		return
+	}
+
+	if len(mappedAlmanax) == 0 {
+		e.WriteNotFoundResponse(w, "No almanax found.")
+		return
+	}
+
+	if len(mappedAlmanax) > 1 {
+		e.WriteServerErrorResponse(w, "Multiple almanax found for the same date.")
+		return
+	}
+
+	itemDb := database.Db.Txn(false)
+	defer itemDb.Abort()
+
+	response, err := renderAlmanaxResponse(&mappedAlmanax[0], lang, itemDb)
+	if err != nil {
+		e.WriteServerErrorResponse(w, "Could not render almanax response.")
+		return
+	}
+
+	utils.RequestsTotal.Inc()
+	utils.RequestsAlmanaxSingle.Inc()
+
+	utils.WriteCacheHeader(&w)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		e.WriteServerErrorResponse(w, "Could not encode JSON: "+err.Error())
+		return
+	}
 }
 
-/*
-*
-per default the current day almanax in the requested language
-timezone paris
+func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, txn *memdb.Txn) (AlmanaxResponse, error) {
+	var response AlmanaxResponse
+	response.Date = m.Almanax.Date
+	response.Bonus.BonusType.Id = m.BonusType.NameID
+	response.Tribute.Quantity = m.Tribute.Quantity
+	response.RewardKamas = m.Almanax.RewardKamas
+	response.Tribute.Item.AnkamaId = m.Tribute.ItemAnkamaID
+	response.Tribute.Item.Subtype = utils.CategoryIdApiMapping(m.Tribute.ItemCategoryId)
 
-filter[bonus_type] can be used seperately and does not have an effect on the other parameters.
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), utils.CategoryIdMapping(m.Tribute.ItemCategoryId)), "id", response.Tribute.Item.AnkamaId)
+	if err != nil {
+		return response, err
+	}
 
-range[from] changes the start date, everything else defaults to 6 following dates from this start date.
+	if raw == nil {
+		return response, fmt.Errorf("item not found")
+	}
 
-range[to] when used without anything else, it will use today as start date and this parameter as end. All ranges are inclusive.
+	item := raw.(*mapping.MappedMultilangItemUnity)
+	response.Tribute.Item.ImageUrls = RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta))
 
-range[from] + range[to] = inclusive range over the specified dates, should never be farther apart than 35 days.
+	switch lang {
+	case "en":
+		response.Bonus.Description = m.Bonus.DescriptionEn
+		response.Bonus.BonusType.Name = m.BonusType.NameEn
+		response.Tribute.Item.Name = m.Tribute.ItemNameEn
+	case "fr":
+		response.Bonus.Description = m.Bonus.DescriptionFr
+		response.Bonus.BonusType.Name = m.BonusType.NameFr
+		response.Tribute.Item.Name = m.Tribute.ItemNameFr
+	case "de":
+		response.Bonus.Description = m.Bonus.DescriptionDe
+		response.Bonus.BonusType.Name = m.BonusType.NameDe
+		response.Tribute.Item.Name = m.Tribute.ItemNameDe
+	case "es":
+		response.Bonus.Description = m.Bonus.DescriptionEs
+		response.Bonus.BonusType.Name = m.BonusType.NameEs
+		response.Tribute.Item.Name = m.Tribute.ItemNameEs
+	case "pt":
+		response.Bonus.Description = m.Bonus.DescriptionPt
+		response.Bonus.BonusType.Name = m.BonusType.NamePt
+		response.Tribute.Item.Name = m.Tribute.ItemNamePt
+	}
 
-range[from|to] + range[size] no need to specify the date, just following days with [from] (0 is today) or go backwards in time with only [to] and [size].
+	return response, nil
+}
 
-Not all combinations are listed but this should give you an idea how to they could work.
-
-- timezone - timezone to use, default Europe/Paris
-*/
 func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
-	/*
-		lang := r.Context().Value("lang").(string)
-		from := r.URL.Query().Get("range[from]")
-		to := r.URL.Query().Get("range[to]")
-		size := r.URL.Query().Get("range[size]")
-		var sizeNum int
-		bonusType := r.URL.Query().Get("filter[bonus_type]")
-		timezone := r.URL.Query().Get("timezone")
+	lang := r.Context().Value("lang").(string)
+	from := r.URL.Query().Get("range[from]")
+	to := r.URL.Query().Get("range[to]")
+	size := r.URL.Query().Get("range[size]")
+	var sizeNum int
+	bonusType := r.URL.Query().Get("filter[bonus_type]")
+	timezone := r.URL.Query().Get("timezone")
 
-		if size == "" {
-			sizeNum = -1
-		} else {
-			sizeNum, err := strconv.Atoi(size)
-			if err != nil {
-				e.WriteInvalidQueryResponse(w, "Invalid size value.")
-				return
+	var err error
+
+	if size == "" {
+		sizeNum = -1
+	} else {
+		sizeNum, err = strconv.Atoi(size)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid size value.")
+			return
+		}
+	}
+
+	if timezone == "" {
+		timezone = "Europe/Paris"
+	}
+
+	givenFromDate := from != ""
+	var fromDate time.Time
+	var fromDateParsed time.Time
+	if givenFromDate {
+		fromDateParsed, err = time.Parse("2006-01-02", from)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid from-date format.")
+			return
+		}
+	}
+
+	givenToDate := to != ""
+	var toDate time.Time
+	var toDateParsed time.Time
+	if givenToDate {
+		toDateParsed, err = time.Parse("2006-01-02", to)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid to-date format.")
+			return
+		}
+	}
+
+	givenRangeSize := size != "" && sizeNum > 0
+	if givenRangeSize && givenFromDate && givenToDate {
+		e.WriteInvalidQueryResponse(w, "Cannot use range[size] with range[from] and range[to].")
+		return
+	}
+
+	if givenRangeSize && !givenFromDate && !givenToDate {
+		// use timezones to get the correct date of "today"
+		loc, err := time.LoadLocation(timezone)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid timezone.")
+			return
+		}
+		fromDate = time.Now().In(loc)
+		toDate = fromDate.AddDate(0, 0, sizeNum)
+	} else {
+		if givenFromDate && givenToDate {
+			fromDate = fromDateParsed
+			toDate = toDateParsed
+
+			toDate = toDate.AddDate(0, 0, 1)
+		}
+
+		if givenFromDate && !givenToDate {
+			fromDate = fromDateParsed
+			toDate = fromDate.AddDate(0, 0, config.AlmanaxDefaultLookAhead)
+		}
+
+		if !givenFromDate && givenToDate {
+			toDate = toDateParsed
+			toDate = toDate.AddDate(0, 0, 1)
+		}
+	}
+
+	if givenRangeSize && givenFromDate {
+		toDate = fromDate.AddDate(0, 0, sizeNum)
+	}
+
+	if givenRangeSize && givenToDate {
+		toDate = toDateParsed.AddDate(0, 0, 1)
+		fromDate = toDate.AddDate(0, 0, -sizeNum)
+	}
+
+	if fromDate.After(toDate) {
+		e.WriteInvalidQueryResponse(w, "From-date is after to-date.")
+		return
+	}
+
+	if toDate.Sub(fromDate).Hours() > float64(config.AlmanaxMaxLookAhead)*24 {
+		e.WriteInvalidQueryResponse(w, "Date range is too large.")
+		return
+	}
+
+	almDb := database.NewDatabaseRepository(context.Background(), config.DbDir)
+	defer almDb.Deinit()
+
+	if bonusType != "" {
+		bonusTypes, err := almDb.GetBonusTypes()
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not get bonus types.")
+			return
+		}
+
+		found := false
+		for _, b := range bonusTypes {
+			if b.NameID == bonusType {
+				found = true
+				break
 			}
 		}
 
-		defaultAhead := 6
-
-		if timezone == "" {
-			timezone = "Europe/Paris"
+		if !found {
+			e.WriteInvalidQueryResponse(w, "Invalid bonus type.")
+			return
 		}
+	}
 
-		// TODO
-		//  */
+	itemDb := database.Db.Txn(false)
+	defer itemDb.Abort()
+
+	fromDateStr := fromDate.Format("2006-01-02")
+	toDateStr := toDate.Format("2006-01-02")
+
+	res := make([]AlmanaxResponse, 0)
+	var mappedAlmanax []database.MappedAlmanax
+	if bonusType != "" {
+		mappedAlmanax, err = almDb.GetAlmanaxByDateRangeAndNameID(fromDateStr, toDateStr, bonusType)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Database error while getting almanax with bonus type.")
+			return
+		}
+	} else {
+		mappedAlmanax, err = almDb.GetAlmanaxByDateRange(fromDateStr, toDateStr)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Database error while getting almanax.")
+			return
+		}
+	}
+
+	if len(mappedAlmanax) == 0 {
+		e.WriteNotFoundResponse(w, "No almanax found.")
+		return
+	}
+
+	for _, m := range mappedAlmanax {
+		response, err := renderAlmanaxResponse(&m, lang, itemDb)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not render almanax response.")
+			return
+		}
+		res = append(res, response)
+	}
+
+	utils.RequestsTotal.Inc()
+	utils.RequestsAlmanaxRange.Inc()
+
+	utils.WriteCacheHeader(&w)
+	encodeErr := json.NewEncoder(w).Encode(res)
+	if encodeErr != nil {
+		e.WriteServerErrorResponse(w, "Could not encode JSON: "+err.Error())
+		return
+	}
 }
 
-func UpdateAlmanaxBonusIndex(init bool, db *Repository) int {
+func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
@@ -217,19 +428,7 @@ func UpdateAlmanaxBonusIndex(init bool, db *Repository) int {
 	return added
 }
 
-type UpdateAlmanaxRequest struct {
-	// Load the mapped_almanax on startup, update with doduda API request, reload date => npc pairs from alm-dates repo.
-	// alm-dates runs short.sh etc and manages files for each year. scripts update the <year>.json if something changes.
-	// UpdateAlmanaxRequest then reads the files and updates the mapped_almanax.
-}
-
-// get webhook from github with secret and newest release tag, load the newest mapped almanax and iterate into the future, updating everything
-// also run the update almanax bonus index if SearchEnabled is true
-func UpdateAlmanax(w http.ResponseWriter, r *http.Request) {
-	// TODO
-}
-
-func bonusListingsToBonusIdTranslated(bonuses []BonusType, lang string) []AlmanaxBonusListing {
+func bonusListingsToBonusIdTranslated(bonuses []database.BonusType, lang string) []AlmanaxBonusListing {
 	bonusesTranslated := make([]AlmanaxBonusListing, 0, len(bonuses))
 	for _, bonus := range bonuses {
 		var bonusTranslated AlmanaxBonusListing
@@ -254,7 +453,7 @@ func bonusListingsToBonusIdTranslated(bonuses []BonusType, lang string) []Almana
 
 func ListBonuses(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	db := NewDatabaseRepository(context.Background(), config.DbDir)
+	db := database.NewDatabaseRepository(context.Background(), config.DbDir)
 
 	bonuses, err := db.GetBonusTypes()
 	if err != nil {

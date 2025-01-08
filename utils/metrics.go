@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -6,58 +6,68 @@ import (
 )
 
 var (
-	requestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsTotal",
 		Help: "The total number of processed requests over all endpoints",
 	})
 
-	requestsSearchTotal = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsSearchTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsSearchTotal",
 		Help: "The total number of searches on the global /search endpoint",
 	})
 
-	requestsItemsSearch = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsItemsSearch = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllItemsSearch",
 		Help: "The total number of searched items requests",
 	})
 
-	requestsMountsSearch = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsMountsSearch = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllMountsSearch",
 		Help: "The total number of searched mounts requests",
 	})
 
-	requestsSetsSearch = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsSetsSearch = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllSetsSearch",
 		Help: "The total number of searched sets requests",
 	})
 
-	requestsItemsList = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsItemsList = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllItemsList",
 		Help: "The total number of list items requests",
 	})
 
-	requestsMountsList = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsMountsList = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllMountsList",
 		Help: "The total number of list mounts requests",
 	})
 
-	requestsSetsList = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsSetsList = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllSetsList",
 		Help: "The total number list sets requests",
 	})
 
-	requestsItemsSingle = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsItemsSingle = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllItemsSingle",
 		Help: "The total number of single item requests",
 	})
 
-	requestsMountsSingle = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsMountsSingle = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllMountsSingle",
 		Help: "The total number of single mount requests",
 	})
 
-	requestsSetsSingle = promauto.NewCounter(prometheus.CounterOpts{
+	RequestsSetsSingle = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dofus_requestsAllSetsSingle",
 		Help: "The total number of single set requests",
+	})
+
+	RequestsAlmanaxSingle = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dofus_requestsAlmanaxSingle",
+		Help: "The total number of single almanax requests",
+	})
+
+	RequestsAlmanaxRange = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dofus_requestsAlmanaxRange",
+		Help: "The total number of almanax range requests",
 	})
 )
