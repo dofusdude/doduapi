@@ -45,10 +45,16 @@ Download [Meilisearch](https://www.meilisearch.com/docs/learn/getting_started/in
 curl -L https://install.meilisearch.com | sh
 ./meilisearch --master-key $MEILI_MASTER_KEY &
 ```
-
 You can get the process back with `fg` later.
 
-Now build it from source. You need to have [Go](https://go.dev/doc/install) >= 1.18 installed.
+The Almanax data is saved within a file database. `doduapi` can initialize the database structure itself with the following command.
+```shell
+go run . migrate up
+```
+
+You can specify the persistent directory with `--persistent-dir <dir>`. It uses the current working directory per default.
+
+Now build `doduapi`. You need to have [Go](https://go.dev/doc/install) >= 1.18 installed.
 
 ```shell
 git clone git@github.com:dofusdude/doduapi.git

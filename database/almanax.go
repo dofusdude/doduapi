@@ -172,7 +172,7 @@ func (r *Repository) GetAlmanaxByDateRange(from, to string) ([]MappedAlmanax, er
 
 func (r *Repository) CreateBonus(bonus *Bonus) (int64, error) {
 	query := `INSERT INTO bonus (bonus_type_id, description_en, description_fr, description_es, description_de, description_pt, created_at, updated_at)
-	          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+	          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
 	result, err := r.Db.Exec(query, bonus.BonusTypeID, bonus.DescriptionEn, bonus.DescriptionFr, bonus.DescriptionEs,
 		bonus.DescriptionDe, bonus.DescriptionPt)
 	if err != nil {
@@ -324,7 +324,7 @@ func (r *Repository) UpdateFuture(data map[string]dodumap.MappedMultilangNPCAlma
 
 func (r *Repository) CreateBonusType(bonusType *BonusType) (int64, error) {
 	query := `INSERT INTO bonus_types (name_id, name_en, name_fr, name_es, name_de, name_pt, created_at, updated_at)
-	          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+	          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
 	result, err := r.Db.Exec(query, bonusType.NameID, bonusType.NameEn, bonusType.NameFr, bonusType.NameEs,
 		bonusType.NameDe, bonusType.NamePt)
 	if err != nil {

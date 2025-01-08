@@ -63,7 +63,7 @@ func Router() chi.Router {
 			r.Get("/items/types", ListItemTypeIds)
 			r.Get("/search/types", ListSearchAllTypes)
 
-			r.With(languageChecker).Route("{lang}/almanax/bonuses", func(r chi.Router) {
+			r.With(languageChecker).Route("/{lang}/almanax/bonuses", func(r chi.Router) {
 				r.Get("/", almanax.ListBonuses)
 				r.Get("/search", almanax.SearchBonuses)
 			})
@@ -76,7 +76,7 @@ func Router() chi.Router {
 
 			r.Route("/almanax", func(r chi.Router) {
 				r.Get("/", almanax.GetAlmanaxRange)
-				r.Get("/{date}", almanax.GetAlmanaxSingle)
+				r.With(dateExtractor).Get("/{date}", almanax.GetAlmanaxSingle)
 			})
 
 			r.Route("/items", func(r chi.Router) {

@@ -279,9 +279,6 @@ var (
 		Short:         "Run migrations on the database.",
 		SilenceErrors: true,
 		SilenceUsage:  false,
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Running migrate command")
-		},
 	}
 
 	migrateDownCmd = &cobra.Command{
@@ -300,7 +297,17 @@ var (
 )
 
 func migrateUp(cmd *cobra.Command, args []string) {
-	database := database.NewDatabaseRepository(context.Background(), ".")
+	dbdir, err := cmd.Flags().GetString("persistent-dir")
+	if err != nil {
+		log.Fatal(err)
+	}
+	config.DbDir = dbdir
+
+	if _, err := os.Stat(dbdir); os.IsNotExist(err) {
+		os.Mkdir(dbdir, 0755)
+	}
+
+	database := database.NewDatabaseRepository(context.Background(), dbdir)
 
 	dbDriver, err := sqlite3.WithInstance(database.Db, &sqlite3.Config{})
 	if err != nil {
@@ -325,7 +332,13 @@ func migrateUp(cmd *cobra.Command, args []string) {
 }
 
 func migrateDown(cmd *cobra.Command, args []string) {
-	database := database.NewDatabaseRepository(context.Background(), ".")
+	dbdir, err := cmd.Flags().GetString("persistent-dir")
+	if err != nil {
+		log.Fatal(err)
+	}
+	config.DbDir = dbdir
+
+	database := database.NewDatabaseRepository(context.Background(), dbdir)
 
 	dbDriver, err := sqlite3.WithInstance(database.Db, &sqlite3.Config{})
 	if err != nil {
@@ -353,7 +366,7 @@ func main() {
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
 	rootCmd.PersistentFlags().Bool("version", false, "Print API version.")
 	rootCmd.PersistentFlags().Bool("skip-images", false, "Do not load (re)load images from the web.")
-	rootCmd.Flags().String("dbdir", ".", "Database directory")
+	rootCmd.PersistentFlags().String("persistent-dir", ".", "Directory for persistent data like databases.")
 
 	migrateCmd.AddCommand(migrateDownCmd)
 	migrateCmd.AddCommand(migrateUpCmd)
@@ -391,7 +404,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	dbdir, err := ccmd.Flags().GetString("dbdir")
+	dbdir, err := ccmd.Flags().GetString("persistent-dir")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -486,14 +499,12 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 
 	go AutoUpdate(&database.Version, UpdateChan, updateDb, updateSearchIndex)
 
-	added := UpdateAlmanaxBonusIndex(true)
+	_ = UpdateAlmanaxBonusIndex(true)
 
 	if !isChannelClosed(feedbackChan) {
 		close(feedbackChan)
 	}
 	wg.Wait()
-
-	log.Print("updated almanax bonus index", "added", added)
 
 	var releaseLog string
 	if config.IsBeta {

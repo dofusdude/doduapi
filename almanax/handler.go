@@ -29,17 +29,17 @@ func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 	dateStr := date.Format("2006-01-02")
 	mappedAlmanax, err := almDb.GetAlmanaxByDateRange(dateStr, dateStr)
 	if err != nil {
-		e.WriteServerErrorResponse(w, "Database error while getting almanax.")
+		e.WriteServerErrorResponse(w, "Database error while getting Almanax.")
 		return
 	}
 
 	if len(mappedAlmanax) == 0 {
-		e.WriteNotFoundResponse(w, "No almanax found.")
+		e.WriteNotFoundResponse(w, "No Almanax found.")
 		return
 	}
 
 	if len(mappedAlmanax) > 1 {
-		e.WriteServerErrorResponse(w, "Multiple almanax found for the same date.")
+		e.WriteServerErrorResponse(w, "Multiple Almanax found for the same date.")
 		return
 	}
 
@@ -48,7 +48,7 @@ func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 
 	response, err := renderAlmanaxResponse(&mappedAlmanax[0], lang, itemDb)
 	if err != nil {
-		e.WriteServerErrorResponse(w, "Could not render almanax response.")
+		e.WriteServerErrorResponse(w, "Could not render Almanax response. "+err.Error())
 		return
 	}
 
@@ -72,13 +72,15 @@ func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, txn *memdb.Tx
 	response.Tribute.Item.AnkamaId = m.Tribute.ItemAnkamaID
 	response.Tribute.Item.Subtype = utils.CategoryIdApiMapping(m.Tribute.ItemCategoryId)
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), utils.CategoryIdMapping(m.Tribute.ItemCategoryId)), "id", response.Tribute.Item.AnkamaId)
+	categoryDbType := utils.CategoryIdMapping(m.Tribute.ItemCategoryId)
+
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), categoryDbType), "id", response.Tribute.Item.AnkamaId)
 	if err != nil {
 		return response, err
 	}
 
 	if raw == nil {
-		return response, fmt.Errorf("item not found")
+		return response, fmt.Errorf("Item %d not found in %s database.", response.Tribute.Item.AnkamaId, categoryDbType)
 	}
 
 	item := raw.(*mapping.MappedMultilangItemUnity)
@@ -216,7 +218,7 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	if bonusType != "" {
 		bonusTypes, err := almDb.GetBonusTypes()
 		if err != nil {
-			e.WriteServerErrorResponse(w, "Could not get bonus types.")
+			e.WriteServerErrorResponse(w, "Could not get bonus types. "+err.Error())
 			return
 		}
 
@@ -245,26 +247,26 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	if bonusType != "" {
 		mappedAlmanax, err = almDb.GetAlmanaxByDateRangeAndNameID(fromDateStr, toDateStr, bonusType)
 		if err != nil {
-			e.WriteServerErrorResponse(w, "Database error while getting almanax with bonus type.")
+			e.WriteServerErrorResponse(w, "Database error while getting Almanax with bonus type. "+err.Error())
 			return
 		}
 	} else {
 		mappedAlmanax, err = almDb.GetAlmanaxByDateRange(fromDateStr, toDateStr)
 		if err != nil {
-			e.WriteServerErrorResponse(w, "Database error while getting almanax.")
+			e.WriteServerErrorResponse(w, "Database error while getting Almanax. "+err.Error())
 			return
 		}
 	}
 
 	if len(mappedAlmanax) == 0 {
-		e.WriteNotFoundResponse(w, "No almanax found.")
+		e.WriteNotFoundResponse(w, "No Almanax found.")
 		return
 	}
 
 	for _, m := range mappedAlmanax {
 		response, err := renderAlmanaxResponse(&m, lang, itemDb)
 		if err != nil {
-			e.WriteServerErrorResponse(w, "Could not render almanax response.")
+			e.WriteServerErrorResponse(w, "Could not render Almanax response. "+err.Error())
 			return
 		}
 		res = append(res, response)

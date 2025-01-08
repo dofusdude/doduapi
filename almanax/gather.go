@@ -39,7 +39,7 @@ func GatherAlmanaxData(initial bool, headless bool) error {
 
 	almanaxData, err := loadAlmanaxData(config.DofusVersion)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not load almanax data: %w", err)
 	}
 
 	yearLookup := make(map[string]dodumap.MappedMultilangNPCAlmanaxUnity)
@@ -48,7 +48,7 @@ func GatherAlmanaxData(initial bool, headless bool) error {
 	yearFromNow := today.AddDate(1, 0, 0)
 	dates, err := dateRange(today, yearFromNow)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not generate date range: %w", err)
 	}
 
 	for _, date := range dates {
@@ -98,7 +98,7 @@ func loadAlmanaxData(version string) ([]mapping.MappedMultilangNPCAlmanaxUnity, 
 		repRel, _, err = client.Repositories.GetReleaseByTag(context.Background(), DataRepoOwner, DataRepoName, version)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get release: %w", err)
 	}
 
 	// get the mapped almanax data
@@ -136,7 +136,7 @@ func loadAlmanaxData(version string) ([]mapping.MappedMultilangNPCAlmanaxUnity, 
 	dec := json.NewDecoder(asset)
 	err = dec.Decode(&almData)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not decode almanax data: %w", err)
 	}
 
 	return almData, nil
