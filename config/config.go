@@ -35,4 +35,5 @@ var (
 	DofusVersion            string
 	CurrentVersion          utils.GameVersion // TODO remove, since not a fixed config param
 	ApiVersion              string
+	SkipAlmanax             bool
 )

@@ -177,9 +177,11 @@ func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, u
 			// ----
 			updateSearchIndex <- idx
 
-			err = almanax.GatherAlmanaxData(false, true) // headless true since we want the log output
-			if err != nil {
-				log.Fatal(err) // TODO notify on error, not just hard exit since we want high availability
+			if config.SkipAlmanax {
+				err = almanax.GatherAlmanaxData(false, true) // headless true since we want the log output
+				if err != nil {
+					log.Fatal(err) // TODO notify on error, not just hard exit since we want high availability
+				}
 			}
 
 			nowOldRedBlueVersion := utils.CurrentRedBlueVersionStr(version.Search)
@@ -366,6 +368,7 @@ func main() {
 	rootCmd.PersistentFlags().Bool("headless", false, "Run without a TUI.")
 	rootCmd.PersistentFlags().Bool("version", false, "Print API version.")
 	rootCmd.PersistentFlags().Bool("skip-images", false, "Do not load (re)load images from the web.")
+	rootCmd.Flags().Bool("skip-almanax", false, "Do not initialize the Almanax.")
 	rootCmd.PersistentFlags().String("persistent-dir", ".", "Directory for persistent data like databases.")
 
 	migrateCmd.AddCommand(migrateDownCmd)
@@ -393,6 +396,12 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	skipAlmanax, err := ccmd.Flags().GetBool("skip-almanax")
+	if err != nil {
+		log.Fatal(err)
+	}
+	config.SkipAlmanax = skipAlmanax
 
 	if printVersion {
 		fmt.Println(DoduapiVersionHelp)
@@ -445,13 +454,15 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	if isChannelClosed(feedbackChan) {
-		os.Exit(1)
-	}
-	feedbackChan <- "Almanax"
-	err = almanax.GatherAlmanaxData(true, headless)
-	if err != nil {
-		log.Fatal(err)
+	if skipAlmanax {
+		if isChannelClosed(feedbackChan) {
+			os.Exit(1)
+		}
+		feedbackChan <- "Almanax"
+		err = almanax.GatherAlmanaxData(true, headless)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if isChannelClosed(feedbackChan) {
