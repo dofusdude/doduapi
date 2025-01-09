@@ -18,9 +18,13 @@ data
 data.ms
 dumps/
 
+*.db
+
 doduapi
+meilisearch
 
 .idea/*
 redis-volume/*
 
 .env
+.DS_Store

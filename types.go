@@ -4,6 +4,9 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
+	"github.com/dofusdude/doduapi/config"
+	"github.com/dofusdude/doduapi/database"
+	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
 )
@@ -128,7 +131,7 @@ func RenderResource(item *mapping.MappedMultilangItemUnity, lang string) APIReso
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
+		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 		Recipe:      nil,
 	}
 
@@ -178,7 +181,7 @@ func RenderEquipment(item *mapping.MappedMultilangItemUnity, lang string) APIEqu
 		Description: item.Description[lang],
 		Level:       item.Level,
 		Pods:        item.Pods,
-		ImageUrls:   RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
+		ImageUrls:   RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 		IsWeapon:    false,
 		Recipe:      nil,
 		ParentSet:   setLink,
@@ -244,7 +247,7 @@ func RenderWeapon(item *mapping.MappedMultilangItemUnity, lang string) APIWeapon
 		Description:            item.Description[lang],
 		Level:                  item.Level,
 		Pods:                   item.Pods,
-		ImageUrls:              RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
+		ImageUrls:              RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 		Recipe:                 nil,
 		CriticalHitBonus:       item.CriticalHitBonus,
 		CriticalHitProbability: item.CriticalHitProbability,
@@ -387,7 +390,7 @@ func RenderItemListEntry(item *mapping.MappedMultilangItemUnity, lang string) AP
 			Id:   item.Type.ItemTypeId,
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
+		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 	}
 }
 
@@ -415,10 +418,10 @@ func RenderTypedItemListEntry(item *mapping.MappedMultilangItemUnity, lang strin
 		},
 		ItemSubtype: APIListItemType{
 			Id:     item.Type.CategoryId,
-			NameId: CategoryIdApiMapping(item.Type.CategoryId),
+			NameId: utils.CategoryIdApiMapping(item.Type.CategoryId),
 		},
 		Level:     item.Level,
-		ImageUrls: RenderImageUrls(ImageUrls(item.IconId, "item", ItemImgResolutions)),
+		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 	}
 }
 
@@ -426,7 +429,7 @@ func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIM
 	return APIMount{
 		Id:        mount.AnkamaId,
 		Name:      mount.Name[lang],
-		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
+		ImageUrls: RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount", config.MountImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 		Family: APIMountFamily{
 			Id:   mount.FamilyId,
 			Name: mount.FamilyName[lang],
@@ -450,7 +453,7 @@ func RenderRecipe(recipe mapping.MappedMultilangRecipe, db *memdb.MemDB) []APIRe
 
 	var apiRecipes []APIRecipe
 	for _, entry := range recipe.Entries {
-		raw, err := txn.First(fmt.Sprintf("%s-%s", CurrentRedBlueVersionStr(Version.MemDb), "all_items"), "id", entry.ItemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", entry.ItemId)
 		if err != nil {
 			log.Error(err)
 			return nil
@@ -460,25 +463,25 @@ func RenderRecipe(recipe mapping.MappedMultilangRecipe, db *memdb.MemDB) []APIRe
 		apiRecipes = append(apiRecipes, APIRecipe{
 			AnkamaId: entry.ItemId,
 			Quantity: entry.Quantity,
-			ItemType: CategoryIdApiMapping(item.Type.CategoryId),
+			ItemType: utils.CategoryIdApiMapping(item.Type.CategoryId),
 		})
 	}
 	return apiRecipes
 }
 
 type APIPageItem struct {
-	Links PaginationLinks `json:"_links,omitempty"`
-	Items []APIListItem   `json:"items"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
+	Items []APIListItem         `json:"items"`
 }
 
 type APIPageMount struct {
-	Links PaginationLinks `json:"_links,omitempty"`
-	Items []APIMount      `json:"mounts"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
+	Items []APIMount            `json:"mounts"`
 }
 
 type APIPageSet struct {
-	Links PaginationLinks `json:"_links,omitempty"`
-	Items []APIListSet    `json:"sets"`
+	Links utils.PaginationLinks `json:"_links,omitempty"`
+	Items []APIListSet          `json:"sets"`
 }
 
 type APIMountFamily struct {
@@ -502,7 +505,7 @@ func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
 			Id:   mount.FamilyId,
 			Name: mount.FamilyName[lang],
 		},
-		ImageUrls: RenderImageUrls(ImageUrls(mount.AnkamaId, "mount", MountImgResolutions)),
+		ImageUrls: RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount", config.MountImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 	}
 
 	effects := RenderEffects(&mount.Effects, lang)

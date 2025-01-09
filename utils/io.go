@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"archive/tar"
@@ -12,69 +12,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/charmbracelet/log"
-	"github.com/dofusdude/ankabuffer"
 	"github.com/emirpasic/gods/maps/treebidimap"
 	gutils "github.com/emirpasic/gods/utils"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/spf13/viper"
 )
-
-var (
-	Languages           = []string{"de", "en", "es", "fr", "pt"}
-	ItemImgResolutions  = []string{"64", "128"}
-	MountImgResolutions = []string{"64", "256"}
-	ApiHostName         string
-	ApiPort             string
-	ApiScheme           string
-	DockerMountDataPath string
-	FileHashes          ankabuffer.Manifest
-	MeiliHost           string
-	MeiliKey            string
-	PrometheusEnabled   bool
-	PublishFileServer   bool
-	PersistedElements   PersistentStringKeysMap
-	PersistedTypes      PersistentStringKeysMap
-	IsBeta              bool
-	LastUpdate          time.Time
-	ElementsUrl         string
-	TypesUrl            string
-	ReleaseUrl          string
-	UpdateHookToken     string
-	DofusVersion        string
-	CurrentVersion      GameVersion
-	ApiVersion          string
-)
-
-var currentWd string
-
-type VersionT struct {
-	Search bool
-	MemDb  bool
-}
-
-type GameVersion struct {
-	Version     string    `json:"version"`
-	Release     string    `json:"release"`
-	UpdateStamp time.Time `json:"update_stamp"`
-}
 
 func Concat[T any](first []T, second []T) []T {
 	n := len(first)
 	return append(first[:n:n], second...)
-}
-
-func SetJsonHeader(w *http.ResponseWriter) {
-	(*w).Header().Set("Content-Type", "application/json")
-}
-
-func WriteCacheHeader(w *http.ResponseWriter) {
-	SetJsonHeader(w)
-	//(*w).Header().Set("Cache-Control", "max-age:300, public")
-	//(*w).Header().Set("Last-Modified", LastUpdate.Format(http.TimeFormat))
-	//(*w).Header().Set("Expires", time.Now().Add(time.Minute*5).Format(http.TimeFormat))
 }
 
 // from Armatorix https://codereview.stackexchange.com/questions/272457/decompress-tar-gz-file-in-go
@@ -119,13 +65,13 @@ func ExtractTarGz(baseDir string, gzipStream io.Reader) error {
 	return nil
 }
 
-func DownloadExtract(filename string) error {
-	absUrl := fmt.Sprintf("%s/%s.tar.gz", ReleaseUrl, filename)
+func DownloadExtract(filename string, dockerMountDataPath string, releaseUrl string) error {
+	absUrl := fmt.Sprintf("%s/%s.tar.gz", releaseUrl, filename)
 	response, err := http.Get(absUrl)
 	if err != nil {
 		return err
 	}
-	err = ExtractTarGz(DockerMountDataPath, response.Body)
+	err = ExtractTarGz(dockerMountDataPath, response.Body)
 	if err != nil {
 		return err
 	}
@@ -180,23 +126,23 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
-func DownloadImages() error {
+func DownloadImages(dockerMountDataPath string, releaseUrl string) error {
 	var err error
 
 	// -- items --
-	err = DownloadExtract(fmt.Sprintf("items_images_64"))
+	err = DownloadExtract(fmt.Sprintf("items_images_64"), dockerMountDataPath, releaseUrl)
 	if err != nil {
 		return fmt.Errorf("could not download items_images: %v", err)
 	}
 
-	err = DownloadExtract(fmt.Sprintf("items_images_128"))
+	err = DownloadExtract(fmt.Sprintf("items_images_128"), dockerMountDataPath, releaseUrl)
 	if err != nil {
 		return fmt.Errorf("could not download items_images: %v", err)
 	}
 
-	oldPath1x := filepath.Join(DockerMountDataPath, "data", "img", "item", "1x")
-	oldPath2x := filepath.Join(DockerMountDataPath, "data", "img", "item", "2x")
-	newPath := filepath.Join(DockerMountDataPath, "data", "img", "item")
+	oldPath1x := filepath.Join(dockerMountDataPath, "data", "img", "item", "1x")
+	oldPath2x := filepath.Join(dockerMountDataPath, "data", "img", "item", "2x")
+	newPath := filepath.Join(dockerMountDataPath, "data", "img", "item")
 
 	err = copyDir(oldPath1x, newPath)
 	if err != nil {
@@ -219,19 +165,19 @@ func DownloadImages() error {
 	}
 
 	// -- mounts --
-	err = DownloadExtract(fmt.Sprintf("mounts_images_64"))
+	err = DownloadExtract(fmt.Sprintf("mounts_images_64"), dockerMountDataPath, releaseUrl)
 	if err != nil {
 		return fmt.Errorf("could not download items_images: %v", err)
 	}
 
-	err = DownloadExtract(fmt.Sprintf("mounts_images_256"))
+	err = DownloadExtract(fmt.Sprintf("mounts_images_256"), dockerMountDataPath, releaseUrl)
 	if err != nil {
 		return fmt.Errorf("could not download items_images: %v", err)
 	}
 
-	oldPathSmall := filepath.Join(DockerMountDataPath, "data", "img", "mount", "small")
-	oldPathBig := filepath.Join(DockerMountDataPath, "data", "img", "mount", "big")
-	newPathMounts := filepath.Join(DockerMountDataPath, "data", "img", "mount")
+	oldPathSmall := filepath.Join(dockerMountDataPath, "data", "img", "mount", "small")
+	oldPathBig := filepath.Join(dockerMountDataPath, "data", "img", "mount", "big")
+	newPathMounts := filepath.Join(dockerMountDataPath, "data", "img", "mount")
 
 	err = copyDir(oldPathSmall, newPathMounts)
 	if err != nil {
@@ -256,92 +202,12 @@ func DownloadImages() error {
 	return nil
 }
 
-func ReadEnvs() {
-	viper.SetDefault("API_SCHEME", "http")
-	viper.SetDefault("API_HOSTNAME", "localhost")
-	viper.SetDefault("API_PORT", "3000")
-	viper.SetDefault("MEILI_PORT", "7700")
-	viper.SetDefault("MEILI_MASTER_KEY", "masterKey")
-	viper.SetDefault("MEILI_PROTOCOL", "http")
-	viper.SetDefault("MEILI_HOST", "127.0.0.1")
-	viper.SetDefault("PROMETHEUS", "false")
-	viper.SetDefault("FILESERVER", "true")
-	viper.SetDefault("IS_BETA", "false")
-	viper.SetDefault("UPDATE_HOOK_TOKEN", "")
-	viper.SetDefault("DOFUS_VERSION", "")
-	viper.SetDefault("LOG_LEVEL", "warn")
-
-	var err error
-	currentWd, err = os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	viper.SetDefault("DIR", currentWd)
-
-	viper.AutomaticEnv()
-
-	IsBeta = viper.GetBool("IS_BETA")
-	var betaStr string
-	if IsBeta {
-		betaStr = "beta"
-	} else {
-		betaStr = "main"
-	}
-
-	dofusVersion := viper.GetString("DOFUS_VERSION")
-	if dofusVersion == "" {
-		releaseApiResponse, err := http.Get(fmt.Sprintf("https://api.github.com/repos/dofusdude/dofus3-%s/releases/latest", betaStr))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		releaseApiResponseBody, err := io.ReadAll(releaseApiResponse.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var v map[string]interface{}
-		err = json.Unmarshal(releaseApiResponseBody, &v)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		DofusVersion = v["name"].(string)
-	} else {
-		DofusVersion = dofusVersion
-	}
-	parsedLevel, err := log.ParseLevel(viper.GetString("LOG_LEVEL"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.SetLevel(parsedLevel)
-
-	dofus3Prefix := ""
-	if strings.HasPrefix(DofusVersion, "3") {
-		dofus3Prefix = ".dofus3"
-	}
-
-	ElementsUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/elements%s.%s.json", dofus3Prefix, betaStr)
-	TypesUrl = fmt.Sprintf("https://raw.githubusercontent.com/dofusdude/doduda/main/persistent/item_types%s.%s.json", dofus3Prefix, betaStr)
-	ReleaseUrl = fmt.Sprintf("https://github.com/dofusdude/dofus3-%s/releases/download/%s", betaStr, DofusVersion)
-
-	ApiScheme = viper.GetString("API_SCHEME")
-	ApiHostName = viper.GetString("API_HOSTNAME")
-	ApiPort = viper.GetString("API_PORT")
-	MeiliKey = viper.GetString("MEILI_MASTER_KEY")
-	MeiliHost = fmt.Sprintf("%s://%s:%s", viper.GetString("MEILI_PROTOCOL"), viper.GetString("MEILI_HOST"), viper.GetString("MEILI_PORT"))
-	PrometheusEnabled = viper.GetBool("PROMETHEUS")
-	PublishFileServer = viper.GetBool("FILESERVER")
-	UpdateHookToken = viper.GetString("UPDATE_HOOK_TOKEN")
-	DockerMountDataPath = viper.GetString("DIR")
-}
-
-func ImageUrls(iconId int, apiType string, resolutions []string) []string {
+func ImageUrls(iconId int, apiType string, resolutions []string, apiScheme string, doduapiMajorVersion int, apiHostname string, beta bool) []string {
 	betaImage := ""
-	if IsBeta {
+	if beta {
 		betaImage = "beta"
 	}
-	baseUrl := fmt.Sprintf("%s://%s/dofus3%s/v%d/img/%s", ApiScheme, ApiHostName, betaImage, DoduapiMajor, apiType)
+	baseUrl := fmt.Sprintf("%s://%s/dofus3%s/v%d/img/%s", apiScheme, apiHostname, betaImage, doduapiMajorVersion, apiType)
 	var urls []string
 
 	for _, resolution := range resolutions {
@@ -356,60 +222,60 @@ type PersistentStringKeysMap struct {
 	NextId  int              `json:"next_id"`
 }
 
-func LoadPersistedElements() error {
-	elementsResponse, err := http.Get(ElementsUrl)
+func LoadPersistedElements(elementsUrl string, typesUrl string) (PersistentStringKeysMap, PersistentStringKeysMap, error) {
+	elementsResponse, err := http.Get(elementsUrl)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
 	elementsBody, err := io.ReadAll(elementsResponse.Body)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
 	var elements []string
 	err = json.Unmarshal(elementsBody, &elements)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
-	PersistedElements = PersistentStringKeysMap{
+	persistedElements := PersistentStringKeysMap{
 		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
 		NextId:  0,
 	}
 
 	for _, entry := range elements {
-		PersistedElements.Entries.Put(PersistedElements.NextId, entry)
-		PersistedElements.NextId++
+		persistedElements.Entries.Put(persistedElements.NextId, entry)
+		persistedElements.NextId++
 	}
 
-	typesResponse, err := http.Get(TypesUrl)
+	typesResponse, err := http.Get(typesUrl)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
 	typesBody, err := io.ReadAll(typesResponse.Body)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
 	var types []string
 	err = json.Unmarshal(typesBody, &types)
 	if err != nil {
-		return err
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
-	PersistedTypes = PersistentStringKeysMap{
+	persistedTypes := PersistentStringKeysMap{
 		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
 		NextId:  0,
 	}
 
 	for _, entry := range types {
-		PersistedTypes.Entries.Put(PersistedTypes.NextId, entry)
-		PersistedTypes.NextId++
+		persistedTypes.Entries.Put(persistedTypes.NextId, entry)
+		persistedTypes.NextId++
 	}
 
-	return nil
+	return persistedElements, persistedTypes, nil
 }
 
 func CurrentRedBlueVersionStr(redBlueValue bool) string {
@@ -461,7 +327,7 @@ func (p *Pagination) ValidatePagination(listSize int) int {
 	return 0
 }
 
-func (p *Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks, bool) {
+func (p *Pagination) BuildLinks(mainUrl url.URL, listSize int, apiScheme string, apiHostname string) (PaginationLinks, bool) {
 	firstPage := 1
 	var lastPage int
 
@@ -472,7 +338,7 @@ func (p *Pagination) BuildLinks(mainUrl url.URL, listSize int) (PaginationLinks,
 		lastPage = (listSize / p.PageSize) + 1
 	}
 
-	baseUrl, _ := url.JoinPath(fmt.Sprintf("%s://%s", ApiScheme, ApiHostName), mainUrl.Path)
+	baseUrl, _ := url.JoinPath(fmt.Sprintf("%s://%s", apiScheme, apiHostname), mainUrl.Path)
 
 	firstUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", firstPage, p.PageSize)
 	prevUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", p.PageNumber-1, p.PageSize)
