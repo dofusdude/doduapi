@@ -177,7 +177,7 @@ func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, u
 			// ----
 			updateSearchIndex <- idx
 
-			if config.SkipAlmanax {
+			if !config.SkipAlmanax {
 				err = almanax.GatherAlmanaxData(false, true) // headless true since we want the log output
 				if err != nil {
 					log.Fatal(err) // TODO notify on error, not just hard exit since we want high availability
@@ -454,7 +454,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	if skipAlmanax {
+	if !skipAlmanax {
 		if isChannelClosed(feedbackChan) {
 			os.Exit(1)
 		}
