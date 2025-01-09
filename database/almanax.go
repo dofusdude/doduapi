@@ -195,18 +195,18 @@ func (r *Repository) CreateTribute(tribute *Tribute) (int64, error) {
 }
 
 func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilangNPCAlmanaxUnity) (int64, error) {
-	bonusType := enNameToId(almanax.Bonus["en"])
+	bonusType := enNameToId(almanax.BonusType["en"])
 	query := `SELECT id FROM bonus_types WHERE name_id = ?`
 	var bonusTypeID int64
 	err := r.Db.QueryRow(query, bonusType).Scan(&bonusTypeID)
 	if err == sql.ErrNoRows {
 		bonusTypeID, err = r.CreateBonusType(&BonusType{
 			NameID: bonusType,
-			NameEn: almanax.Bonus["en"],
-			NameFr: almanax.Bonus["fr"],
-			NameEs: almanax.Bonus["es"],
-			NameDe: almanax.Bonus["de"],
-			NamePt: almanax.Bonus["pt"],
+			NameEn: almanax.BonusType["en"],
+			NameFr: almanax.BonusType["fr"],
+			NameEs: almanax.BonusType["es"],
+			NameDe: almanax.BonusType["de"],
+			NamePt: almanax.BonusType["pt"],
 		})
 		if err != nil {
 			return -1, err
@@ -334,7 +334,7 @@ func (r *Repository) CreateBonusType(bonusType *BonusType) (int64, error) {
 }
 
 func enNameToId(enName string) string {
-	return strings.ToLower(strings.ReplaceAll(enName, " ", "_"))
+	return strings.ToLower(strings.ReplaceAll(enName, " ", "-"))
 }
 
 func (r *Repository) GetBonusTypes() ([]BonusType, error) {

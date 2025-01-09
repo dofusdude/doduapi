@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
 )
+
+var bonusDescriptionTemplateRe = regexp.MustCompile(`{{([^,]+),([0-9]+)::([^{]+)}}`)
 
 func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
@@ -109,6 +112,15 @@ func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, txn *memdb.Tx
 		response.Tribute.Item.Name = m.Tribute.ItemNamePt
 	}
 
+	// replace templated links inside the bonus description; TODO replace this later with a meta link to the linked item or monster
+	response.Bonus.Description = bonusDescriptionTemplateRe.ReplaceAllStringFunc(response.Bonus.Description, func(match string) string {
+		group := bonusDescriptionTemplateRe.FindStringSubmatch(match)
+		if len(group) < 4 {
+			return match // return original if for some reason we do not have enough captures
+		}
+		return group[3] // only return the last capture group, which is the localized name
+	})
+
 	return response, nil
 }
 
@@ -159,6 +171,14 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		e.WriteInvalidQueryResponse(w, "Invalid timezone.")
+		return
+	}
+	fromDate = time.Now().In(loc)
+	toDate = fromDate.AddDate(0, 0, config.AlmanaxDefaultLookAhead)
+
 	givenRangeSize := size != "" && sizeNum > 0
 	if givenRangeSize && givenFromDate && givenToDate {
 		e.WriteInvalidQueryResponse(w, "Cannot use range[size] with range[from] and range[to].")
@@ -166,7 +186,6 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if givenRangeSize && !givenFromDate && !givenToDate {
-		// use timezones to get the correct date of "today"
 		loc, err := time.LoadLocation(timezone)
 		if err != nil {
 			e.WriteInvalidQueryResponse(w, "Invalid timezone.")
@@ -178,8 +197,6 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 		if givenFromDate && givenToDate {
 			fromDate = fromDateParsed
 			toDate = toDateParsed
-
-			toDate = toDate.AddDate(0, 0, 1)
 		}
 
 		if givenFromDate && !givenToDate {
@@ -189,7 +206,6 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 
 		if !givenFromDate && givenToDate {
 			toDate = toDateParsed
-			toDate = toDate.AddDate(0, 0, 1)
 		}
 	}
 
@@ -198,7 +214,7 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if givenRangeSize && givenToDate {
-		toDate = toDateParsed.AddDate(0, 0, 1)
+		toDate = toDateParsed
 		fromDate = toDate.AddDate(0, 0, -sizeNum)
 	}
 

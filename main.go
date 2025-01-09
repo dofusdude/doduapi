@@ -32,7 +32,7 @@ import (
 
 var (
 	DoduapiMajor       = 1                                          // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.10", DoduapiMajor) // change with every release
+	DoduapiVersion     = fmt.Sprintf("v%d.0.0-rc.11", DoduapiMajor) // change with every release
 	DoduapiShort       = "doduapi - Open Dofus Encyclopedia API"
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
@@ -47,7 +47,7 @@ func ReadEnvs() {
 	config.MajorVersion = DoduapiMajor
 
 	viper.SetDefault("API_SCHEME", "http")
-	viper.SetDefault("API_HOSTNAME", "localhost")
+	viper.SetDefault("API_HOSTNAME", "localhost:3000")
 	viper.SetDefault("API_PORT", "3000")
 	viper.SetDefault("MEILI_PORT", "7700")
 	viper.SetDefault("MEILI_MASTER_KEY", "masterKey")
