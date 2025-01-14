@@ -327,10 +327,14 @@ func migrateUp(cmd *cobra.Command, args []string) {
 	}
 
 	if err = m.Up(); err != nil {
-		log.Fatalf("migrate up error: %v \n", err)
+		if err == migrate.ErrNoChange {
+			log.Print("No change detected in migrations")
+		} else {
+			log.Fatalf("migrate up error: %v \n", err)
+		}
+	} else {
+		log.Print("Migrate up done with success")
 	}
-
-	log.Print("Migrate up done with success")
 }
 
 func migrateDown(cmd *cobra.Command, args []string) {
@@ -359,9 +363,9 @@ func migrateDown(cmd *cobra.Command, args []string) {
 
 	if err = m.Down(); err != nil {
 		log.Fatalf("migrate down error: %v \n", err)
+	} else {
+		log.Print("Migrate down done with success")
 	}
-
-	log.Print("Migrate down done with success")
 }
 
 func main() {

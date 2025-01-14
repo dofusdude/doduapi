@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -25,6 +26,23 @@ var bonusDescriptionTemplateRe = regexp.MustCompile(`{{([^,]+),([0-9]+)::([^{]+)
 func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
 	date := r.Context().Value("date").(time.Time)
+	level := r.URL.Query().Get("level")
+
+	var levelInt *int
+	if level != "" {
+		levelParse, err := strconv.Atoi(level)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid level value.")
+			return
+		}
+
+		if levelParse < 1 || levelParse > 200 {
+			e.WriteInvalidQueryResponse(w, "Level value out of bounds.")
+			return
+		}
+
+		levelInt = &levelParse
+	}
 
 	almDb := database.NewDatabaseRepository(context.Background(), config.DbDir)
 	defer almDb.Deinit()
@@ -49,7 +67,7 @@ func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 	itemDb := database.Db.Txn(false)
 	defer itemDb.Abort()
 
-	response, err := renderAlmanaxResponse(&mappedAlmanax[0], lang, itemDb)
+	response, err := renderAlmanaxResponse(&mappedAlmanax[0], lang, levelInt, itemDb)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not render Almanax response. "+err.Error())
 		return
@@ -66,12 +84,29 @@ func GetAlmanaxSingle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, txn *memdb.Txn) (AlmanaxResponse, error) {
+func experienceReward(playerLevel, optimalLevel int, xpRatio, duration float64) int {
+	if playerLevel == -1 {
+		playerLevel = 200
+	}
+
+	if playerLevel > optimalLevel {
+		rewardLevel := int(math.Min(float64(playerLevel), float64(optimalLevel)*1.5))
+		fixeOptimalLevelExperienceReward := float64(optimalLevel) * math.Pow(100.0+2.0*float64(optimalLevel), 2.0) / 20.0 * duration * xpRatio
+		fixeLevelExperienceReward := float64(rewardLevel) * math.Pow(100.0+2.0*float64(rewardLevel), 2.0) / 20.0 * duration * xpRatio
+
+		reducedOptimalExperienceReward := (1.0 - 0.7) * fixeOptimalLevelExperienceReward
+		reducedExperienceReward := 0.7 * fixeLevelExperienceReward
+		return int(math.Floor(reducedExperienceReward + reducedOptimalExperienceReward))
+	}
+	return int(math.Floor(float64(playerLevel) * math.Pow(100.0+2.0*float64(playerLevel), 2.0) / 20.0 * duration * xpRatio))
+}
+
+func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, level *int, txn *memdb.Txn) (AlmanaxResponse, error) {
 	var response AlmanaxResponse
 	response.Date = m.Almanax.Date
 	response.Bonus.BonusType.Id = m.BonusType.NameID
 	response.Tribute.Quantity = m.Tribute.Quantity
-	response.RewardKamas = m.Almanax.RewardKamas
+	response.RewardKamas = int(m.Almanax.RewardKamas)
 	response.Tribute.Item.AnkamaId = m.Tribute.ItemAnkamaID
 	response.Tribute.Item.Subtype = utils.CategoryIdApiMapping(m.Tribute.ItemCategoryId)
 
@@ -121,6 +156,11 @@ func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, txn *memdb.Tx
 		return group[3] // only return the last capture group, which is the localized name
 	})
 
+	if level != nil {
+		response.RewardXp = new(int)
+		*response.RewardXp = experienceReward(*level, m.Almanax.OptimalLvl, m.Almanax.XpRatio, m.Almanax.Duration)
+	}
+
 	return response, nil
 }
 
@@ -132,6 +172,23 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	var sizeNum int
 	bonusType := r.URL.Query().Get("filter[bonus_type]")
 	timezone := r.URL.Query().Get("timezone")
+
+	level := r.URL.Query().Get("level")
+	var levelInt *int
+	if level != "" {
+		levelParse, err := strconv.Atoi(level)
+		if err != nil {
+			e.WriteInvalidQueryResponse(w, "Invalid level value.")
+			return
+		}
+
+		if levelParse < 1 || levelParse > 200 {
+			e.WriteInvalidQueryResponse(w, "Level value out of bounds.")
+			return
+		}
+
+		levelInt = &levelParse
+	}
 
 	var err error
 
@@ -280,7 +337,7 @@ func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, m := range mappedAlmanax {
-		response, err := renderAlmanaxResponse(&m, lang, itemDb)
+		response, err := renderAlmanaxResponse(&m, lang, levelInt, itemDb)
 		if err != nil {
 			e.WriteServerErrorResponse(w, "Could not render Almanax response. "+err.Error())
 			return

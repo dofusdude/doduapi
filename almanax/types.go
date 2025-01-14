@@ -15,7 +15,8 @@ type AlmanaxResponse struct {
 			Id   string `json:"id"`
 		} `json:"type"`
 	} `json:"bonus"`
-	RewardKamas int64 `json:"reward_kamas"`
+	RewardKamas int  `json:"reward_kamas"`
+	RewardXp    *int `json:"reward_xp,omitempty"`
 	Tribute     struct {
 		Item struct {
 			AnkamaId  int64        `json:"ankama_id"`

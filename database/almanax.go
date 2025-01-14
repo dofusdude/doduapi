@@ -63,7 +63,7 @@ func (r *Repository) Deinit() {
 func (r *Repository) GetAlmanaxByDateRangeAndNameID(from, to, nameID string) ([]MappedAlmanax, error) {
 	query := `
 		SELECT
-			a.id, a.bonus_id, a.tribute_id, a.date, a.reward_kamas, a.created_at, a.updated_at, a.deleted_at,
+			a.id, a.bonus_id, a.tribute_id, a.date, a.reward_kamas, a.experience_ratio, a.optimal_level, a.duration, a.created_at, a.updated_at, a.deleted_at,
 			b.id, b.bonus_type_id, b.description_en, b.description_fr, b.description_es, b.description_de, b.description_pt,
 			bt.id, bt.name_id, bt.name_en, bt.name_fr, bt.name_es, bt.name_de, bt.name_pt,
 			t.id, t.item_name_en, t.item_name_fr, t.item_name_es, t.item_name_de, t.item_name_pt,
@@ -89,7 +89,7 @@ func (r *Repository) GetAlmanaxByDateRangeAndNameID(from, to, nameID string) ([]
 
 		err := rows.Scan(
 			&denorm.Almanax.ID, &denorm.Almanax.BonusID, &denorm.Almanax.TributeID, &denorm.Almanax.Date,
-			&denorm.Almanax.RewardKamas, &denorm.Almanax.CreatedAt, &denorm.Almanax.UpdatedAt, &deletedAt,
+			&denorm.Almanax.RewardKamas, &denorm.Almanax.XpRatio, &denorm.Almanax.OptimalLvl, &denorm.Almanax.Duration, &denorm.Almanax.CreatedAt, &denorm.Almanax.UpdatedAt, &deletedAt,
 			&denorm.Bonus.ID, &denorm.Bonus.BonusTypeID, &denorm.Bonus.DescriptionEn, &denorm.Bonus.DescriptionFr,
 			&denorm.Bonus.DescriptionEs, &denorm.Bonus.DescriptionDe, &denorm.Bonus.DescriptionPt,
 			&denorm.BonusType.ID, &denorm.BonusType.NameID, &denorm.BonusType.NameEn, &denorm.BonusType.NameFr,
@@ -118,7 +118,7 @@ func (r *Repository) GetAlmanaxByDateRangeAndNameID(from, to, nameID string) ([]
 func (r *Repository) GetAlmanaxByDateRange(from, to string) ([]MappedAlmanax, error) {
 	query := `
 		SELECT
-			a.id, a.bonus_id, a.tribute_id, a.date, a.reward_kamas, a.created_at, a.updated_at, a.deleted_at,
+			a.id, a.bonus_id, a.tribute_id, a.date, a.reward_kamas, a.experience_ratio, a.optimal_level, a.duration, a.created_at, a.updated_at, a.deleted_at,
 			b.id, b.bonus_type_id, b.description_en, b.description_fr, b.description_es, b.description_de, b.description_pt,
 			bt.id, bt.name_id, bt.name_en, bt.name_fr, bt.name_es, bt.name_de, bt.name_pt,
 			t.id, t.item_name_en, t.item_name_fr, t.item_name_es, t.item_name_de, t.item_name_pt,
@@ -144,7 +144,7 @@ func (r *Repository) GetAlmanaxByDateRange(from, to string) ([]MappedAlmanax, er
 
 		err := rows.Scan(
 			&denorm.Almanax.ID, &denorm.Almanax.BonusID, &denorm.Almanax.TributeID, &denorm.Almanax.Date,
-			&denorm.Almanax.RewardKamas, &denorm.Almanax.CreatedAt, &denorm.Almanax.UpdatedAt, &deletedAt,
+			&denorm.Almanax.RewardKamas, &denorm.Almanax.XpRatio, &denorm.Almanax.OptimalLvl, &denorm.Almanax.Duration, &denorm.Almanax.CreatedAt, &denorm.Almanax.UpdatedAt, &deletedAt,
 			&denorm.Bonus.ID, &denorm.Bonus.BonusTypeID, &denorm.Bonus.DescriptionEn, &denorm.Bonus.DescriptionFr,
 			&denorm.Bonus.DescriptionEs, &denorm.Bonus.DescriptionDe, &denorm.Bonus.DescriptionPt,
 			&denorm.BonusType.ID, &denorm.BonusType.NameID, &denorm.BonusType.NameEn, &denorm.BonusType.NameFr,
@@ -196,7 +196,7 @@ func (r *Repository) CreateTribute(tribute *Tribute) (int64, error) {
 
 func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilangNPCAlmanaxUnity) (int64, error) {
 	bonusType := enNameToId(almanax.BonusType["en"])
-	query := `SELECT id FROM bonus_types WHERE name_id = ?`
+	query := `SELECT id FROM bonus_types WHERE name_id = ? AND deleted_at IS NULL`
 	var bonusTypeID int64
 	err := r.Db.QueryRow(query, bonusType).Scan(&bonusTypeID)
 	if err == sql.ErrNoRows {
@@ -213,7 +213,7 @@ func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilan
 		}
 	}
 
-	query = `SELECT id FROM bonus WHERE description_en = ?`
+	query = `SELECT id FROM bonus WHERE description_en = ? AND deleted_at IS NULL`
 	var bonusID int64
 	err = r.Db.QueryRow(query, almanax.Bonus["en"]).Scan(&bonusID)
 	if err == sql.ErrNoRows {
@@ -230,7 +230,7 @@ func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilan
 		}
 	}
 
-	query = `SELECT id FROM tribute WHERE item_ankama_id = ? AND quantity = ?`
+	query = `SELECT id FROM tribute WHERE item_ankama_id = ? AND quantity = ? AND deleted_at IS NULL`
 	var tributeID int64
 	err = r.Db.QueryRow(query, almanax.Offering.ItemId, almanax.Offering.Quantity).Scan(&tributeID)
 	if err == sql.ErrNoRows {
@@ -266,33 +266,38 @@ func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilan
 		}
 	}
 
-	query = `SELECT id FROM almanax WHERE date = ?`
+	query = `SELECT id FROM almanax WHERE date = ? AND deleted_at IS NULL LIMIT 1`
 	var id int64
 	err = r.Db.QueryRow(query, date).Scan(&id)
 	if err == sql.ErrNoRows {
 		query = `
-			INSERT INTO almanax (bonus_id, tribute_id, date, reward_kamas, created_at, updated_at)
-			VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`
-		result, err := r.Db.Exec(query, bonusID, tributeID, date, almanax.RewardKamas)
+			INSERT INTO almanax (bonus_id, tribute_id, date, reward_kamas, experience_ratio, optimal_level, duration, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+		result, err := r.Db.Exec(query, bonusID, tributeID, date, almanax.RewardKamas, almanax.ExperienceRatio, almanax.OptimalLevel, almanax.Duration)
 		if err != nil {
 			return 0, err
 		}
 		return result.LastInsertId()
 	} else {
-		query = `SELECT bonus_id, tribute_id, reward_kamas FROM almanax WHERE id = ?`
-		var exBonusID, exTributeID, exRewardKamas int64
-		err = r.Db.QueryRow(query, id).Scan(&exBonusID, &exTributeID, &exRewardKamas)
+		query = `SELECT bonus_id, tribute_id, reward_kamas, experience_ratio, optimal_level, duration FROM almanax WHERE id = ? AND deleted_at IS NULL`
+		var exBonusID, exTributeID int64
+		var exRewardKamas, optimal_level int
+		var xp_ratio, duration float64
+		err = r.Db.QueryRow(query, id).Scan(&exBonusID, &exTributeID, &exRewardKamas, &xp_ratio, &optimal_level, &duration)
 		if err != nil {
 			return 0, err
 		}
 
-		if exBonusID != bonusID || exTributeID != tributeID || exRewardKamas != int64(almanax.RewardKamas) {
+		if exBonusID != bonusID || exTributeID != tributeID || exRewardKamas != almanax.RewardKamas || xp_ratio != almanax.ExperienceRatio || optimal_level != almanax.OptimalLevel || duration != almanax.Duration {
 			err = r.UpdateAlmanax(&Almanax{
 				ID:          id,
 				BonusID:     bonusID,
 				TributeID:   tributeID,
 				Date:        date,
 				RewardKamas: int64(almanax.RewardKamas),
+				OptimalLvl:  almanax.OptimalLevel,
+				Duration:    almanax.Duration,
+				XpRatio:     almanax.ExperienceRatio,
 			})
 			if err != nil {
 				return 0, err
@@ -306,9 +311,9 @@ func (r *Repository) CreateOrUpdate(date string, almanax *dodumap.MappedMultilan
 func (r *Repository) UpdateAlmanax(almanax *Almanax) error {
 	query := `
 		UPDATE almanax
-		SET bonus_id = ?, tribute_id = ?, date = ?, reward_kamas = ?, updated_at = datetime('now')
+		SET bonus_id = ?, tribute_id = ?, date = ?, reward_kamas = ?, experience_ratio = ?, optimal_level = ?, duration = ?, updated_at = datetime('now')
 		WHERE id = ?`
-	_, err := r.Db.Exec(query, almanax.BonusID, almanax.TributeID, almanax.Date, almanax.RewardKamas, almanax.ID)
+	_, err := r.Db.Exec(query, almanax.BonusID, almanax.TributeID, almanax.Date, almanax.RewardKamas, almanax.XpRatio, almanax.OptimalLvl, almanax.Duration, almanax.ID)
 	return err
 }
 
@@ -339,7 +344,7 @@ func enNameToId(enName string) string {
 
 func (r *Repository) GetBonusTypes() ([]BonusType, error) {
 	query := `SELECT id, name_id, name_en, name_fr, name_es, name_de, name_pt
-	          FROM bonus_types`
+	          FROM bonus_types WHERE deleted_at IS NULL`
 	rows, err := r.Db.Query(query)
 	if err != nil {
 		return nil, err

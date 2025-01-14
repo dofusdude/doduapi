@@ -50,6 +50,9 @@ type Almanax struct {
 	TributeID   int64      `db:"tribute_id"`
 	Date        string     `db:"date"`
 	RewardKamas int64      `db:"reward_kamas"`
+	XpRatio     float64    `db:"xp_ratio"`
+	OptimalLvl  int        `db:"optimal_lvl"`
+	Duration    float64    `db:"duration"`
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
 	DeletedAt   *time.Time `db:"deleted_at"`
