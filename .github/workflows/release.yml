@@ -1,35 +1,128 @@
-name: goreleaser
+name: Build and Package
 
 on:
   push:
     tags:
-      - v*
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
-  goreleaser:
-    runs-on: macos-latest
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-latest
+            goos: linux
+          - os: macos-latest
+            goos: darwin
+          - os: windows-latest
+            goos: windows
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: "1.21"
-      - uses: goto-bus-stop/setup-zig@v2
-      - name: Set output
-        id: macos_sdk
-        run: echo "path=$(xcrun --show-sdk-path)" >> $GITHUB_OUTPUT
-      - name: Run goreleaser
-        uses: goreleaser/goreleaser-action@v4
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
+
+      - name: Install musl tools
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools musl-dev --no-install-recommends -y
+
+      - name: Build
         env:
-          SDK_PATH: ${{ steps.macos_sdk.outputs.path }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 1 # Ensure CGO is enabled
+        run: |
+          if [ "${{ matrix.goos }}" == "linux" ]; then
+            CC=musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
+          else
+            go build -o doduapi
+          fi
+
+      - name: Create Archive
+        run: |
+          mkdir -p dist
+          tar -czvf dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz doduapi LICENSE README.md migrations/
+          zip -r dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip doduapi LICENSE README.md migrations/
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          shasum -a 256 * > checksums.txt
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Determine If Prerelease
+        id: prerelease
+        run: |
+          if [[ "${GITHUB_REF##*/}" == *-rc* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: false
+          prerelease: ${{ env.IS_PRERELEASE }}
+
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz
+          asset_name: doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz
+          asset_content_type: application/gzip
+      - name: Upload ZIP Assets (per platform)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip
+          asset_name: doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload Checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/checksums.txt
+          asset_name: checksums.txt
+          asset_content_type: text/plain
