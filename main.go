@@ -20,14 +20,14 @@ import (
 	"github.com/dofusdude/doduapi/database"
 	"github.com/dofusdude/doduapi/ui"
 	"github.com/dofusdude/doduapi/utils"
-	"github.com/golang-migrate/migrate"
-	"github.com/golang-migrate/migrate/database/sqlite3"
-	"github.com/golang-migrate/migrate/source/file"
 	"github.com/hashicorp/go-memdb"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/stelzo/migrate/v4"
+	"github.com/stelzo/migrate/v4/database/sqlite3"
+	"github.com/stelzo/migrate/v4/source/file"
 )
 
 var (
