@@ -11,7 +11,7 @@
   <img src="https://vhs.charm.sh/vhs-2mgsbcqX7zIII0IvqV5uw0.gif" width="600">
 </p>
 
-## Usage
+## Public Instance
 
 The dofusdude server is always running with the latest Dofus version and it is highly recommended to use its public endpoints at `https://api.dofusdu.de/`. Try them out [here](https://docs.dofusdu.de) and use the SDKs for real development.
 
@@ -21,31 +21,34 @@ The dofusdude server is always running with the latest Dofus version and it is h
 - [Python](https://github.com/dofusdude/dofusdude-py) `pip install dofusdude`
 - [Java](https://github.com/dofusdude/dofusdude-java) Maven with GitHub packages setup
 
-If you host your own instance you have to update it yourself. You can use a [doduda Watchdog](https://github.com/dofusdude/doduda#watchdog) as a trigger.
+## Quickstart
+
+If you want to run `doduapi` for yourself, just follow the following commands. They assume Linux (x86_64). For MacOS, you need to `brew install md5sha1sum`. Or just make up your own keys. It's just to make the setup easy.
+
+I can't help you for Windows since I don't have it. But there are prebuilt binaries in the [Releases](https://github.com/dofusdude/doduapi/releases) for it. Change the `Linux_x86_64` string accordingly in the curl command below.
+
+```bash
+export MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
+echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" > .env
+
+curl -L https://install.meilisearch.com | sh
+./meilisearch --master-key $MEILI_MASTER_KEY &
+
+curl -s https://api.github.com/repos/dofusdude/doduapi/releases/latest \
+	| grep "browser_download_url.*Linux_x86_64*" \
+	| cut -d : -f 2,3 \
+	| tr -d \" \
+	| head -n 1 \
+	| xargs -n 1 curl -LO
+tar xfz doduapi_*
+./doduapi migrate up
+./doduapi
+```
+You can get the search engine process back with `fg` later.
 
 ## Development Setup
 
-Assumptions:
-
-- Linux / MacOS
-
-Create a simple `.env` file.
-
-```shell
-export MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
-
-echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" > .env
-```
-
-If you had a problem with the md5sum, you are probably on MacOS and need to `brew install md5sha1sum`. Also, `jq` could be a problem, `brew install jq` or `sudo apt install jq`. Or just make up your own keys.
-
-Download [Meilisearch](https://www.meilisearch.com/docs/learn/getting_started/installation#local-installation) for the search engine and let it run in the background.
-
-```shell
-curl -L https://install.meilisearch.com | sh
-./meilisearch --master-key $MEILI_MASTER_KEY &
-```
-You can get the process back with `fg` later.
+Follow the Quickstart for Meilisearch.
 
 The Almanax data is saved within a file database. `doduapi` can initialize the database structure itself with the following command.
 ```shell
