@@ -1,28 +1,132 @@
 before:
   hooks:
     - go mod tidy
+env:
+  - CGO_ENABLED=1
 builds:
-  - env:
-      - CGO_ENABLED=1
+  - id: doduapi-darwin-amd64
+    binary: doduapi
+    main: ./cmd/doduapi
+    goarch:
+      - amd64
+    goos:
+      - darwin
+    env:
+      - CC=o64-clang
+      - CXX=o64-clang++
+    flags:
+      - -trimpath
+
+  - id: doduapi-darwin-arm64
+    binary: doduapi
+    main: ./cmd/doduapi
+    goarch:
+      - arm64
+    goos:
+      - darwin
+    env:
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+    flags:
+      - -trimpath
+  - id: doduapi-linux-amd64
+    binary: doduapi
+    main: ./cmd/doduapi
+    env:
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+    goarch:
+      - amd64
     goos:
       - linux
-      #- windows
-      - darwin
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static"
+  - id: doduapi-linux-arm64
+    binary: doduapi
+    main: ./cmd/doduapi
+    goarch:
+      - arm64
+    goos:
+      - linux
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static"
+  - id: doduapi-windows-amd64
+    binary: doduapi
+    main: ./cmd/doduapi
+    goarch:
+      - amd64
+    goos:
+      - windows
+    env:
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    flags:
+      - -trimpath
+      - -buildmode=exe
 
+universal_binaries:
+  - id: doduapi-darwin-universal
+    ids:
+      - doduapi-darwin-amd64
+      - doduapi-darwin-arm64
+    replace: true
+    name_template: "{{ .ProjectName }}"
 archives:
-  - format: tar.gz
-    # this name template makes the OS and Arch compatible with the results of uname.
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    #format_overrides:
-    #  - goos: windows
-    #    format: zip
+  - id: linux-darwin-w/version
+    builds:
+      - doduapi-linux-amd64
+      - doduapi-linux-arm64
+      - doduapi-darwin-universal
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: tar.gz
+    files:
+      - migrations/**
+      - README.md
+      - LICENSE
+
+  - id: windows-w/version
+    builds:
+      - doduapi-windows-amd64
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: zip
+    files:
+      - migrations/**
+      - README.md
+      - LICENSE
+
+  - id: linux-darwin-wo/version
+    builds:
+      - doduapi-linux-amd64
+      - doduapi-linux-arm64
+      - doduapi-darwin-universal
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: tar.gz
+    files:
+      - migrations/**
+      - README.md
+      - LICENSE
+
+  - id: windows-wo/version
+    builds:
+      - doduapi-windows-amd64
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: zip
+    files:
+      - migrations/**
+      - README.md
+      - LICENSE
+
 checksum:
   name_template: "checksums.txt"
 snapshot:
