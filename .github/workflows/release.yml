@@ -37,6 +37,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install musl-tools musl-dev --no-install-recommends -y
 
+      - name: Setup for Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install mingw -y
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
@@ -44,16 +49,29 @@ jobs:
           CGO_ENABLED: 1 # Ensure CGO is enabled
         run: |
           if [ "${{ matrix.goos }}" == "linux" ]; then
-            CC=musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
-          else
+            if [ "${{ matrix.arch }}" == "amd64" ]; then
+              CC=x86_64-linux-musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              CC=aarch64-linux-musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
+            fi
+          elif [ "${{ matrix.goos }}" == "windows" ]; then
+            if [ "${{ matrix.arch }}" == "amd64" ]; then
+              CC=x86_64-w64-mingw32-gcc go build -o doduapi.exe
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              CC=aarch64-w64-mingw32-gcc go build -o doduapi.exe
+            fi
+          elif
             go build -o doduapi
           fi
 
       - name: Create Archive
         run: |
           mkdir -p dist
-          tar -czvf dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz doduapi LICENSE README.md migrations/
-          zip -r dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip doduapi LICENSE README.md migrations/
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            zip -r dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip doduapi.exe LICENSE README.md migrations/
+          else
+            tar -czvf dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz doduapi LICENSE README.md migrations/
+          fi
 
       - name: Generate Checksums
         run: |
@@ -98,6 +116,10 @@ jobs:
           draft: false
           prerelease: ${{ env.IS_PRERELEASE }}
 
+      - name: Set Version
+        id: vars
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
       - name: Upload Release Assets
         uses: actions/upload-release-asset@v1
         env:
@@ -105,7 +127,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz
-          asset_name: doduapi_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz
+          asset_name: doduapi_${{ env.VERSION }}_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz
           asset_content_type: application/gzip
       - name: Upload ZIP Assets (per platform)
         uses: actions/upload-release-asset@v1
@@ -114,7 +136,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip
-          asset_name: doduapi_${{ matrix.goos }}_${{ matrix.arch }}.zip
+          asset_name: doduapi_${{ env.VERSION }}_${{ matrix.goos }}_${{ matrix.arch }}.zip
           asset_content_type: application/zip
 
       - name: Upload Checksums
