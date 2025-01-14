@@ -23,12 +23,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Verify Git Repository
-        run: |
-          echo "Current directory: $(pwd)"
-          ls -la
-          [ -d .git ] && echo ".git directory exists" || echo ".git directory missing"
       - name: Run GoReleaser
-        run: goreleaser release --clean
+        run: goreleaser release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

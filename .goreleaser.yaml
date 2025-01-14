@@ -7,8 +7,6 @@ env:
   - CGO_ENABLED=1
 builds:
   - id: doduapi-darwin-amd64
-    binary: doduapi
-    main: ./cmd/doduapi
     goarch:
       - amd64
     goos:
@@ -20,8 +18,6 @@ builds:
       - -trimpath
 
   - id: doduapi-darwin-arm64
-    binary: doduapi
-    main: ./cmd/doduapi
     goarch:
       - arm64
     goos:
@@ -46,8 +42,6 @@ builds:
     ldflags:
       - -extldflags "-lc -lrt -lpthread --static"
   - id: doduapi-linux-arm64
-    binary: doduapi
-    main: ./cmd/doduapi
     goarch:
       - arm64
     goos:
@@ -60,8 +54,6 @@ builds:
     ldflags:
       - -extldflags "-lc -lrt -lpthread --static"
   - id: doduapi-windows-amd64
-    binary: doduapi
-    main: ./cmd/doduapi
     goarch:
       - amd64
     goos:
