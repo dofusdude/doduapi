@@ -60,7 +60,7 @@ jobs:
             elif [ "${{ matrix.arch }}" == "arm64" ]; then
               CC=aarch64-w64-mingw32-gcc go build -o doduapi.exe
             fi
-          elif
+          elif [ "${{ matrix.goos }}" == "darwin" ]; then
             go build -o doduapi
           fi
 
