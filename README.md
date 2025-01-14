@@ -27,7 +27,7 @@ If you want to run `doduapi` for yourself, just follow the following commands. T
 
 I can't help you for Windows since I don't have it. But there are prebuilt binaries in the [Releases](https://github.com/dofusdude/doduapi/releases) for it. Change the `Linux_x86_64` string accordingly in the curl command below.
 
-```bash
+```shell
 export MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
 echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" > .env
 
@@ -50,6 +50,14 @@ You can get the search engine process back with `fg` later.
 
 Follow the Quickstart for Meilisearch.
 
+Now get the `doduapi` source code.
+```shell
+git clone https://github.com/dofusdude/doduapi
+cd doduapi
+```
+
+You need to have [Go](https://go.dev/doc/install) >= 1.18 installed to run it.
+
 The Almanax data is saved within a file database. `doduapi` can initialize the database structure itself with the following command.
 ```shell
 go run . migrate up
@@ -57,17 +65,8 @@ go run . migrate up
 
 You can specify the persistent directory with `--persistent-dir <dir>`. It uses the current working directory per default.
 
-Now build `doduapi`. You need to have [Go](https://go.dev/doc/install) >= 1.18 installed.
-
+Now we can run doduapi from source. If you want more info about the specific tasks, you can set the `LOG_LEVEL` env to one of `debug`, `info`, `warn` (default), `error` or `fatal`. The more left you go in that list, the more info you get. I will also add `--headless` so I don't miss anything.
 ```shell
-git clone git@github.com:dofusdude/doduapi.git
-cd doduapi
-go run .
-```
-
-If you want more info about the specific tasks, you can set the `LOG_LEVEL` env to one of `debug`, `info`, `warn` (default), `error` or `fatal`. The more left you go in that list, the more info you get.
-
-```bash
 LOG_LEVEL=debug go run . --headless
 ```
 
