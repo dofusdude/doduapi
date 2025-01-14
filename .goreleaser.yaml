@@ -28,8 +28,6 @@ builds:
     flags:
       - -trimpath
   - id: doduapi-linux-amd64
-    binary: doduapi
-    main: ./cmd/doduapi
     env:
       - CC=x86_64-linux-gnu-gcc
       - CXX=x86_64-linux-gnu-g++

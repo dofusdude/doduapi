@@ -24,6 +24,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run GoReleaser
-        run: goreleaser release
+        run: goreleaser release --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
