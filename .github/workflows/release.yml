@@ -15,14 +15,19 @@ jobs:
       image: goreleaser/goreleaser-cross:v1.23.3
       options: --entrypoint ''
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: "1.21"
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Verify Git Repository
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          [ -d .git ] && echo ".git directory exists" || echo ".git directory missing"
       - name: Run GoReleaser
         run: goreleaser release --clean
         env:
