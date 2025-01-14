@@ -13,15 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest] # windows-latest
+        os: [ubuntu-latest, macos-latest]
         arch: [amd64, arm64]
         include:
           - os: ubuntu-latest
             goos: linux
           - os: macos-latest
             goos: darwin
-          - os: windows-latest
-            goos: windows
 
     steps:
       - uses: actions/checkout@v4
