@@ -13,13 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        arch: [amd64, arm64]
+        os: [ubuntu-latest]
+        arch: [amd64]
         include:
           - os: ubuntu-latest
             goos: linux
-          - os: macos-latest
-            goos: darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -35,11 +33,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install musl-tools musl-dev --no-install-recommends -y
 
-      - name: Setup for Windows
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install mingw -y
-
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
@@ -48,9 +41,9 @@ jobs:
         run: |
           if [ "${{ matrix.goos }}" == "linux" ]; then
             if [ "${{ matrix.arch }}" == "amd64" ]; then
-              CC=x86_64-linux-musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
+              CC=musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
             elif [ "${{ matrix.arch }}" == "arm64" ]; then
-              CC=aarch64-linux-musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
+              CC=musl-gcc go build --ldflags '-linkmode=external -extldflags=-static' -o doduapi
             fi
           elif [ "${{ matrix.goos }}" == "windows" ]; then
             if [ "${{ matrix.arch }}" == "amd64" ]; then
