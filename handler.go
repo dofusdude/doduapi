@@ -560,7 +560,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangItemUnity)
 
-		enTypeName := strings.ToLower(p.Type.Name["en"])
+		enTypeName := strings.ToLower(strings.ReplaceAll(p.Type.Name["en"], " ", "-"))
 
 		if removedTypes.Has(enTypeName) {
 			continue
