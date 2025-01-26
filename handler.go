@@ -432,7 +432,7 @@ func setFilter(in *set.Set[string], prefix string, exceptions *[]string) (set.Se
 				if typeIds.Has(noPrefix) {
 					out.Put(noPrefix)
 				} else {
-					return out, fmt.Errorf("unknown type: " + noPrefix)
+					return out, fmt.Errorf("unknown type: %s", noPrefix)
 				}
 			}
 		} else {
@@ -441,7 +441,7 @@ func setFilter(in *set.Set[string], prefix string, exceptions *[]string) (set.Se
 				if typeIds.Has(noPrefix) {
 					out.Put(noPrefix)
 				} else {
-					return out, fmt.Errorf("unknown type: " + noPrefix)
+					return out, fmt.Errorf("unknown type: %s", noPrefix)
 				}
 			}
 		}
