@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -13,6 +15,7 @@ import (
 	"github.com/dofusdude/dodumap"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/google/go-github/v67/github"
+	"github.com/meilisearch/meilisearch-go"
 )
 
 var (
@@ -30,6 +33,150 @@ func dateRange(from, to time.Time) ([]string, error) {
 	}
 
 	return dates, nil
+}
+
+func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
+	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
+	defer client.Close()
+
+	added := 0
+
+	for _, lang := range config.Languages {
+		bonusTypes, err := db.GetBonusTypes()
+		if err != nil {
+			log.Error(err, "lang", lang)
+			return added
+		}
+
+		bonuses := bonusListingsToBonusIdTranslated(bonusTypes, lang)
+
+		var bonusesMeili []AlmanaxBonusListingMeili
+		var counter int = 0
+		for i := range bonuses {
+			bonusesMeili = append(bonusesMeili, AlmanaxBonusListingMeili{
+				Id:   strconv.Itoa(counter),
+				Slug: bonuses[i].Id,
+				Name: bonuses[i].Name,
+			})
+			counter++
+		}
+
+		indexName := fmt.Sprintf("alm-bonuses-%s", lang)
+		_, err = client.GetIndex(indexName)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				log.Info("alm bonuses index does not exist yet, creating now", "index", indexName)
+				almTaskInfo, err := client.CreateIndex(&meilisearch.IndexConfig{
+					Uid:        indexName,
+					PrimaryKey: "id",
+				})
+
+				if err != nil {
+					log.Error("Error while creating alm bonus index in meili", "err", err)
+					return added
+				}
+
+				task, err := client.WaitForTask(almTaskInfo.TaskUID, 500*time.Millisecond)
+				if err != nil {
+					log.Error("Error while waiting alm bonus index creation at meili", "err", err)
+					return added
+				}
+
+				if task.Status == "failed" && !strings.Contains(task.Error.Message, "already exists") {
+					log.Error("alm bonuses creation failed.", "err", task.Error)
+					return added
+				}
+
+			} else {
+				log.Error("Error while getting alm bonus index in meili", "err", err)
+				return added
+			}
+		}
+
+		almBonusIndex := client.Index(indexName)
+
+		if init { // clean index, add all
+			cleanTask, err := almBonusIndex.DeleteAllDocuments()
+			if err != nil {
+				log.Error("Error while cleaning alm bonuses in meili.", "err", err)
+				return added
+			}
+
+			task, err := client.WaitForTask(cleanTask.TaskUID, 100*time.Millisecond)
+			if err != nil {
+				log.Error("Error while waiting for meili to clean alm bonuses.", "err", err)
+				return added
+			}
+
+			if task.Status == "failed" {
+				log.Error("clean alm bonuses task failed.", "err", task.Error)
+				return added
+			}
+
+			var documentsAddTask *meilisearch.TaskInfo
+			if documentsAddTask, err = almBonusIndex.AddDocuments(bonusesMeili); err != nil {
+				log.Error("Error while adding alm bonuses to meili.", "err", err)
+				return added
+			}
+
+			task, err = client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond)
+			if err != nil {
+				log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
+				return added
+			}
+
+			if task.Status == "failed" {
+				log.Error("alm bonuses add docs task failed.", "err", task.Error)
+				return added
+			}
+
+			added += len(bonuses)
+		} else { // search the item exact matches before adding it
+			for _, bonus := range bonusesMeili {
+				request := &meilisearch.SearchRequest{
+					Limit: 1,
+				}
+
+				var searchResp *meilisearch.SearchResponse
+				if searchResp, err = almBonusIndex.Search(bonus.Name, request); err != nil {
+					log.Error("SearchAlmanaxBonuses: index not found: ", "err", err)
+					return added
+				}
+
+				foundIdentical := false
+				if len(searchResp.Hits) > 0 {
+					var item = searchResp.Hits[0].(map[string]interface{})
+					if item["name"] == bonus.Name {
+						foundIdentical = true
+					}
+				}
+
+				if !foundIdentical { // add only if not found
+					log.Info("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
+					documentsAddTask, err := almBonusIndex.AddDocuments([]AlmanaxBonusListingMeili{bonus})
+					if err != nil {
+						log.Error("Error while adding alm bonuses to meili.", "err", err)
+						return added
+					}
+
+					task, err := client.WaitForTask(documentsAddTask.TaskUID, 500*time.Millisecond)
+					if err != nil {
+						log.Error("Error while waiting for meili to add alm bonuses.", "err", err)
+						return added
+					}
+
+					if task.Status == "failed" {
+						log.Error("alm bonuses adding failed.", "err", task.Error)
+						return added
+					}
+
+					added += 1
+				}
+			}
+		}
+	}
+
+	return added
 }
 
 func GatherAlmanaxData(initial bool, headless bool) error {
@@ -50,6 +197,7 @@ func GatherAlmanaxData(initial bool, headless bool) error {
 		return fmt.Errorf("could not generate date range: %w", err)
 	}
 
+	datesNotFound := 0
 	for _, date := range dates {
 		for _, almanax := range almanaxData {
 			if len(almanax.Days) == 0 {
@@ -64,8 +212,12 @@ func GatherAlmanaxData(initial bool, headless bool) error {
 		}
 
 		if _, ok := yearLookup[date]; !ok {
-			return err
+			datesNotFound++
 		}
+	}
+
+	if datesNotFound > len(dates)/2 {
+		return fmt.Errorf("could not find enough almanax data for the next year")
 	}
 
 	err = db.UpdateFuture(yearLookup)
