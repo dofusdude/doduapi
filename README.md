@@ -21,54 +21,25 @@ The dofusdude server is always running with the latest Dofus version and it is h
 - [Python](https://github.com/dofusdude/dofusdude-py) `pip install dofusdude`
 - [Java](https://github.com/dofusdude/dofusdude-java) Maven with GitHub packages setup
 
-## Quickstart
+## Self-Hosting
 
-If you want to run `doduapi` for yourself, just follow the following commands. They assume Linux (x86_64). For MacOS, you need to `brew install md5sha1sum`. Or just make up your own keys. It's just to make the setup easy.
-
-I can't help you for Windows since I don't have it. But there are prebuilt binaries in the [Releases](https://github.com/dofusdude/doduapi/releases) for it. Change the `Linux_x86_64` string accordingly in the curl command below.
+If you want to host `doduapi` yourself, just follow these commands.
 
 ```shell
-export MEILI_MASTER_KEY=$(echo $RANDOM | md5sum | head -c 20; echo;)
+# Prepare search engine environment
+export MEILI_MASTER_KEY=supersecretandhighlysecurekey
 echo "MEILI_MASTER_KEY=$MEILI_MASTER_KEY" > .env
 
+# Install and run search engine
 curl -L https://install.meilisearch.com | sh
 ./meilisearch --master-key $MEILI_MASTER_KEY &
 
-curl -s https://api.github.com/repos/dofusdude/doduapi/releases/latest \
-	| grep "browser_download_url.*Linux_x86_64*" \
-	| cut -d : -f 2,3 \
-	| tr -d \" \
-	| head -n 1 \
-	| xargs -n 1 curl -LO
-tar xfz doduapi_*
-./doduapi migrate up
-./doduapi
+# Install and run doduapi
+curl -s https://get.dofusdu.de/doduapi | sh
+doduapi migrate up
+doduapi
 ```
 You can get the search engine process back with `fg` later.
-
-## Development Setup
-
-Follow the Quickstart for Meilisearch.
-
-Now get the `doduapi` source code.
-```shell
-git clone https://github.com/dofusdude/doduapi
-cd doduapi
-```
-
-You need to have [Go](https://go.dev/doc/install) >= 1.18 installed to run it.
-
-The Almanax data is saved within a file database. `doduapi` can initialize the database structure itself with the following command.
-```shell
-go run . migrate up
-```
-
-You can specify the persistent directory with `--persistent-dir <dir>`. It uses the current working directory per default.
-
-Now we can run doduapi from source. If you want more info about the specific tasks, you can set the `LOG_LEVEL` env to one of `debug`, `info`, `warn` (default), `error` or `fatal`. The more left you go in that list, the more info you get. I will also add `--headless` so I don't miss anything.
-```shell
-LOG_LEVEL=debug go run . --headless
-```
 
 ## Configuration
 
@@ -77,7 +48,7 @@ Open the `.env` with your favorite editor. Add more parameters if you want. Here
 ```shell
 MEILI_MASTER_KEY=<already set> # a random string that must be the same in the meilisearch.service file or parameter
 DIR=<working directory> # directory where the ./data dir can be found
-DOFUS_VERSION=2.68.5.6 # must match a name from https://github.com/dofusdude/dofus2-main/releases
+DOFUS_VERSION=3.0.40.28 # must match a name from https://github.com/dofusdude/dofus3-main/releases
 API_SCHEME=http # http or https. Just used for building links
 API_HOSTNAME=localhost # the hostname of the api. Just used for building links
 API_PORT=3000 # the port where to listen on
@@ -86,6 +57,8 @@ MEILI_PROTOCOL=http # http or https
 MEILI_HOST=127.0.0.1 # the hostname of meilisearch
 PROMETHEUS=false # enable prometheus metrics export running on one apiport + 1
 FILESERVER=true # will tell doduapi to serve the image files itself
+ALMANAX_MAX_LOOKAHEAD_DAYS=365 # maximum date range size
+ALMANAX_DEFAULT_LOOKAHEAD_DAYS=6 # default date range size
 IS_BETA=false # main (false) vs beta (true)
 UPDATE_HOOK_TOKEN=secret # /update/<token> will trigger an update with a POST request {"version": "<dofusversion>"}
 ```
