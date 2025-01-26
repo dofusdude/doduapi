@@ -362,10 +362,7 @@ func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
 
 	added := 0
 
-	for _, lang := range Languages {
-		if lang == "pt" {
-			continue // no portuguese almanax bonuses
-		}
+	for _, lang := range config.Languages {
 		bonusTypes, err := db.GetBonusTypes()
 		if err != nil {
 			log.Error(err, "lang", lang)
@@ -582,11 +579,6 @@ func SearchBonuses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lang := r.Context().Value("lang").(string)
-
-	if lang == "pt" {
-		e.WriteInvalidQueryResponse(w, "Portuguese language is not translated for Almanax Bonuses.")
-		return
-	}
 
 	var searchLimit int64
 	var err error

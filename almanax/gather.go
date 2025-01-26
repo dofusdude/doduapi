@@ -19,7 +19,6 @@ var (
 	DataRepoOwner         = "dofusdude"
 	DataRepoName          = "dofus3-main"
 	MappedAlmanaxFileName = "MAPPED_ALMANAX.json"
-	Languages             = []string{"en", "fr", "de", "es", "pt"}
 )
 
 func dateRange(from, to time.Time) ([]string, error) {
