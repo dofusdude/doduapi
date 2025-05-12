@@ -16,14 +16,13 @@ require (
 	github.com/google/go-github/v67 v67.0.0
 	github.com/hashicorp/go-memdb v1.3.5
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.30.0
+	github.com/meilisearch/meilisearch-go v0.32.0
 	github.com/ncruces/go-sqlite3 v0.23.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stelzo/migrate/v4 v4.18.2
 	github.com/zyedidia/generic v1.2.1
-
 )
 
 require (
