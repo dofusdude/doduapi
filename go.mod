@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/charmbracelet/log v0.4.0
+	github.com/charmbracelet/log v0.4.2
 	github.com/dofusdude/ankabuffer v0.1.0
 	github.com/dofusdude/dodumap v0.6.3
 	github.com/emirpasic/gods v1.18.1
@@ -23,7 +23,6 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stelzo/migrate/v4 v4.18.2
 	github.com/zyedidia/generic v1.2.1
-
 )
 
 require (
