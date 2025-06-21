@@ -1062,8 +1062,29 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				indexed := hit.(map[string]interface{})
 				//stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
 
-				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
-				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+				wordScore := 0.0
+				wordScoreFound := false
+				typoScore := 0.0
+				typeScoreFound := false
+				if rankingDetails, ok := indexed["_rankingScoreDetails"].(map[string]interface{}); ok && rankingDetails != nil {
+					if words, ok := rankingDetails["words"].(map[string]interface{}); ok && words != nil {
+						if score, ok := words["score"].(float64); ok {
+							wordScore = score
+							wordScoreFound = true
+						}
+					}
+
+					if typo, ok := rankingDetails["typo"].(map[string]interface{}); ok && typo != nil {
+						if score, ok := typo["score"].(float64); ok {
+							typoScore = score
+							typeScoreFound = true
+						}
+					}
+				}
+
+				if !wordScoreFound || !typeScoreFound {
+					continue
+				}
 
 				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
 
