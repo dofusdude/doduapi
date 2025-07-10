@@ -37,8 +37,8 @@ var (
 
 	mountAllowedExpandFields     = []string{"effects"}
 	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
-	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions"})
-	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "pods", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
+	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions", "pods"})
+	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
 )
 
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecipe, bool) {
@@ -613,14 +613,14 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if expansions.Has("pods") {
+			item.Pods = &p.Pods
+		}
+
 		// equipment extra fields
 		mIsWeapon := p.Type.SuperTypeId == 2 // is weapon
 		if expansions.Has("is_weapon") {
 			item.IsWeapon = &mIsWeapon
-		}
-
-		if expansions.Has("pods") {
-			item.Pods = &p.Pods
 		}
 
 		if expansions.Has("parent_set") {
