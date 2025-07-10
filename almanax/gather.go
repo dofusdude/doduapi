@@ -216,9 +216,10 @@ func GatherAlmanaxData(initial bool, headless bool) error {
 		}
 	}
 
-	if datesNotFound > len(dates)/2 {
-		return fmt.Errorf("could not find enough almanax data for the next year")
-	}
+	// FIXME just a hotfix for the new calendar right now
+	// if datesNotFound > len(dates)/2 {
+	// 	return fmt.Errorf("could not find enough almanax data for the next year")
+	// }
 
 	err = db.UpdateFuture(yearLookup)
 	if err != nil {
