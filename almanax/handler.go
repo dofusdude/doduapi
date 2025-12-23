@@ -462,11 +462,21 @@ func SearchBonuses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var results []AlmanaxBonusListing
-	for _, hit := range searchResp.Hits {
-		almBonusJson := hit.(map[string]interface{})
+	type Hit struct {
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+	}
+
+	for _, hitRaw := range searchResp.Hits {
+		hit := Hit{}
+		err = hitRaw.DecodeInto(&hit)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+			return
+		}
 		almBonus := AlmanaxBonusListing{
-			Id:   almBonusJson["slug"].(string),
-			Name: almBonusJson["name"].(string),
+			Id:   hit.Slug,
+			Name: hit.Name,
 		}
 		results = append(results, almBonus)
 	}

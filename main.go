@@ -32,7 +32,7 @@ import (
 
 var (
 	DoduapiMajor       = 1                                    // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.3", DoduapiMajor) // change with every release
+	DoduapiVersion     = fmt.Sprintf("v%d.0.4", DoduapiMajor) // change with every release
 	DoduapiShort       = "doduapi - Open Dofus Encyclopedia API"
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
@@ -94,7 +94,7 @@ func ReadEnvs() {
 			log.Fatal(err)
 		}
 
-		var v map[string]interface{}
+		var v map[string]any
 		err = json.Unmarshal(releaseApiResponseBody, &v)
 		if err != nil {
 			log.Fatal(err)
@@ -131,129 +131,123 @@ func ReadEnvs() {
 }
 
 func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, updateDb chan *memdb.MemDB, updateSearchIndex chan map[string]database.SearchIndexes) {
-	for {
-		select {
-		case gameVersion, ok := <-updateHook:
-			if !ok {
-				log.Error("updateHook closed")
+	for gameVersion := range updateHook {
+		var err error
+		updateStart := time.Now()
+		log.Print("Initialize update...")
+		db, idx := IndexApiData(version)
+
+		// send data to main thread
+		updateDb <- db
+		log.Info("updated db")
+
+		nowOldItemsTable := fmt.Sprintf("%s-all_items", utils.CurrentRedBlueVersionStr(version.MemDb))
+		nowOldSetsTable := fmt.Sprintf("%s-sets", utils.CurrentRedBlueVersionStr(version.MemDb))
+		nowOldMountsTable := fmt.Sprintf("%s-mounts", utils.CurrentRedBlueVersionStr(version.MemDb))
+		nowOldRecipesTable := fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(version.MemDb))
+
+		version.MemDb = !version.MemDb // atomic version switch
+		log.Info("updated db version")
+
+		delOldTxn := db.Txn(true)
+		_, err = delOldTxn.DeleteAll(nowOldItemsTable, "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = delOldTxn.DeleteAll(nowOldSetsTable, "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = delOldTxn.DeleteAll(nowOldMountsTable, "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = delOldTxn.DeleteAll(nowOldRecipesTable, "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		delOldTxn.Commit()
+
+		// ----
+		updateSearchIndex <- idx
+
+		if !config.SkipAlmanax {
+			err = almanax.GatherAlmanaxData(false, true) // headless true since we want the log output
+			if err != nil {
+				log.Fatal(err) // TODO notify on error, not just hard exit since we want high availability
+			}
+		}
+
+		nowOldRedBlueVersion := utils.CurrentRedBlueVersionStr(version.Search)
+
+		log.Info("atomic version switch")
+		version.Search = !version.Search
+
+		client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
+		defer client.Close()
+
+		for _, lang := range config.Languages {
+			nowOldItemIndexUid := fmt.Sprintf("%s-all_items-%s", nowOldRedBlueVersion, lang)
+			nowOldSetIndexUid := fmt.Sprintf("%s-sets-%s", nowOldRedBlueVersion, lang)
+			nowOldMountIndexUid := fmt.Sprintf("%s-mounts-%s", nowOldRedBlueVersion, lang)
+
+			itemDeleteTask, err := client.DeleteIndex(nowOldItemIndexUid)
+			if err != nil {
+				log.Error("Error while deleting old item index.", "err", err)
 				return
 			}
-			var err error
-			updateStart := time.Now()
-			log.Print("Initialize update...")
-			db, idx := IndexApiData(version)
-
-			// send data to main thread
-			updateDb <- db
-			log.Info("updated db")
-
-			nowOldItemsTable := fmt.Sprintf("%s-all_items", utils.CurrentRedBlueVersionStr(version.MemDb))
-			nowOldSetsTable := fmt.Sprintf("%s-sets", utils.CurrentRedBlueVersionStr(version.MemDb))
-			nowOldMountsTable := fmt.Sprintf("%s-mounts", utils.CurrentRedBlueVersionStr(version.MemDb))
-			nowOldRecipesTable := fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(version.MemDb))
-
-			version.MemDb = !version.MemDb // atomic version switch
-			log.Info("updated db version")
-
-			delOldTxn := db.Txn(true)
-			_, err = delOldTxn.DeleteAll(nowOldItemsTable, "id")
+			task, err := client.WaitForTask(itemDeleteTask.TaskUID, 500*time.Millisecond)
 			if err != nil {
-				log.Fatal(err)
+				log.Error("Error while deleting old item index.", "err", err)
+				return
 			}
-			_, err = delOldTxn.DeleteAll(nowOldSetsTable, "id")
+
+			if task.Status == "failed" {
+				log.Error("Error while deleting old item index.", "err", task.Error)
+				return
+			}
+
+			setDeletionTask, err := client.DeleteIndex(nowOldSetIndexUid)
 			if err != nil {
-				log.Fatal(err)
+				log.Error("Error while deleting old set index.", "err", err)
+				return
 			}
-			_, err = delOldTxn.DeleteAll(nowOldMountsTable, "id")
+			task, err = client.WaitForTask(setDeletionTask.TaskUID, 500*time.Millisecond)
 			if err != nil {
-				log.Fatal(err)
+				log.Error("Error while deleting old set index.", "err", err)
+				return
 			}
-			_, err = delOldTxn.DeleteAll(nowOldRecipesTable, "id")
+
+			if task.Status == "failed" {
+				log.Error("Error while deleting old set index.", "err", task.Error)
+				return
+			}
+
+			mountDeletionTask, err := client.DeleteIndex(nowOldMountIndexUid)
 			if err != nil {
-				log.Fatal(err)
+				log.Error("Error while deleting old mount index.", "err", err)
+				return
 			}
-			delOldTxn.Commit()
-
-			// ----
-			updateSearchIndex <- idx
-
-			if !config.SkipAlmanax {
-				err = almanax.GatherAlmanaxData(false, true) // headless true since we want the log output
-				if err != nil {
-					log.Fatal(err) // TODO notify on error, not just hard exit since we want high availability
-				}
+			task, err = client.WaitForTask(mountDeletionTask.TaskUID, 500*time.Millisecond)
+			if err != nil {
+				log.Error("Error while deleting old mount index.", "err", err)
+				return
 			}
 
-			nowOldRedBlueVersion := utils.CurrentRedBlueVersionStr(version.Search)
-
-			log.Info("atomic version switch")
-			version.Search = !version.Search
-
-			client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
-			defer client.Close()
-
-			for _, lang := range config.Languages {
-				nowOldItemIndexUid := fmt.Sprintf("%s-all_items-%s", nowOldRedBlueVersion, lang)
-				nowOldSetIndexUid := fmt.Sprintf("%s-sets-%s", nowOldRedBlueVersion, lang)
-				nowOldMountIndexUid := fmt.Sprintf("%s-mounts-%s", nowOldRedBlueVersion, lang)
-
-				itemDeleteTask, err := client.DeleteIndex(nowOldItemIndexUid)
-				if err != nil {
-					log.Error("Error while deleting old item index.", "err", err)
-					return
-				}
-				task, err := client.WaitForTask(itemDeleteTask.TaskUID, 500*time.Millisecond)
-				if err != nil {
-					log.Error("Error while deleting old item index.", "err", err)
-					return
-				}
-
-				if task.Status == "failed" {
-					log.Error("Error while deleting old item index.", "err", task.Error)
-					return
-				}
-
-				setDeletionTask, err := client.DeleteIndex(nowOldSetIndexUid)
-				if err != nil {
-					log.Error("Error while deleting old set index.", "err", err)
-					return
-				}
-				task, err = client.WaitForTask(setDeletionTask.TaskUID, 500*time.Millisecond)
-				if err != nil {
-					log.Error("Error while deleting old set index.", "err", err)
-					return
-				}
-
-				if task.Status == "failed" {
-					log.Error("Error while deleting old set index.", "err", task.Error)
-					return
-				}
-
-				mountDeletionTask, err := client.DeleteIndex(nowOldMountIndexUid)
-				if err != nil {
-					log.Error("Error while deleting old mount index.", "err", err)
-					return
-				}
-				task, err = client.WaitForTask(mountDeletionTask.TaskUID, 500*time.Millisecond)
-				if err != nil {
-					log.Error("Error while deleting old mount index.", "err", err)
-					return
-				}
-
-				if task.Status == "failed" {
-					log.Error("Error while deleting old mount index.", "err", task.Error)
-					return
-				}
-
+			if task.Status == "failed" {
+				log.Error("Error while deleting old mount index.", "err", task.Error)
+				return
 			}
-			log.Info("deleted old in-memory data")
-			log.Print("Updated", "s", time.Since(updateStart).Seconds())
 
-			// update version info for API meta endpoint
-			gameVersion.UpdateStamp = time.Now()
-			config.CurrentVersion = gameVersion
 		}
+		log.Info("deleted old in-memory data")
+		log.Print("Updated", "s", time.Since(updateStart).Seconds())
+
+		// update version info for API meta endpoint
+		gameVersion.UpdateStamp = time.Now()
+		config.CurrentVersion = gameVersion
 	}
+	log.Error("updateHook closed")
 }
 
 func isChannelClosed[T any](ch chan T) bool {

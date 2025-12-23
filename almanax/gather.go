@@ -15,7 +15,7 @@ import (
 	"github.com/dofusdude/dodumap"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/google/go-github/v67/github"
-	"github.com/meilisearch/meilisearch-go"
+	meilisearch "github.com/meilisearch/meilisearch-go"
 )
 
 var (
@@ -96,7 +96,7 @@ func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
 		almBonusIndex := client.Index(indexName)
 
 		if init { // clean index, add all
-			cleanTask, err := almBonusIndex.DeleteAllDocuments()
+			cleanTask, err := almBonusIndex.DeleteAllDocuments(nil)
 			if err != nil {
 				log.Error("Error while cleaning alm bonuses in meili.", "err", err)
 				return added
@@ -114,7 +114,7 @@ func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
 			}
 
 			var documentsAddTask *meilisearch.TaskInfo
-			if documentsAddTask, err = almBonusIndex.AddDocuments(bonusesMeili); err != nil {
+			if documentsAddTask, err = almBonusIndex.AddDocuments(bonusesMeili, nil); err != nil {
 				log.Error("Error while adding alm bonuses to meili.", "err", err)
 				return added
 			}
@@ -145,15 +145,23 @@ func UpdateAlmanaxBonusIndex(init bool, db *database.Repository) int {
 
 				foundIdentical := false
 				if len(searchResp.Hits) > 0 {
-					var item = searchResp.Hits[0].(map[string]interface{})
-					if item["name"] == bonus.Name {
+					type Hit struct {
+						Name string `json:"name"`
+					}
+					hit := Hit{}
+					err = searchResp.Hits[0].DecodeInto(&hit)
+					if err != nil {
+						log.Error("Error decoding hit result.", "err", err)
+						return added
+					}
+					if hit.Name == bonus.Name {
 						foundIdentical = true
 					}
 				}
 
 				if !foundIdentical { // add only if not found
 					log.Info("adding", "bonus", bonus.Name, "bonus", bonus, "lang", lang, "hits", searchResp.Hits)
-					documentsAddTask, err := almBonusIndex.AddDocuments([]AlmanaxBonusListingMeili{bonus})
+					documentsAddTask, err := almBonusIndex.AddDocuments([]AlmanaxBonusListingMeili{bonus}, nil)
 					if err != nil {
 						log.Error("Error while adding alm bonuses to meili.", "err", err)
 						return added

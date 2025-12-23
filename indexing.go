@@ -12,7 +12,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/hashicorp/go-memdb"
-	"github.com/meilisearch/meilisearch-go"
+	meilisearch "github.com/meilisearch/meilisearch-go"
 	g "github.com/zyedidia/generic"
 	"github.com/zyedidia/generic/set"
 
@@ -393,7 +393,6 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	defer client.Close()
 
 	// generate all indexes with %version-%lang
-	//meiliPullInterval := 100 * time.Millisecond
 	updateTasks := make([]*meilisearch.TaskInfo, 0)
 
 	for _, lang := range config.Languages {
@@ -410,7 +409,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		// add filters and searchable attributes
 		// -- all items --
 		allItemsIdx := client.Index(itemIndexUid)
-		allItemsFilterTask, err := allItemsIdx.UpdateFilterableAttributes(&[]string{
+		allItemsFilterTask, err := allItemsIdx.UpdateFilterableAttributes(&[]any{
 			"super_type.name_id",
 			"type.name_id",
 			"level",
@@ -432,7 +431,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 		// -- mounts --
 		mountsIdx := client.Index(mountIndexUid)
-		mountFilterTask, err := mountsIdx.UpdateFilterableAttributes(&[]string{
+		mountFilterTask, err := mountsIdx.UpdateFilterableAttributes(&[]any{
 			"family.name",
 			"family.id",
 		})
@@ -452,7 +451,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 		// -- sets --
 		setsIdx := client.Index(setIndexUid)
-		setFilterUpdateTask, err := setsIdx.UpdateFilterableAttributes(&[]string{
+		setFilterUpdateTask, err := setsIdx.UpdateFilterableAttributes(&[]any{
 			"highest_equipment_level",
 			"constains_cosmetics",
 			"constains_cosmetics_only",
@@ -523,7 +522,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
-	itemTypeIds := set.NewHashset[string](10, g.Equals[string], g.HashString)
+	itemTypeIds := set.NewHashset(10, g.Equals[string], g.HashString)
 
 	// all items search
 	for _, item := range *items {
@@ -566,7 +565,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			itemIndexBatch[lang] = append(itemIndexBatch[lang], object)
 			if len(itemIndexBatch[lang]) >= maxBatchSize {
 				var taskInfo *meilisearch.TaskInfo
-				if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang]); err != nil {
+				if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang], nil); err != nil {
 					log.Fatal(err)
 				}
 				indexTasks = append(indexTasks, taskInfo)
@@ -579,7 +578,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	for _, lang := range config.Languages {
 		if len(itemIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
-			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang]); err != nil {
+			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(itemIndexBatch[lang], nil); err != nil {
 				log.Fatal(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
@@ -618,7 +617,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 			setIndexBatch[lang] = append(setIndexBatch[lang], object)
 			if len(setIndexBatch[lang]) >= maxBatchSize {
-				taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang])
+				taskInfo, err := multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang], nil)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -632,7 +631,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	for _, lang := range config.Languages {
 		if len(setIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
-			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(setIndexBatch[lang]); err != nil {
+			if taskInfo, err = multilangSearchIndexes[lang].Sets.AddDocuments(setIndexBatch[lang], nil); err != nil {
 				log.Fatal(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
@@ -663,7 +662,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
-				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang])
+				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang], nil)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -677,7 +676,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	for _, lang := range config.Languages {
 		if len(mountIndexBatch[lang]) > 0 {
 			var taskInfo *meilisearch.TaskInfo
-			if taskInfo, err = multilangSearchIndexes[lang].AllItems.AddDocuments(mountIndexBatch[lang]); err != nil {
+			if taskInfo, err = multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang], nil); err != nil {
 				log.Fatal(err)
 			}
 			indexTasks = append(indexTasks, taskInfo)
@@ -729,7 +728,7 @@ func createClearIndices(indexNames []string, client meilisearch.ServiceManager) 
 			}
 		} else { // clear index and start over
 			log.Info("index exists, clearing", "index", indexName)
-			delTask, err := index.DeleteAllDocuments()
+			delTask, err := index.DeleteAllDocuments(nil)
 			task, err := client.WaitForTask(delTask.TaskUID, 100*time.Millisecond)
 			if err != nil {
 				log.Error("Error while waiting index creation at meili", "err", err)

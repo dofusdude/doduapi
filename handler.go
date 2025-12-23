@@ -41,9 +41,21 @@ var (
 	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
 )
 
+type Hit struct {
+	Id           float64 `json:"id"`
+	ScoreDetails struct {
+		Words struct {
+			Score float64 `json:"score"`
+		} `json:"words"`
+		Typo struct {
+			Score float64 `json:"score"`
+		} `json:"typo"`
+	} `json:"_rankingScoreDetails"`
+}
+
 func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecipe, bool) {
 	var err error
-	var raw interface{}
+	var raw any
 	if raw, err = txn.First(fmt.Sprintf("%s-recipes", utils.CurrentRedBlueVersionStr(database.Version.MemDb)), "id", itemId); err != nil {
 		log.Fatal(err)
 	}
@@ -436,8 +448,8 @@ func setFilter(in *set.Set[string], prefix string, exceptions *[]string) (set.Se
 				}
 			}
 		} else {
-			if strings.HasPrefix(str, prefix) {
-				noPrefix = strings.TrimPrefix(str, prefix)
+			if after, ok := strings.CutPrefix(str, prefix); ok {
+				noPrefix = after
 				if typeIds.Has(noPrefix) {
 					out.Put(noPrefix)
 				} else {
@@ -477,7 +489,7 @@ func includeTypes(all *set.Set[string], exceptions *[]string) (set.Set[string], 
 }
 
 func parseFields(expansionsParam string) *set.Set[string] {
-	expansions := set.NewHashset[string](10, g.Equals[string], g.HashString)
+	expansions := set.NewHashset(10, g.Equals[string], g.HashString)
 	expansionContainsDiv := strings.Contains(expansionsParam, ",")
 	if len(expansionsParam) != 0 && expansionContainsDiv {
 		expansionsArr := strings.Split(expansionsParam, ",")
@@ -811,10 +823,19 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
+	type Hit struct {
+		Id float64 `json:"id"`
+	}
+
 	var mounts []APIMount
-	for _, hit := range searchResp.Hits {
-		indexed := hit.(map[string]interface{})
-		itemId := int(indexed["id"].(float64))
+	for _, hitRaw := range searchResp.Hits {
+		hit := Hit{}
+		err = hitRaw.DecodeInto(&hit)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+			return
+		}
+		itemId := int(hit.Id)
 
 		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", itemId)
 		if err != nil {
@@ -924,9 +945,14 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	defer txn.Abort()
 
 	var sets []APIListSet
-	for _, hit := range searchResp.Hits {
-		indexed := hit.(map[string]interface{})
-		itemId := int(indexed["id"].(float64))
+	for _, hitRaw := range searchResp.Hits {
+		hit := Hit{}
+		err = hitRaw.DecodeInto(&hit)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+			return
+		}
+		itemId := int(hit.Id)
 
 		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", itemId)
 		if err != nil {
@@ -1058,37 +1084,17 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			}
 
 			items := make([]ApiAllSearchResultScore, 0)
-			for _, hit := range searchResp.Hits {
-				indexed := hit.(map[string]interface{})
-				//stuffType := indexed["stuff_type"].(map[string]interface{})["name_id"].(string)
-
-				wordScore := 0.0
-				wordScoreFound := false
-				typoScore := 0.0
-				typeScoreFound := false
-				if rankingDetails, ok := indexed["_rankingScoreDetails"].(map[string]interface{}); ok && rankingDetails != nil {
-					if words, ok := rankingDetails["words"].(map[string]interface{}); ok && words != nil {
-						if score, ok := words["score"].(float64); ok {
-							wordScore = score
-							wordScoreFound = true
-						}
-					}
-
-					if typo, ok := rankingDetails["typo"].(map[string]interface{}); ok && typo != nil {
-						if score, ok := typo["score"].(float64); ok {
-							typoScore = score
-							typeScoreFound = true
-						}
-					}
+			for _, hitRaw := range searchResp.Hits {
+				indexed := Hit{}
+				err = hitRaw.DecodeInto(&indexed)
+				if err != nil {
+					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+					return
 				}
 
-				if !wordScoreFound || !typeScoreFound {
-					continue
-				}
+				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
 
-				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
-
-				itemId := int(indexed["id"].(float64))
+				itemId := int(indexed.Id)
 				txn := database.Db.Txn(false)
 				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", itemId)
 
@@ -1199,15 +1205,17 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			}
 
 			sets := make([]ApiAllSearchResultScore, 0)
-			for _, hit := range searchResp.Hits {
-				indexed := hit.(map[string]interface{})
+			for _, hitRaw := range searchResp.Hits {
+				indexed := Hit{}
+				err = hitRaw.DecodeInto(&indexed)
+				if err != nil {
+					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+					return
+				}
 
-				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
-				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
 
-				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
-
-				setId := int(indexed["id"].(float64))
+				setId := int(indexed.Id)
 
 				txn := database.Db.Txn(false)
 				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", setId)
@@ -1275,15 +1283,17 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			}
 
 			mounts := make([]ApiAllSearchResultScore, 0)
-			for _, hit := range searchResp.Hits {
-				indexed := hit.(map[string]interface{})
+			for _, hitRaw := range searchResp.Hits {
+				indexed := Hit{}
+				err = hitRaw.DecodeInto(&indexed)
+				if err != nil {
+					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+					return
+				}
 
-				wordScore := indexed["_rankingScoreDetails"].(map[string]interface{})["words"].(map[string]interface{})["score"].(float64)
-				typoScore := indexed["_rankingScoreDetails"].(map[string]interface{})["typo"].(map[string]interface{})["score"].(float64)
+				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
 
-				score := wordScore*wordScoreWeight + typoScore*typoScoreWeight
-
-				mountId := int(indexed["id"].(float64))
+				mountId := int(indexed.Id)
 
 				txn := database.Db.Txn(false)
 				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", mountId)
@@ -1454,11 +1464,17 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 
 	var items []APIListItem
 	var typedItems []APIListTypedItem
-	for _, hit := range searchResp.Hits {
-		indexed := hit.(map[string]interface{})
-		itemId := int(indexed["id"].(float64))
+	for _, hitRaw := range searchResp.Hits {
+		indexed := Hit{}
+		err = hitRaw.DecodeInto(&indexed)
+		if err != nil {
+			e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
+			return
+		}
 
-		var raw interface{}
+		itemId := int(indexed.Id)
+
+		var raw any
 		if all {
 			raw, err = txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", itemId)
 		} else {
