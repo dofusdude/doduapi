@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/dofusdude/ankabuffer v0.1.0
-	github.com/dofusdude/dodumap v0.6.10
+	github.com/dofusdude/dodumap v0.7.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/go-github/v67 v67.0.0

@@ -164,41 +164,6 @@ func DownloadImages(dockerMountDataPath string, releaseUrl string) error {
 		return fmt.Errorf("could not remove old images dir: %v", err)
 	}
 
-	// -- mounts --
-	err = DownloadExtract(fmt.Sprintf("mounts_images_64"), dockerMountDataPath, releaseUrl)
-	if err != nil {
-		return fmt.Errorf("could not download items_images: %v", err)
-	}
-
-	err = DownloadExtract(fmt.Sprintf("mounts_images_256"), dockerMountDataPath, releaseUrl)
-	if err != nil {
-		return fmt.Errorf("could not download items_images: %v", err)
-	}
-
-	oldPathSmall := filepath.Join(dockerMountDataPath, "data", "img", "mount", "small")
-	oldPathBig := filepath.Join(dockerMountDataPath, "data", "img", "mount", "big")
-	newPathMounts := filepath.Join(dockerMountDataPath, "data", "img", "mount")
-
-	err = copyDir(oldPathSmall, newPathMounts)
-	if err != nil {
-		return fmt.Errorf("could not copy images to path: %v", err)
-	}
-
-	err = copyDir(oldPathBig, newPathMounts)
-	if err != nil {
-		return fmt.Errorf("could not copy images to path: %v", err)
-	}
-
-	err = os.RemoveAll(oldPathSmall)
-	if err != nil {
-		return fmt.Errorf("could not remove old images dir: %v", err)
-	}
-
-	err = os.RemoveAll(oldPathBig)
-	if err != nil {
-		return fmt.Errorf("could not remove old images dir: %v", err)
-	}
-
 	return nil
 }
 
