@@ -71,7 +71,6 @@ func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database
 	var items []mapping.MappedMultilangItemUnity
 	var sets []mapping.MappedMultilangSetUnity
 	var recipes []mapping.MappedMultilangRecipe
-	var mounts []mapping.MappedMultilangMount
 
 	// --
 	itemsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_ITEMS.json")
@@ -121,24 +120,9 @@ func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database
 		log.Fatal(err)
 	}
 
-	// --
-	mountsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_MOUNTS.json")
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Debug("loaded", "items", len(items), "sets", len(sets), "recipes", len(recipes))
 
-	mountsBody, err := io.ReadAll(mountsResponse.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = json.Unmarshal(mountsBody, &mounts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Debug("loaded", "mounts", len(mounts), "items", len(items), "sets", len(sets), "recipes", len(recipes))
-
-	db, indexes := GenerateDatabase(&items, &sets, &recipes, &mounts, version)
+	db, indexes := GenerateDatabase(&items, &sets, &recipes, version)
 
 	return db, indexes
 }
@@ -375,7 +359,7 @@ type AlmanaxBonusListingMeili struct {
 	Name string `json:"name"` // translated text
 }
 
-func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, mounts *[]mapping.MappedMultilangMount, version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
+func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -512,7 +496,6 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
 	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
-	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
 	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
@@ -639,27 +622,24 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
-	// mounts
 	mountIndexBatch := make(map[string][]SearchIndexedMount)
-	for _, mount := range *mounts {
-		mountCp := mount
-		if err := txn.Insert(mountsTable, &mountCp); err != nil {
-			log.Fatal(err)
+	for _, item := range *items {
+		if !mountEquipmentTypeIds[item.Type.ItemTypeId] {
+			continue
 		}
-
+		itemCp := item
 		for _, lang := range config.Languages {
 			object := SearchIndexedMount{
-				Name: mountCp.Name[lang],
-				Id:   mountCp.AnkamaId,
+				Name: itemCp.Name[lang],
+				Id:   itemCp.AnkamaId,
 				Family: ApiType{
-					Name: strings.ToLower(mountCp.FamilyName[lang]),
-					Id:   mountCp.FamilyId,
+					Name: strings.ToLower(itemCp.Type.Name[lang]),
+					Id:   itemCp.Type.ItemTypeId,
 				},
 				StuffType: SearchStuffType{
 					NameId: "mounts",
 				},
 			}
-
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang], nil)

@@ -425,18 +425,6 @@ func RenderTypedItemListEntry(item *mapping.MappedMultilangItemUnity, lang strin
 	}
 }
 
-func RenderMountListEntry(mount *mapping.MappedMultilangMount, lang string) APIMount {
-	return APIMount{
-		Id:        mount.AnkamaId,
-		Name:      mount.Name[lang],
-		ImageUrls: RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount", config.MountImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
-		Family: APIMountFamily{
-			Id:   mount.FamilyId,
-			Name: mount.FamilyName[lang],
-		},
-	}
-}
-
 type APIRecipe struct {
 	AnkamaId int    `json:"item_ankama_id"`
 	ItemType string `json:"item_subtype"`
@@ -497,24 +485,24 @@ type APIMount struct {
 	Effects   []ApiEffect    `json:"effects,omitempty"`
 }
 
-func RenderMount(mount *mapping.MappedMultilangMount, lang string) APIMount {
-	resMount := APIMount{
-		Id:   mount.AnkamaId,
-		Name: mount.Name[lang],
+func RenderEquipmentAsMountListEntry(item *mapping.MappedMultilangItemUnity, lang string) APIMount {
+	return APIMount{
+		Id:   item.AnkamaId,
+		Name: item.Name[lang],
 		Family: APIMountFamily{
-			Id:   mount.FamilyId,
-			Name: mount.FamilyName[lang],
+			Id:   item.Type.ItemTypeId,
+			Name: item.Type.Name[lang],
 		},
-		ImageUrls: RenderImageUrls(utils.ImageUrls(mount.AnkamaId, "mount", config.MountImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
+		ImageUrls: RenderImageUrls(utils.ImageUrls(item.IconId, "item", config.ItemImgResolutions, config.ApiScheme, config.MajorVersion, config.ApiHostName, config.IsBeta)),
 	}
+}
 
-	effects := RenderEffects(&mount.Effects, lang)
-	if len(effects) == 0 {
-		resMount.Effects = nil
-	} else {
+func RenderEquipmentAsMount(item *mapping.MappedMultilangItemUnity, lang string) APIMount {
+	resMount := RenderEquipmentAsMountListEntry(item, lang)
+	effects := RenderEffects(&item.Effects, lang)
+	if len(effects) != 0 {
 		resMount.Effects = effects
 	}
-
 	return resMount
 }
 
