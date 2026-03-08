@@ -35,7 +35,14 @@ var (
 
 	searchAllItemAllowedExpandFields = []string{"type", "image_urls", "level"}
 
-	mountAllowedExpandFields     = []string{"effects"}
+	mountAllowedExpandFields = []string{"effects"}
+
+	// Equipment item type IDs that represent mounts
+	mountEquipmentTypeIds = map[int]bool{
+		242: true,
+		245: true,
+		247: true,
+	}
 	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
 	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions", "pods"})
 	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
@@ -211,8 +218,8 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id")
-	if err != nil || it == nil {
+	equipIt, err := txn.Get(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "equipment"), "id")
+	if err != nil || equipIt == nil {
 		e.WriteNotFoundResponse(w, "No mounts found.")
 		return
 	}
@@ -221,10 +228,13 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	utils.RequestsMountsList.Inc()
 
 	var mounts []APIMount
-	for obj := it.Next(); obj != nil; obj = it.Next() {
-		p := obj.(*mapping.MappedMultilangMount)
+	for obj := equipIt.Next(); obj != nil; obj = equipIt.Next() {
+		p := obj.(*mapping.MappedMultilangItemUnity)
+		if !mountEquipmentTypeIds[p.Type.ItemTypeId] {
+			continue
+		}
 		if filterFamilyName != "" {
-			if !strings.EqualFold(p.FamilyName[lang], filterFamilyName) {
+			if !strings.EqualFold(p.Type.Name[lang], filterFamilyName) {
 				continue
 			}
 		}
@@ -234,12 +244,11 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 				e.WriteInvalidFilterResponse(w, "filter[family.id] is not a number.")
 				return
 			}
-			if p.FamilyId != filterFamilyId {
+			if p.Type.ItemTypeId != filterFamilyId {
 				continue
 			}
 		}
-		mount := RenderMountListEntry(p, lang)
-
+		mount := RenderEquipmentAsMountListEntry(p, lang)
 		if expansions.Has("effects") {
 			effects := RenderEffects(&p.Effects, lang)
 			if len(effects) != 0 {
@@ -837,19 +846,17 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		}
 		itemId := int(hit.Id)
 
-		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", itemId)
+		raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "equipment"), "id", itemId)
 		if err != nil {
 			e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 			return
 		}
-
 		if raw == nil {
 			e.WriteNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(itemId)))
 			return
 		}
-
-		item := raw.(*mapping.MappedMultilangMount)
-		mounts = append(mounts, RenderMountListEntry(item, lang))
+		item := raw.(*mapping.MappedMultilangItemUnity)
+		mounts = append(mounts, RenderEquipmentAsMountListEntry(item, lang))
 	}
 
 	utils.WriteCacheHeader(&w)
@@ -1061,7 +1068,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 	searchChans := make([]chan []ApiAllSearchResultScore, 0)
 
-	indicesHasItem := parsedIndices.Has("items-equipment") || parsedIndices.Has("items-consumables") || parsedIndices.Has("items-resources") || parsedIndices.Has("items-quest_items") || parsedIndices.Has("items-cosmetics")
+	indicesHasItem := parsedIndices.Has("items-equipment") || parsedIndices.Has("items-consumables") || parsedIndices.Has("items-resources") || parsedIndices.Has("items-quest_items") || parsedIndices.Has("items-cosmetics") || parsedIndices.Has("mounts")
 	needItemSearch := parsedIndices.Size() == 0 || indicesHasItem
 	if needItemSearch {
 		itemRetChan := make(chan []ApiAllSearchResultScore)
@@ -1129,7 +1136,8 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// search_index filter
-				if !parsedIndices.Has(itemType) {
+				isMountItem := mountEquipmentTypeIds[item.Type.ItemTypeId]
+				if !parsedIndices.Has(itemType) && !(parsedIndices.Has("mounts") && isMountItem) {
 					continue
 				}
 
@@ -1249,84 +1257,6 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 			}
 
 			setRetChan <- sets
-		}()
-	}
-
-	needMountSearch := false
-	mountIncluded := additiveTypesExceptions.Has("mount")
-	notExcluded = !removedTypesExceptions.Has("mount")
-	noIndexGiven = parsedIndices.Size() == 0 && notExcluded
-	if noIndexGiven {
-		needMountSearch = true
-	} else if parsedIndices.Size() != 0 && !parsedIndices.Has("mounts") { // index given but no set
-		needMountSearch = false
-	} else {
-		needMountSearch = mountIncluded && notExcluded
-	}
-
-	if needMountSearch {
-		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
-		mountIndex := client.Index(mountIndexUid)
-		mountRetChan := make(chan []ApiAllSearchResultScore)
-		searchChans = append(searchChans, mountRetChan)
-		go func() {
-			request := &meilisearch.SearchRequest{
-				Limit:                   searchLimit * 3,
-				ShowRankingScoreDetails: true,
-			}
-
-			var searchResp *meilisearch.SearchResponse
-			if searchResp, err = mountIndex.Search(query, request); err != nil {
-				e.WriteServerErrorResponse(w, "Failed to search for query: "+err.Error())
-				mountRetChan <- nil
-				return
-			}
-
-			mounts := make([]ApiAllSearchResultScore, 0)
-			for _, hitRaw := range searchResp.Hits {
-				indexed := Hit{}
-				err = hitRaw.DecodeInto(&indexed)
-				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
-					return
-				}
-
-				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
-
-				mountId := int(indexed.Id)
-
-				txn := database.Db.Txn(false)
-				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", mountId)
-				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
-					mountRetChan <- nil
-					return
-				}
-
-				if raw == nil {
-					e.WriteServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(mountId)))
-					mountRetChan <- nil
-					return
-				}
-
-				item := raw.(*mapping.MappedMultilangMount)
-
-				result := ApiAllSearchResult{
-					Name: item.Name[lang],
-					Id:   item.AnkamaId,
-					Type: ApiAllSearchResultType{
-						NameId: "mounts",
-					},
-					ItemFields: nil,
-				}
-
-				mounts = append(mounts, ApiAllSearchResultScore{
-					Result: result,
-					Score:  score,
-				})
-			}
-
-			mountRetChan <- mounts
 		}()
 	}
 
@@ -1580,13 +1510,17 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
 
-	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "mounts"), "id", ankamaId)
+	raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "equipment"), "id", ankamaId)
 	if err != nil {
 		e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
 		return
 	}
-
 	if raw == nil {
+		e.WriteNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(ankamaId)))
+		return
+	}
+	item := raw.(*mapping.MappedMultilangItemUnity)
+	if !mountEquipmentTypeIds[item.Type.ItemTypeId] {
 		e.WriteNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(ankamaId)))
 		return
 	}
@@ -1594,7 +1528,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RequestsTotal.Inc()
 	utils.RequestsMountsSingle.Inc()
 
-	mount := RenderMount(raw.(*mapping.MappedMultilangMount), lang)
+	mount := RenderEquipmentAsMount(item, lang)
 	utils.WriteCacheHeader(&w)
 	err = json.NewEncoder(w).Encode(mount)
 	if err != nil {

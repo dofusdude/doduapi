@@ -512,7 +512,6 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
 	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
-	mountsTable := fmt.Sprintf("%s-mounts", utils.NextRedBlueVersionStr(version.MemDb))
 	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
@@ -639,27 +638,24 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 	}
 
-	// mounts
 	mountIndexBatch := make(map[string][]SearchIndexedMount)
-	for _, mount := range *mounts {
-		mountCp := mount
-		if err := txn.Insert(mountsTable, &mountCp); err != nil {
-			log.Fatal(err)
+	for _, item := range *items {
+		if !mountEquipmentTypeIds[item.Type.ItemTypeId] {
+			continue
 		}
-
+		itemCp := item
 		for _, lang := range config.Languages {
 			object := SearchIndexedMount{
-				Name: mountCp.Name[lang],
-				Id:   mountCp.AnkamaId,
+				Name: itemCp.Name[lang],
+				Id:   itemCp.AnkamaId,
 				Family: ApiType{
-					Name: strings.ToLower(mountCp.FamilyName[lang]),
-					Id:   mountCp.FamilyId,
+					Name: strings.ToLower(itemCp.Type.Name[lang]),
+					Id:   itemCp.Type.ItemTypeId,
 				},
 				StuffType: SearchStuffType{
 					NameId: "mounts",
 				},
 			}
-
 			mountIndexBatch[lang] = append(mountIndexBatch[lang], object)
 			if len(mountIndexBatch[lang]) >= maxBatchSize {
 				taskInfo, err := multilangSearchIndexes[lang].Mounts.AddDocuments(mountIndexBatch[lang], nil)
