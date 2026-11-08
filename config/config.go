@@ -36,4 +36,6 @@ var (
 	CurrentVersion          utils.GameVersion // TODO remove, since not a fixed config param
 	ApiVersion              string
 	SkipAlmanax             bool
+	DevMode                 bool
+	DodudaOutputDir         string
 )

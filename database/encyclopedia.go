@@ -9,6 +9,7 @@ type SearchIndexes struct {
 	AllItems meilisearch.IndexManager
 	Sets     meilisearch.IndexManager
 	Mounts   meilisearch.IndexManager
+	Entities map[string]meilisearch.IndexManager
 }
 
 var Db *memdb.MemDB

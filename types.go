@@ -95,9 +95,21 @@ func RenderEffects(effects *[]mapping.MappedMultilangEffect, lang string) []ApiE
 }
 
 type ApiCondition struct {
-	Operator string           `json:"operator"`
-	IntValue int              `json:"int_value"`
-	Element  ApiConditionType `json:"element"`
+	StringValue        string                 `json:"string_value,omitempty"`
+	ValueLabel         string                 `json:"value_label,omitempty"`
+	SecondaryReference *ApiConditionReference `json:"secondary_reference,omitempty"`
+	Kind               string                 `json:"kind,omitempty"`
+	Unit               string                 `json:"unit,omitempty"`
+	Reference          *ApiConditionReference `json:"reference,omitempty"`
+	Quantity           *int                   `json:"quantity,omitempty"`
+	Operator           string                 `json:"operator"`
+	IntValue           int                    `json:"int_value"`
+	Element            ApiConditionType       `json:"element"`
+}
+
+type ApiConditionReference struct {
+	AnkamaID int    `json:"ankama_id"`
+	Name     string `json:"name,omitempty"`
 }
 
 type ApiConditionNode struct {
@@ -160,6 +172,7 @@ type APIEquipment struct {
 	Conditions  *ApiConditionNode  `json:"conditions,omitempty"`
 	Recipe      []APIRecipe        `json:"recipe,omitempty"`
 	ParentSet   *APISetReverseLink `json:"parent_set,omitempty"`
+	Combat      *APIWeaponCombat   `json:"combat,omitempty"`
 }
 
 func RenderEquipment(item *mapping.MappedMultilangItemUnity, lang string) APIEquipment {
@@ -226,6 +239,7 @@ type APIWeapon struct {
 	Range                  APIRange           `json:"range"`
 	Recipe                 []APIRecipe        `json:"recipe,omitempty"`
 	ParentSet              *APISetReverseLink `json:"parent_set,omitempty"`
+	Combat                 *APIWeaponCombat   `json:"combat,omitempty"`
 }
 
 func RenderWeapon(item *mapping.MappedMultilangItemUnity, lang string) APIWeapon {
@@ -292,12 +306,29 @@ func buildAPIConditionTree(out **ApiConditionNode, root *mapping.ConditionTreeNo
 
 	if root.IsOperand {
 		(*out).Condition = &ApiCondition{
+			StringValue: root.Value.StringValue,
+			Kind:        root.Value.Kind, Unit: root.Value.Unit, ValueLabel: root.Value.ValueLabel,
+			Quantity: root.Value.Quantity,
 			Operator: root.Value.Operator,
 			IntValue: root.Value.Value,
 			Element: ApiConditionType{
 				Name: root.Value.Templated[lang],
 				Id:   root.Value.ElementId,
 			},
+		}
+		if root.Value.Reference != nil {
+			name := root.Value.Reference.Name[lang]
+			if name == "" {
+				name = root.Value.Reference.Name["en"]
+			}
+			(*out).Condition.Reference = &ApiConditionReference{AnkamaID: root.Value.Reference.AnkamaID, Name: name}
+		}
+		if ref := root.Value.SecondaryReference; ref != nil {
+			name := ref.Name[lang]
+			if name == "" {
+				name = ref.Name["en"]
+			}
+			(*out).Condition.SecondaryReference = &ApiConditionReference{AnkamaID: ref.AnkamaID, Name: name}
 		}
 		return
 	} else {
@@ -374,11 +405,12 @@ type APIListItem struct {
 	ParentSet *APISetReverseLink `json:"parent_set,omitempty"`
 
 	// extra weapon
-	CriticalHitProbability *int      `json:"critical_hit_probability,omitempty"`
-	CriticalHitBonus       *int      `json:"critical_hit_bonus,omitempty"`
-	MaxCastPerTurn         *int      `json:"max_cast_per_turn,omitempty"`
-	ApCost                 *int      `json:"ap_cost,omitempty"`
-	Range                  *APIRange `json:"range,omitempty"`
+	CriticalHitProbability *int             `json:"critical_hit_probability,omitempty"`
+	CriticalHitBonus       *int             `json:"critical_hit_bonus,omitempty"`
+	MaxCastPerTurn         *int             `json:"max_cast_per_turn,omitempty"`
+	ApCost                 *int             `json:"ap_cost,omitempty"`
+	Range                  *APIRange        `json:"range,omitempty"`
+	Combat                 *APIWeaponCombat `json:"combat,omitempty"`
 }
 
 func RenderItemListEntry(item *mapping.MappedMultilangItemUnity, lang string) APIListItem {

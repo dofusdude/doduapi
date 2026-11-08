@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "collections": {
+    "areas": {
+      "minimum_records": 69,
+      "required_ids": [
+        0,
+        1,
+        2
+      ]
+    },
+    "classes": {
+      "minimum_records": 19,
+      "required_ids": [
+        1,
+        2,
+        3
+      ]
+    },
+    "items/consumables": {
+      "minimum_records": 3366,
+      "required_ids": [
+        281,
+        282,
+        283
+      ]
+    },
+    "items/cosmetics": {
+      "minimum_records": 2488,
+      "required_ids": [
+        1090,
+        1710,
+        1907
+      ]
+    },
+    "items/equipment": {
+      "minimum_records": 4095,
+      "required_ids": [
+        44,
+        49,
+        55
+      ]
+    },
+    "items/quest": {
+      "minimum_records": 3907,
+      "required_ids": [
+        818,
+        930,
+        931
+      ]
+    },
+    "items/resources": {
+      "minimum_records": 3521,
+      "required_ids": [
+        274,
+        276,
+        286
+      ]
+    },
+    "monsters": {
+      "minimum_records": 5129,
+      "required_ids": [
+        31,
+        34,
+        36
+      ]
+    },
+    "mounts": {
+      "minimum_records": 308,
+      "required_ids": [
+        33000,
+        33001,
+        33002
+      ]
+    },
+    "sets": {
+      "minimum_records": 940,
+      "required_ids": [
+        1,
+        2,
+        3
+      ]
+    },
+    "spells": {
+      "minimum_records": 17006,
+      "required_ids": [
+        0,
+        201,
+        202
+      ]
+    },
+    "subareas": {
+      "minimum_records": 567,
+      "required_ids": [
+        1,
+        2,
+        3
+      ]
+    },
+    "super-areas": {
+      "minimum_records": 10,
+      "required_ids": [
+        0,
+        3,
+        4
+      ]
+    }
+  },
+  "minimum_recipes": 4743,
+  "minimum_almanax": 373,
+  "minimum_calendar_days": 366
+}

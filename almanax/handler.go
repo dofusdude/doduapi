@@ -13,6 +13,7 @@ import (
 	"github.com/dofusdude/doduapi/config"
 	"github.com/dofusdude/doduapi/database"
 	e "github.com/dofusdude/doduapi/errmsg"
+	requestquery "github.com/dofusdude/doduapi/query"
 	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
@@ -164,88 +165,28 @@ func renderAlmanaxResponse(m *database.MappedAlmanax, lang string, level *int, t
 
 func GetAlmanaxRange(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	from := r.URL.Query().Get("range[from]")
-	to := r.URL.Query().Get("range[to]")
-	size := r.URL.Query().Get("range[size]")
-	var sizeNum int
-	bonusType := r.URL.Query().Get("filter[bonus_type]")
-	timezone := r.URL.Query().Get("timezone")
-
-	level := r.URL.Query().Get("level")
+	input := requestquery.From(r)
+	sizeNum := input.IntDefault("range[size]", -1)
+	bonusType := input.String("filter[bonus_type]")
 	var levelInt *int
-	if level != "" {
-		levelParse, err := strconv.Atoi(level)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Invalid level value.")
-			return
-		}
-
-		if levelParse < 1 || levelParse > 200 {
-			e.WriteInvalidQueryResponse(w, "Level value out of bounds.")
-			return
-		}
-
+	if input.Has("level") {
+		levelParse := input.Int("level")
 		levelInt = &levelParse
 	}
-
 	var err error
-
-	if size == "" {
-		sizeNum = -1
-	} else {
-		sizeNum, err = strconv.Atoi(size)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Invalid size value.")
-			return
-		}
-	}
-
-	if timezone == "" {
-		timezone = "Europe/Paris"
-	}
-
-	givenFromDate := from != ""
+	givenFromDate := input.Has("range[from]")
 	var fromDate time.Time
-	var fromDateParsed time.Time
-	if givenFromDate {
-		fromDateParsed, err = time.Parse("2006-01-02", from)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Invalid from-date format.")
-			return
-		}
-	}
-
-	givenToDate := to != ""
+	fromDateParsed := input.Date("range[from]")
+	givenToDate := input.Has("range[to]")
 	var toDate time.Time
-	var toDateParsed time.Time
-	if givenToDate {
-		toDateParsed, err = time.Parse("2006-01-02", to)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Invalid to-date format.")
-			return
-		}
-	}
-
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		e.WriteInvalidQueryResponse(w, "Invalid timezone.")
-		return
-	}
+	toDateParsed := input.Date("range[to]")
+	loc := input.Location
 	fromDate = time.Now().In(loc)
 	toDate = fromDate.AddDate(0, 0, config.AlmanaxDefaultLookAhead)
 
-	givenRangeSize := size != "" && sizeNum > 0
-	if givenRangeSize && givenFromDate && givenToDate {
-		e.WriteInvalidQueryResponse(w, "Cannot use range[size] with range[from] and range[to].")
-		return
-	}
+	givenRangeSize := input.Has("range[size]") && sizeNum > 0
 
 	if givenRangeSize && !givenFromDate && !givenToDate {
-		loc, err := time.LoadLocation(timezone)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Invalid timezone.")
-			return
-		}
 		fromDate = time.Now().In(loc)
 		toDate = fromDate.AddDate(0, 0, sizeNum)
 	} else {
@@ -402,22 +343,6 @@ func ListBonuses(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getLimitInBoundary(limitStr string) (int64, error) {
-	if limitStr == "" {
-		limitStr = "8"
-	}
-	var limit int
-	var err error
-	if limit, err = strconv.Atoi(limitStr); err != nil {
-		return 0, fmt.Errorf("invalid limit value")
-	}
-	if limit > 100 {
-		return 0, fmt.Errorf("limit value is too high")
-	}
-
-	return int64(limit), nil
-}
-
 func SetJsonHeader(w *http.ResponseWriter) {
 	(*w).Header().Set("Content-Type", "application/json")
 }
@@ -426,7 +351,7 @@ func SearchBonuses(w http.ResponseWriter, r *http.Request) {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
-	query := r.URL.Query().Get("query")
+	query := requestquery.From(r).String("query")
 	if query == "" {
 		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
 		return
@@ -434,12 +359,8 @@ func SearchBonuses(w http.ResponseWriter, r *http.Request) {
 
 	lang := r.Context().Value("lang").(string)
 
-	var searchLimit int64
 	var err error
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Invalid limit value: "+err.Error())
-		return
-	}
+	searchLimit := int64(requestquery.From(r).IntDefault("limit", 8))
 
 	index := client.Index(fmt.Sprintf("alm-bonuses-%s", lang))
 

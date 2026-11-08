@@ -188,58 +188,60 @@ type PersistentStringKeysMap struct {
 }
 
 func LoadPersistedElements(elementsUrl string, typesUrl string) (PersistentStringKeysMap, PersistentStringKeysMap, error) {
-	elementsResponse, err := http.Get(elementsUrl)
+	read := func(address string) ([]byte, error) {
+		response, err := http.Get(address)
+		if err != nil {
+			return nil, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("download persistence: %s", response.Status)
+		}
+		return io.ReadAll(response.Body)
+	}
+	elementsBody, err := read(elementsUrl)
 	if err != nil {
 		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
-
-	elementsBody, err := io.ReadAll(elementsResponse.Body)
+	typesBody, err := read(typesUrl)
 	if err != nil {
 		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
+	return parsePersistedElements(elementsBody, typesBody)
+}
 
+func LoadPersistedElementsFiles(elementsPath string, typesPath string) (PersistentStringKeysMap, PersistentStringKeysMap, error) {
+	elementsBody, err := os.ReadFile(elementsPath)
+	if err != nil {
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
+	}
+	typesBody, err := os.ReadFile(typesPath)
+	if err != nil {
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
+	}
+	return parsePersistedElements(elementsBody, typesBody)
+}
+
+func parsePersistedElements(elementsBody []byte, typesBody []byte) (PersistentStringKeysMap, PersistentStringKeysMap, error) {
 	var elements []string
-	err = json.Unmarshal(elementsBody, &elements)
-	if err != nil {
+	if err := json.Unmarshal(elementsBody, &elements); err != nil {
+		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
+	}
+	var types []string
+	if err := json.Unmarshal(typesBody, &types); err != nil {
 		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
 	}
 
-	persistedElements := PersistentStringKeysMap{
-		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
-		NextId:  0,
-	}
-
+	persistedElements := PersistentStringKeysMap{Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator)}
 	for _, entry := range elements {
 		persistedElements.Entries.Put(persistedElements.NextId, entry)
 		persistedElements.NextId++
 	}
-
-	typesResponse, err := http.Get(typesUrl)
-	if err != nil {
-		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
-	}
-
-	typesBody, err := io.ReadAll(typesResponse.Body)
-	if err != nil {
-		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
-	}
-
-	var types []string
-	err = json.Unmarshal(typesBody, &types)
-	if err != nil {
-		return PersistentStringKeysMap{}, PersistentStringKeysMap{}, err
-	}
-
-	persistedTypes := PersistentStringKeysMap{
-		Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator),
-		NextId:  0,
-	}
-
+	persistedTypes := PersistentStringKeysMap{Entries: treebidimap.NewWith(gutils.IntComparator, gutils.StringComparator)}
 	for _, entry := range types {
 		persistedTypes.Entries.Put(persistedTypes.NextId, entry)
 		persistedTypes.NextId++
 	}
-
 	return persistedElements, persistedTypes, nil
 }
 
@@ -283,7 +285,7 @@ func (p *Pagination) ValidatePagination(listSize int) int {
 	if p.PageSize == -1 {
 		p.PageSize = listSize
 	}
-	if p.PageSize > listSize || p.PageSize < -1 || p.PageSize == 0 {
+	if p.PageSize < -1 || p.PageSize == 0 {
 		return -1
 	}
 	if (p.PageSize * p.PageNumber) >= listSize+p.PageSize {
@@ -293,57 +295,31 @@ func (p *Pagination) ValidatePagination(listSize int) int {
 }
 
 func (p *Pagination) BuildLinks(mainUrl url.URL, listSize int, apiScheme string, apiHostname string) (PaginationLinks, bool) {
-	firstPage := 1
-	var lastPage int
-
-	lastPageSize := listSize % p.PageSize
-	if lastPageSize == 0 {
-		lastPage = listSize / p.PageSize
-	} else {
-		lastPage = (listSize / p.PageSize) + 1
+	if p.PageSize <= 0 {
+		return PaginationLinks{}, true
 	}
-
-	baseUrl, _ := url.JoinPath(fmt.Sprintf("%s://%s", apiScheme, apiHostname), mainUrl.Path)
-
-	firstUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", firstPage, p.PageSize)
-	prevUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", p.PageNumber-1, p.PageSize)
-	nextUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", p.PageNumber+1, p.PageSize)
-	lastUrlQuery := fmt.Sprintf("page[number]=%d&page[size]=%d", lastPage, p.PageSize)
-
-	firstUrlStr := url.QueryEscape(firstUrlQuery)
-	prevUrlStr := url.QueryEscape(prevUrlQuery)
-	nextUrlStr := url.QueryEscape(nextUrlQuery)
-	lastUrlStr := url.QueryEscape(lastUrlQuery)
-
-	firstUrl := fmt.Sprintf("%s?%s", baseUrl, firstUrlStr)
-	prevUrl := fmt.Sprintf("%s?%s", baseUrl, prevUrlStr)
-	nextUrl := fmt.Sprintf("%s?%s", baseUrl, nextUrlStr)
-	lastUrl := fmt.Sprintf("%s?%s", baseUrl, lastUrlStr)
-
-	finalFirstUrl := &firstUrl
-	finalPrevUrl := &prevUrl
-	finalNextUrl := &nextUrl
-	finalLastUrl := &lastUrl
-
-	if p.PageNumber == firstPage {
-		finalPrevUrl = nil
+	last := max(1, (listSize+p.PageSize-1)/p.PageSize)
+	link := func(number int) *string {
+		u := mainUrl
+		u.Scheme, u.Host = apiScheme, apiHostname
+		values := u.Query()
+		values.Set("page[number]", strconv.Itoa(number))
+		values.Set("page[size]", strconv.Itoa(p.PageSize))
+		u.RawQuery = values.Encode()
+		value := u.String()
+		return &value
 	}
-
-	if p.PageNumber == lastPage {
-		finalNextUrl = nil
+	links := PaginationLinks{}
+	if last > 1 {
+		links.First, links.Last = link(1), link(last)
 	}
-
-	if lastPage == firstPage {
-		finalLastUrl = nil
-		finalFirstUrl = nil
+	if p.PageNumber > 1 {
+		links.Prev = link(p.PageNumber - 1)
 	}
-
-	return PaginationLinks{
-		First: finalFirstUrl,
-		Prev:  finalPrevUrl,
-		Next:  finalNextUrl,
-		Last:  finalLastUrl,
-	}, firstUrlStr == lastUrlStr
+	if p.PageNumber < last {
+		links.Next = link(p.PageNumber + 1)
+	}
+	return links, last == 1
 }
 
 func (p *Pagination) CalculateStartEndIndex(listSize int) (int, int) {

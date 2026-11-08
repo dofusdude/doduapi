@@ -2,53 +2,41 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	e "github.com/dofusdude/doduapi/errmsg"
+	"github.com/dofusdude/doduapi/query"
+	"github.com/dofusdude/doduapi/utils"
 	"github.com/go-chi/chi/v5"
 )
 
+type paginationKey struct{}
+
+func requestPagination(r *http.Request) utils.Pagination {
+	return r.Context().Value(paginationKey{}).(utils.Pagination)
+}
+
 func disablePaginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), "pagination", "1,-1")
+		ctx := context.WithValue(r.Context(), paginationKey{}, utils.Pagination{PageNumber: 1, PageSize: -1})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func paginate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pageNumStr := r.URL.Query().Get("page[number]")
-		var pageNum int
-
-		pageSizeStr := r.URL.Query().Get("page[size]")
-		var pageSize int
-
-		var err error
-		if pageNumStr != "" {
-			pageNum, err = strconv.Atoi(pageNumStr)
-			if err != nil || pageNum <= 0 {
-				e.WriteInvalidUrlResponse(w, "Invalid page number: "+pageNumStr)
-				return
-			}
+		page := utils.Pagination{PageNumber: 1, PageSize: 16}
+		if entity, ok := r.Context().Value(entityQueryContextKey{}).(*EntityQuery); ok {
+			page.PageNumber, page.PageSize = entity.Page.Number, entity.Page.Size
 		} else {
-			pageNum = 1
+			request := query.From(r)
+			page.PageNumber = request.IntDefault("page[number]", 1)
+			page.PageSize = request.IntDefault("page[size]", 16)
 		}
-
-		if pageSizeStr != "" {
-			pageSize, err = strconv.Atoi(pageSizeStr)
-			if err != nil {
-				e.WriteInvalidUrlResponse(w, "Invalid page size: "+pageSizeStr)
-				return
-			}
-		} else {
-			pageSize = 16
-		}
-
-		ctx := context.WithValue(r.Context(), "pagination", fmt.Sprintf("%d,%d", pageNum, pageSize))
+		ctx := context.WithValue(r.Context(), paginationKey{}, page)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -57,6 +45,30 @@ func paginate(next http.Handler) http.Handler {
 func useCors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Expose-Headers", "Accept-Query, Allow")
+		if r.Method == http.MethodOptions && r.Header.Get("Origin") != "" && r.Header.Get("Access-Control-Request-Method") != "" {
+			method := r.Header.Get("Access-Control-Request-Method")
+			_, querySupported := query.Match(r.URL.Path)
+			if method != "GET" && method != "HEAD" && (method != "QUERY" || !querySupported) {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+				switch strings.ToLower(strings.TrimSpace(header)) {
+				case "", "content-type", "accept":
+				default:
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, QUERY, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.Header().Add("Vary", "Access-Control-Request-Method")
+			w.Header().Add("Vary", "Access-Control-Request-Headers")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		ctx := context.WithValue(r.Context(), "cors", true)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

@@ -1,0 +1,1039 @@
+[
+  {
+    "path": "/{game}/v1/{language}/items/equipment",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods",
+      "range",
+      "parent_set",
+      "is_weapon",
+      "critical_hit_probability",
+      "critical_hit_bonus",
+      "max_cast_per_turn",
+      "ap_cost",
+      "combat"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/equipment/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods",
+      "range",
+      "parent_set",
+      "is_weapon",
+      "critical_hit_probability",
+      "critical_hit_bonus",
+      "max_cast_per_turn",
+      "ap_cost",
+      "combat"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/equipment/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/consumables",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/consumables/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/consumables/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/resources",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/resources/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/resources/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/quest",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/quest/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/quest/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/cosmetics",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods",
+      "range",
+      "parent_set",
+      "is_weapon",
+      "critical_hit_probability",
+      "critical_hit_bonus",
+      "max_cast_per_turn",
+      "ap_cost",
+      "combat"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/cosmetics/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "item",
+    "field_values": [
+      "effects",
+      "recipe",
+      "description",
+      "conditions",
+      "pods",
+      "range",
+      "parent_set",
+      "is_weapon",
+      "critical_hit_probability",
+      "critical_hit_bonus",
+      "max_cast_per_turn",
+      "ap_cost",
+      "combat"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/cosmetics/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/mounts",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "family.name",
+        "name": "filter[family.name]",
+        "type": "string"
+      },
+      {
+        "group": "filter",
+        "key": "family.id",
+        "name": "filter[family.id]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "fields": "mount",
+    "field_values": [
+      "effects"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/mounts/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "family.name",
+        "name": "filter[family.name]",
+        "type": "string"
+      },
+      {
+        "group": "filter",
+        "key": "family.id",
+        "name": "filter[family.id]",
+        "type": "integer"
+      }
+    ],
+    "fields": "mount",
+    "field_values": [
+      "effects"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/mounts/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "family.name",
+        "name": "filter[family.name]",
+        "type": "string"
+      },
+      {
+        "group": "filter",
+        "key": "family.id",
+        "name": "filter[family.id]",
+        "type": "integer"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/sets",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_highest_equipment_level",
+        "name": "filter[min_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_highest_equipment_level",
+        "name": "filter[max_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics",
+        "name": "filter[contains_cosmetics]",
+        "type": "boolean"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics_only",
+        "name": "filter[contains_cosmetics_only]",
+        "type": "boolean"
+      },
+      {
+        "group": "page",
+        "key": "number",
+        "name": "page[number]",
+        "type": "integer"
+      },
+      {
+        "group": "page",
+        "key": "size",
+        "name": "page[size]",
+        "type": "integer"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "set",
+    "field_values": [
+      "effects",
+      "equipment_ids"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/sets/all",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_highest_equipment_level",
+        "name": "filter[min_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_highest_equipment_level",
+        "name": "filter[max_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics",
+        "name": "filter[contains_cosmetics]",
+        "type": "boolean"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics_only",
+        "name": "filter[contains_cosmetics_only]",
+        "type": "boolean"
+      }
+    ],
+    "sort": [
+      "level"
+    ],
+    "fields": "set",
+    "field_values": [
+      "effects",
+      "equipment_ids"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/sets/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_highest_equipment_level",
+        "name": "filter[min_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_highest_equipment_level",
+        "name": "filter[max_highest_equipment_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics",
+        "name": "filter[contains_cosmetics]",
+        "type": "boolean"
+      },
+      {
+        "group": "filter",
+        "key": "contains_cosmetics_only",
+        "name": "filter[contains_cosmetics_only]",
+        "type": "boolean"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/items/search",
+    "parameters": [
+      {
+        "group": "filter",
+        "key": "min_level",
+        "name": "filter[min_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "max_level",
+        "name": "filter[max_level]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "search_index",
+        "name": "filter[search_index]",
+        "type": "strings"
+      },
+      {
+        "group": "filter",
+        "key": "type.name_id",
+        "name": "filter[type.name_id]",
+        "type": "strings"
+      }
+    ],
+    "fields": "item",
+    "field_values": [
+      "type",
+      "image_urls",
+      "level"
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/almanax",
+    "parameters": [
+      {
+        "group": "range",
+        "key": "from",
+        "name": "range[from]",
+        "type": "string"
+      },
+      {
+        "group": "range",
+        "key": "to",
+        "name": "range[to]",
+        "type": "string"
+      },
+      {
+        "group": "range",
+        "key": "size",
+        "name": "range[size]",
+        "type": "integer"
+      },
+      {
+        "group": "filter",
+        "key": "bonus_type",
+        "name": "filter[bonus_type]",
+        "type": "string"
+      },
+      {
+        "key": "timezone",
+        "name": "timezone",
+        "type": "string"
+      },
+      {
+        "key": "level",
+        "name": "level",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/meta/{language}/almanax/bonuses/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/classes",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/classes/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/monsters",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/monsters/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/spells",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/spells/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/super-areas",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/super-areas/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/areas",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/areas/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  },
+  {
+    "path": "/{game}/v1/{language}/subareas",
+    "mapped": true
+  },
+  {
+    "path": "/{game}/v1/{language}/subareas/search",
+    "parameters": [
+      {
+        "key": "query",
+        "name": "query",
+        "type": "string"
+      },
+      {
+        "key": "limit",
+        "name": "limit",
+        "type": "integer"
+      }
+    ]
+  }
+]

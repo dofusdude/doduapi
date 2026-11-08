@@ -1,10 +1,30 @@
 package main
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/dofusdude/doduapi/utils"
 )
+
+func TestPaginationLinksPreserveFiltersAndEncodeSeparateParameters(t *testing.T) {
+	u, err := url.Parse("/dofus3/v1/en/items/equipment?filter[min_level]=100&sort[level]=desc&fields[item]=effects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := utils.Pagination{PageNumber: 1, PageSize: 10}
+	links, _ := p.BuildLinks(*u, 30, "http", "localhost:3000")
+	if links.Next == nil {
+		t.Fatal("missing next page")
+	}
+	next, err := url.Parse(*links.Next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Query().Get("page[number]") != "2" || next.Query().Get("filter[min_level]") != "100" || next.Query().Get("fields[item]") != "effects" || next.Query().Get("sort[level]") != "desc" {
+		t.Fatalf("broken links: %s", *links.Next)
+	}
+}
 
 func TestPaginationSet(t *testing.T) {
 	pagination := utils.PageninationWithState("30,3")
@@ -66,6 +86,20 @@ func TestPaginationValidation1(t *testing.T) {
 
 	if endIdx != 6 {
 		t.Error("Expected 6, got ", endIdx)
+	}
+}
+
+func TestPaginationAllowsPageSizeLargerThanCollection(t *testing.T) {
+	pagination := utils.PageninationWithState("1,30")
+	listSize := 9
+
+	if valid := pagination.ValidatePagination(listSize); valid != 0 {
+		t.Fatalf("expected page to be valid, got %d", valid)
+	}
+
+	startIdx, endIdx := pagination.CalculateStartEndIndex(listSize)
+	if startIdx != 0 || endIdx != listSize {
+		t.Fatalf("expected clamped range 0:%d, got %d:%d", listSize, startIdx, endIdx)
 	}
 }
 

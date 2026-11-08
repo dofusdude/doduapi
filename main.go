@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,8 +32,8 @@ import (
 )
 
 var (
-	DoduapiMajor       = 1                                    // Major version also used for prefixing API routes.
-	DoduapiVersion     = fmt.Sprintf("v%d.0.6", DoduapiMajor) // change with every release
+	DoduapiMajor       = 1                                           // Major version also used for prefixing API routes.
+	DoduapiVersion     = fmt.Sprintf("v%d.1.0-beta.1", DoduapiMajor) // change with every release
 	DoduapiShort       = "doduapi - Open Dofus Encyclopedia API"
 	DoduapiLong        = ""
 	DoduapiVersionHelp = DoduapiShort + "\n" + DoduapiVersion + "\nhttps://github.com/dofusdude/doduapi"
@@ -61,6 +62,8 @@ func ReadEnvs() {
 	viper.SetDefault("UPDATE_HOOK_TOKEN", "")
 	viper.SetDefault("DOFUS_VERSION", "")
 	viper.SetDefault("LOG_LEVEL", "warn")
+	viper.SetDefault("DEVMODE", "false")
+	viper.SetDefault("DODUDA_OUTPUT_DIR", "")
 
 	var err error
 	currentWd, err = os.Getwd()
@@ -82,8 +85,19 @@ func ReadEnvs() {
 	config.AlmanaxMaxLookAhead = viper.GetInt("ALMANAX_MAX_LOOKAHEAD_DAYS")
 	config.AlmanaxDefaultLookAhead = viper.GetInt("ALMANAX_DEFAULT_LOOKAHEAD_DAYS")
 
+	config.DevMode = viper.GetBool("DEVMODE")
+	config.DodudaOutputDir = viper.GetString("DODUDA_OUTPUT_DIR")
+	if config.DevMode && strings.TrimSpace(config.DodudaOutputDir) == "" {
+		log.Fatal("DODUDA_OUTPUT_DIR must be set when DEVMODE=true")
+	}
+	if config.DodudaOutputDir != "" && !filepath.IsAbs(config.DodudaOutputDir) {
+		config.DodudaOutputDir = filepath.Join(currentWd, config.DodudaOutputDir)
+	}
+
 	dofusVersion := viper.GetString("DOFUS_VERSION")
-	if dofusVersion == "" {
+	if dofusVersion == "" && config.DevMode {
+		config.DofusVersion = "local"
+	} else if dofusVersion == "" {
 		releaseApiResponse, err := http.Get(fmt.Sprintf("https://api.github.com/repos/dofusdude/dofus3-%s/releases/latest", betaStr))
 		if err != nil {
 			log.Fatal(err)
@@ -166,6 +180,14 @@ func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, u
 		if err != nil {
 			log.Fatal(err)
 		}
+		if _, err = delOldTxn.DeleteAll(fmt.Sprintf("%s-item_weapon_combat", utils.CurrentRedBlueVersionStr(version.MemDb)), "id"); err != nil {
+			log.Fatal(err)
+		}
+		for _, resource := range mappedEntityResources {
+			if _, err = delOldTxn.DeleteAll(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(version.MemDb), resource.Table), "id"); err != nil {
+				log.Fatal(err)
+			}
+		}
 		delOldTxn.Commit()
 
 		// ----
@@ -237,6 +259,19 @@ func AutoUpdate(version *database.VersionT, updateHook chan utils.GameVersion, u
 			if task.Status == "failed" {
 				log.Error("Error while deleting old mount index.", "err", task.Error)
 				return
+			}
+
+			for _, resource := range mappedEntityResources {
+				indexUID := fmt.Sprintf("%s-%s-%s", nowOldRedBlueVersion, resource.Table, lang)
+				deletionTask, deleteErr := client.DeleteIndex(indexUID)
+				if deleteErr != nil {
+					log.Error("Error while deleting old entity index.", "index", indexUID, "err", deleteErr)
+					return
+				}
+				if _, deleteErr = client.WaitForTask(deletionTask.TaskUID, 500*time.Millisecond); deleteErr != nil {
+					log.Error("Error while waiting for old entity index deletion.", "index", indexUID, "err", deleteErr)
+					return
+				}
 			}
 
 		}
@@ -431,7 +466,7 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		}
 	}()
 
-	if !skipImages {
+	if !skipImages && !config.DevMode {
 		if isChannelClosed(feedbackChan) {
 			os.Exit(1)
 		}
@@ -447,7 +482,14 @@ func rootCommand(ccmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	feedbackChan <- "Persistence"
-	config.PersistedElements, config.PersistedTypes, err = utils.LoadPersistedElements(config.ElementsUrl, config.TypesUrl)
+	if config.DevMode {
+		persistentDir := filepath.Clean(filepath.Join(config.DodudaOutputDir, "..", "persistent"))
+		elementsFile := fmt.Sprintf("elements.dofus3.%s.json", map[bool]string{true: "beta", false: "main"}[config.IsBeta])
+		typesFile := fmt.Sprintf("item_types.dofus3.%s.json", map[bool]string{true: "beta", false: "main"}[config.IsBeta])
+		config.PersistedElements, config.PersistedTypes, err = utils.LoadPersistedElementsFiles(filepath.Join(persistentDir, elementsFile), filepath.Join(persistentDir, typesFile))
+	} else {
+		config.PersistedElements, config.PersistedTypes, err = utils.LoadPersistedElements(config.ElementsUrl, config.TypesUrl)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}

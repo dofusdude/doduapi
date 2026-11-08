@@ -18,6 +18,10 @@ data
 data.ms
 dumps/
 
+# Local inspection exports, not API fixtures.
+/equip.json
+/equip.pretty.json
+
 *.db
 
 doduapi

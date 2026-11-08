@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"runtime"
 	"strings"
 	"sync"
@@ -69,32 +67,33 @@ type ItemTypeId struct {
 
 func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
 	var items []mapping.MappedMultilangItemUnity
+	var itemDocuments []struct {
+		mapping.MappedMultilangItemUnity
+		Weapon *APIWeaponCombat `json:"weapon"`
+	}
+	weaponCombat := make(map[int]*APIWeaponCombat)
 	var sets []mapping.MappedMultilangSetUnity
 	var recipes []mapping.MappedMultilangRecipe
 
 	// --
-	itemsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_ITEMS.json")
+	itemsBody, err := readMappedFile("MAPPED_ITEMS.json")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	itemsBody, err := io.ReadAll(itemsResponse.Body)
+	err = json.Unmarshal(itemsBody, &itemDocuments)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	err = json.Unmarshal(itemsBody, &items)
-	if err != nil {
-		log.Fatal(err)
+	for _, document := range itemDocuments {
+		items = append(items, document.MappedMultilangItemUnity)
+		if document.Weapon != nil {
+			weaponCombat[document.AnkamaId] = document.Weapon
+		}
 	}
 
 	// --
-	setsResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_SETS.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	setsBody, err := io.ReadAll(setsResponse.Body)
+	setsBody, err := readMappedFile("MAPPED_SETS.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -105,12 +104,7 @@ func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database
 	}
 
 	// --
-	recipesResponse, err := http.Get(config.ReleaseUrl + "/MAPPED_RECIPES.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	recipesBody, err := io.ReadAll(recipesResponse.Body)
+	recipesBody, err := readMappedFile("MAPPED_RECIPES.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,15 +114,24 @@ func IndexApiData(version *database.VersionT) (*memdb.MemDB, map[string]database
 		log.Fatal(err)
 	}
 
-	log.Debug("loaded", "items", len(items), "sets", len(sets), "recipes", len(recipes))
+	entities := make(map[string][]*MappedEntityRecord, len(mappedEntityResources))
+	for _, resource := range mappedEntityResources {
+		records, err := loadMappedEntityRecords(resource.Filename)
+		if err != nil {
+			log.Fatal(err)
+		}
+		entities[resource.Table] = records
+	}
 
-	db, indexes := GenerateDatabase(&items, &sets, &recipes, version)
+	log.Debug("loaded", "items", len(items), "sets", len(sets), "recipes", len(recipes), "entity_resources", len(entities))
+
+	db, indexes := GenerateDatabase(&items, &sets, &recipes, entities, weaponCombat, version)
 
 	return db, indexes
 }
 
 func GetMemDBSchema() *memdb.DBSchema {
-	return &memdb.DBSchema{
+	schema := &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
 			"red-equipment": {
 				Name: "red-equipment",
@@ -334,6 +337,27 @@ func GetMemDBSchema() *memdb.DBSchema {
 			},
 		},
 	}
+	for _, resource := range mappedEntityResources {
+		for _, color := range []string{"red", "blue"} {
+			tableName := fmt.Sprintf("%s-%s", color, resource.Table)
+			schema.Tables[tableName] = &memdb.TableSchema{
+				Name: tableName,
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {Name: "id", Unique: true, Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"}},
+				},
+			}
+		}
+	}
+	for _, color := range []string{"red", "blue"} {
+		tableName := fmt.Sprintf("%s-item_weapon_combat", color)
+		schema.Tables[tableName] = &memdb.TableSchema{
+			Name: tableName,
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {Name: "id", Unique: true, Indexer: &memdb.IntFieldIndex{Field: "AnkamaId"}},
+			},
+		}
+	}
+	return schema
 }
 
 func GetItemSuperType(id int) int {
@@ -359,7 +383,7 @@ type AlmanaxBonusListingMeili struct {
 	Name string `json:"name"` // translated text
 }
 
-func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
+func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping.MappedMultilangSetUnity, recipes *[]mapping.MappedMultilangRecipe, entities map[string][]*MappedEntityRecord, weaponCombat map[int]*APIWeaponCombat, version *database.VersionT) (*memdb.MemDB, map[string]database.SearchIndexes) {
 	/*
 		item_category_mapping := hashbidimap.New()
 		item_category_Put(0, 862817) // Ausrüstung
@@ -384,11 +408,15 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		setIndexUid := fmt.Sprintf("%s-sets-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 		mountIndexUid := fmt.Sprintf("%s-mounts-%s", utils.NextRedBlueVersionStr(version.Search), lang)
 
-		createClearIndices([]string{
+		indexNames := []string{
 			itemIndexUid,
 			setIndexUid,
 			mountIndexUid,
-		}, client)
+		}
+		for _, resource := range mappedEntityResources {
+			indexNames = append(indexNames, fmt.Sprintf("%s-%s-%s", utils.NextRedBlueVersionStr(version.Search), resource.Table, lang))
+		}
+		createClearIndices(indexNames, client)
 
 		// add filters and searchable attributes
 		// -- all items --
@@ -437,8 +465,8 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		setsIdx := client.Index(setIndexUid)
 		setFilterUpdateTask, err := setsIdx.UpdateFilterableAttributes(&[]any{
 			"highest_equipment_level",
-			"constains_cosmetics",
-			"constains_cosmetics_only",
+			"contains_cosmetics",
+			"contains_cosmetics_only",
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -453,10 +481,22 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 		}
 		updateTasks = append(updateTasks, setSearchableTask)
 
+		entityIndexes := make(map[string]meilisearch.IndexManager, len(mappedEntityResources))
+		for _, resource := range mappedEntityResources {
+			entityIndex := client.Index(fmt.Sprintf("%s-%s-%s", utils.NextRedBlueVersionStr(version.Search), resource.Table, lang))
+			searchableTask, err := entityIndex.UpdateSearchableAttributes(&[]string{"name"})
+			if err != nil {
+				log.Fatal(err)
+			}
+			updateTasks = append(updateTasks, searchableTask)
+			entityIndexes[resource.Table] = entityIndex
+		}
+
 		multilangSearchIndexes[lang] = database.SearchIndexes{
 			AllItems: allItemsIdx,
 			Sets:     setsIdx,
 			Mounts:   mountsIdx,
+			Entities: entityIndexes,
 		}
 	}
 
@@ -495,12 +535,18 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 	maxBatchSize := 250
 	itemIndexBatch := make(map[string][]SearchIndexedItem)
 	itemsTable := fmt.Sprintf("%s-all_items", utils.NextRedBlueVersionStr(version.MemDb))
+	weaponCombatTable := fmt.Sprintf("%s-item_weapon_combat", utils.NextRedBlueVersionStr(version.MemDb))
 	setsTable := fmt.Sprintf("%s-sets", utils.NextRedBlueVersionStr(version.MemDb))
 	recipesTable := fmt.Sprintf("%s-recipes", utils.NextRedBlueVersionStr(version.MemDb))
 
 	for _, recipe := range *recipes {
 		recipeCt := recipe
 		if err = txn.Insert(recipesTable, &recipeCt); err != nil {
+			log.Fatal(err)
+		}
+	}
+	for ankamaId, combat := range weaponCombat {
+		if err = txn.Insert(weaponCombatTable, &weaponCombatRecord{AnkamaId: ankamaId, Combat: *combat}); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -661,6 +707,35 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 			}
 			indexTasks = append(indexTasks, taskInfo)
 			mountIndexBatch[lang] = make([]SearchIndexedMount, 0)
+		}
+	}
+
+	for _, resource := range mappedEntityResources {
+		tableName := fmt.Sprintf("%s-%s", utils.NextRedBlueVersionStr(version.MemDb), resource.Table)
+		for _, record := range entities[resource.Table] {
+			if err = txn.Insert(tableName, record); err != nil {
+				log.Fatal(err)
+			}
+		}
+		for _, lang := range config.Languages {
+			documents := make([]SearchIndexedEntity, 0, len(entities[resource.Table]))
+			for _, record := range entities[resource.Table] {
+				name := record.Name[lang]
+				if name == "" {
+					name = record.Name["en"]
+				}
+				documents = append(documents, SearchIndexedEntity{
+					Id: record.AnkamaId, Name: name,
+					StuffType: SearchStuffType{NameId: resource.Route},
+				})
+			}
+			if len(documents) > 0 {
+				taskInfo, addErr := multilangSearchIndexes[lang].Entities[resource.Table].AddDocuments(documents, nil)
+				if addErr != nil {
+					log.Fatal(addErr)
+				}
+				indexTasks = append(indexTasks, taskInfo)
+			}
 		}
 	}
 

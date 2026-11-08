@@ -13,6 +13,7 @@ import (
 	"github.com/dofusdude/doduapi/config"
 	"github.com/dofusdude/doduapi/database"
 	e "github.com/dofusdude/doduapi/errmsg"
+	requestquery "github.com/dofusdude/doduapi/query"
 	"github.com/dofusdude/doduapi/utils"
 	mapping "github.com/dofusdude/dodumap"
 	"github.com/hashicorp/go-memdb"
@@ -31,11 +32,15 @@ var (
 		"items-quest_items",
 		"mounts",
 		"sets",
+		"classes",
+		"spells",
+		"monsters",
+		"super-areas",
+		"areas",
+		"subareas",
 	}
 
-	searchAllItemAllowedExpandFields = []string{"type", "image_urls", "level"}
-
-	mountAllowedExpandFields = []string{"effects"}
+	mountAllowedExpandFields = requestquery.MountFields
 
 	// Equipment item type IDs that represent mounts
 	mountEquipmentTypeIds = map[int]bool{
@@ -43,9 +48,9 @@ var (
 		245: true,
 		247: true,
 	}
-	setAllowedExpandFields       = utils.Concat(mountAllowedExpandFields, []string{"equipment_ids"})
-	itemAllowedExpandFields      = utils.Concat(mountAllowedExpandFields, []string{"recipe", "description", "conditions", "pods"})
-	equipmentAllowedExpandFields = utils.Concat(itemAllowedExpandFields, []string{"range", "parent_set", "is_weapon", "critical_hit_probability", "critical_hit_bonus", "max_cast_per_turn", "ap_cost"})
+	setAllowedExpandFields       = requestquery.SetFields
+	itemAllowedExpandFields      = requestquery.ItemFields
+	equipmentAllowedExpandFields = requestquery.EquipmentFields
 )
 
 type Hit struct {
@@ -73,49 +78,6 @@ func GetRecipeIfExists(itemId int, txn *memdb.Txn) (mapping.MappedMultilangRecip
 	}
 
 	return mapping.MappedMultilangRecipe{}, false
-}
-
-func MinMaxLevelInt(minLevel string, maxLevel string, indexFilterName string) (int, int, error) {
-	minLevelInt := 0
-	maxLevelInt := 0
-	if minLevel != "" {
-		var err error
-		if minLevelInt, err = strconv.Atoi(minLevel); err != nil {
-			return 0, 0, fmt.Errorf("filter[%s]", indexFilterName)
-		}
-	}
-	if maxLevel != "" {
-		var err error
-		if maxLevelInt, err = strconv.Atoi(maxLevel); err != nil {
-			return 0, 0, fmt.Errorf("filter[%s]", indexFilterName)
-		}
-	}
-	return minLevelInt, maxLevelInt, nil
-}
-
-func MinMaxLevelMeiliFilterFromParams(filterMinLevel string, filterMaxLevel string, indexFilterName string) (string, error) {
-	if filterMinLevel == "" && filterMaxLevel == "" {
-		return "", nil
-	}
-
-	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, indexFilterName)
-	if err != nil {
-		return "", err
-	}
-
-	filterMinLevelQuery := fmt.Sprintf("%s>=%d", indexFilterName, filterMinLevelInt)
-	filterMaxLevelQuery := fmt.Sprintf("%s<=%d", indexFilterName, filterMaxLevelInt)
-	filterString := ""
-	if filterMinLevel != "" {
-		filterString += filterMinLevelQuery
-		if filterMaxLevel != "" {
-			filterString += " AND " + filterMaxLevelQuery
-		}
-	} else {
-		filterString += filterMaxLevelQuery
-	}
-
-	return filterString, nil
 }
 
 type UpdateMessage struct {
@@ -159,44 +121,46 @@ func UpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 // all
 
-func createAllQueryParams(fieldType string, allowedExpandFields []string, r *http.Request) {
-	var currentQuery = r.URL.Query()
-	currentQuery.Add(fmt.Sprintf("fields[%s]", fieldType), strings.Join(allowedExpandFields, ","))
-	r.URL.RawQuery = currentQuery.Encode()
+func defaultAllFields(fieldType string, allowedExpandFields []string, r *http.Request) {
+	input := requestquery.From(r)
+	key := fmt.Sprintf("fields[%s]", fieldType)
+	if !input.Has(key) {
+		input.Values[key] = requestquery.Value{List: allowedExpandFields}
+	}
 }
 
 func ListAllMounts(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("mount", mountAllowedExpandFields, r)
+	defaultAllFields("mount", mountAllowedExpandFields, r)
 	ListMounts(w, r)
 }
 
 func ListAllSets(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("set", setAllowedExpandFields, r)
+	defaultAllFields("set", setAllowedExpandFields, r)
 	ListSets(w, r)
 }
 
 func ListAllConsumables(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("item", itemAllowedExpandFields, r)
+	defaultAllFields("item", itemAllowedExpandFields, r)
 	ListConsumables(w, r)
 }
 
 func ListAllEquipment(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("item", equipmentAllowedExpandFields, r)
+	defaultAllFields("item", equipmentAllowedExpandFields, r)
 	ListEquipment(w, r)
 }
 
 func ListAllResources(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("item", itemAllowedExpandFields, r)
+	defaultAllFields("item", itemAllowedExpandFields, r)
 	ListResources(w, r)
 }
 
 func ListAllQuestItems(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("item", itemAllowedExpandFields, r)
+	defaultAllFields("item", itemAllowedExpandFields, r)
 	ListQuestItems(w, r)
 }
 
 func ListAllCosmetics(w http.ResponseWriter, r *http.Request) {
-	createAllQueryParams("item", itemAllowedExpandFields, r)
+	defaultAllFields("item", itemAllowedExpandFields, r)
 	ListCosmetics(w, r)
 }
 
@@ -204,16 +168,11 @@ func ListAllCosmetics(w http.ResponseWriter, r *http.Request) {
 
 func ListMounts(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := requestPagination(r)
 
-	filterFamilyName := r.URL.Query().Get("filter[family.name]")
-	filterFamilyIdStr := r.URL.Query().Get("filter[family.id]")
-	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[mount]"))
-	expansions := parseFields(expansionsParam)
-	if !validateFields(expansions, mountAllowedExpandFields) {
-		e.WriteInvalidQueryResponse(w, "fields[mount] has invalid fields.")
-		return
-	}
+	filterFamilyName := requestquery.From(r).String("filter[family.name]")
+	filterFamilyId := requestquery.From(r).Int("filter[family.id]")
+	expansions := fieldSet(requestquery.From(r).Strings("fields[mount]"))
 
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
@@ -238,12 +197,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		if filterFamilyIdStr != "" {
-			filterFamilyId, err := strconv.Atoi(filterFamilyIdStr)
-			if err != nil {
-				e.WriteInvalidFilterResponse(w, "filter[family.id] is not a number.")
-				return
-			}
+		if requestquery.From(r).Has("filter[family.id]") {
 			if p.Type.ItemTypeId != filterFamilyId {
 				continue
 			}
@@ -270,7 +224,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
-	links, _ := pagination.BuildLinks(*r.URL, total, config.ApiScheme, config.ApiHostName)
+	links := collectionPaginationLinks(r, total, pagination)
 	paginatedMounts := mounts[startIdx:endIdx]
 
 	response := APIPageMount{
@@ -288,24 +242,13 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 
 func ListSets(w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := requestPagination(r)
 
-	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[set]"))
-	expansions := parseFields(expansionsParam)
-	if !validateFields(expansions, setAllowedExpandFields) {
-		e.WriteInvalidQueryResponse(w, "fields[set] has invalid fields.")
-		return
-	}
-	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
-	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
-	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
-	filterContainsCosmeticsStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics]"))
-	filterContainsCosmeticsOnlyStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics_only]"))
-	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, "highest_equipment_level")
-	if err != nil {
-		e.WriteInvalidFilterResponse(w, "filter[min_level] or filter[max_level] has invalid fields: "+err.Error())
-		return
-	}
+	expansions := fieldSet(requestquery.From(r).Strings("fields[set]"))
+	sortLevel := strings.ToLower(requestquery.From(r).String("sort[level]"))
+	input := requestquery.From(r)
+	filterMinLevelInt := input.Int("filter[min_highest_equipment_level]")
+	filterMaxLevelInt := input.Int("filter[max_highest_equipment_level]")
 
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
@@ -323,37 +266,25 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		p := obj.(*mapping.MappedMultilangSetUnity)
 
-		if filterContainsCosmeticsOnlyStr != "" {
-			filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsOnlyStr)
-			if err != nil {
-				e.WriteInvalidFilterResponse(w, "filter[contains_cosmetics_only] is not a boolean.")
-				return
-			}
-
-			if p.ContainsCosmeticsOnly != filterIsCosmetic {
+		if input.Has("filter[contains_cosmetics_only]") {
+			if p.ContainsCosmeticsOnly != input.Bool("filter[contains_cosmetics_only]") {
 				continue
 			}
 		}
 
-		if filterContainsCosmeticsStr != "" {
-			filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsStr)
-			if err != nil {
-				e.WriteInvalidFilterResponse(w, "filter[contains_cosmetics] is not a boolean.")
-				return
-			}
-
-			if p.ContainsCosmetics != filterIsCosmetic {
+		if input.Has("filter[contains_cosmetics]") {
+			if p.ContainsCosmetics != input.Bool("filter[contains_cosmetics]") {
 				continue
 			}
 		}
 
-		if filterMinLevel != "" {
+		if input.Has("filter[min_highest_equipment_level]") {
 			if p.Level < filterMinLevelInt {
 				continue
 			}
 		}
 
-		if filterMaxLevel != "" {
+		if input.Has("filter[max_highest_equipment_level]") {
 			if p.Level > filterMaxLevelInt {
 				continue
 			}
@@ -400,7 +331,7 @@ func ListSets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
-	links, _ := pagination.BuildLinks(*r.URL, total, config.ApiScheme, config.ApiHostName)
+	links := collectionPaginationLinks(r, total, pagination)
 	paginatedSets := sets[startIdx:endIdx]
 
 	response := APIPageSet{
@@ -497,20 +428,12 @@ func includeTypes(all *set.Set[string], exceptions *[]string) (set.Set[string], 
 	return res, nil
 }
 
-func parseFields(expansionsParam string) *set.Set[string] {
-	expansions := set.NewHashset(10, g.Equals[string], g.HashString)
-	expansionContainsDiv := strings.Contains(expansionsParam, ",")
-	if len(expansionsParam) != 0 && expansionContainsDiv {
-		expansionsArr := strings.Split(expansionsParam, ",")
-		for _, expansion := range expansionsArr {
-			expansions.Put(expansion)
-		}
+func fieldSet(fields []string) *set.Set[string] {
+	result := set.NewHashset(uint64(len(fields)), g.Equals[string], g.HashString)
+	for _, field := range fields {
+		result.Put(field)
 	}
-	if len(expansionsParam) != 0 && !expansionContainsDiv {
-		expansions.Put(expansionsParam)
-	}
-
-	return &expansions
+	return &result
 }
 
 func validateFields(expansions *set.Set[string], list []string) bool {
@@ -524,26 +447,13 @@ func validateFields(expansions *set.Set[string], list []string) bool {
 
 func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	lang := r.Context().Value("lang").(string)
-	pagination := utils.PageninationWithState(r.Context().Value("pagination").(string))
+	pagination := requestPagination(r)
 
-	expansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
-	var expansions *set.Set[string]
-	if itemType == "equipment" || itemType == "cosmetics" {
-		expansions = parseFields(expansionsParam)
-		if !validateFields(expansions, equipmentAllowedExpandFields) {
-			e.WriteInvalidQueryResponse(w, "fields[item] has invalid fields.")
-			return
-		}
-	} else {
-		expansions = parseFields(expansionsParam)
-		if !validateFields(expansions, itemAllowedExpandFields) {
-			e.WriteInvalidQueryResponse(w, "fields[item] has invalid fields.")
-			return
-		}
-	}
+	// Expansion names were checked once by the shared request validator.
+	expansions := fieldSet(requestquery.From(r).Strings("fields[item]"))
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
-	filterset := parseFields(typeFiltering)
+	typeFiltering := requestquery.From(r).Strings("filter[type.name_id]")
+	filterset := fieldSet(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
 		e.WriteInvalidQueryResponse(w, "filter[type.name_id] has invalid fields: "+err.Error())
@@ -556,14 +466,10 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sortLevel := strings.ToLower(r.URL.Query().Get("sort[level]"))
-	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
-	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_level]"))
-	filterMinLevelInt, filterMaxLevelInt, err := MinMaxLevelInt(filterMinLevel, filterMaxLevel, "level")
-	if err != nil {
-		e.WriteInvalidFilterResponse(w, "filter[min_level] or filter[max_level] has invalid fields: "+err.Error())
-		return
-	}
+	sortLevel := strings.ToLower(requestquery.From(r).String("sort[level]"))
+	input := requestquery.From(r)
+	filterMinLevelInt := input.Int("filter[min_level]")
+	filterMaxLevelInt := input.Int("filter[max_level]")
 
 	txn := database.Db.Txn(false)
 	defer txn.Abort()
@@ -591,13 +497,13 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if filterMinLevel != "" {
+		if input.Has("filter[min_level]") {
 			if p.Level < filterMinLevelInt {
 				continue
 			}
 		}
 
-		if filterMaxLevel != "" {
+		if input.Has("filter[max_level]") {
 			if p.Level > filterMaxLevelInt {
 				continue
 			}
@@ -655,6 +561,9 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 
 		// weapon extra fields
 		if mIsWeapon {
+			if expansions.Has("combat") {
+				item.Combat = getWeaponCombat(item.Id, txn)
+			}
 			if expansions.Has("critical_hit_probability") {
 				item.CriticalHitProbability = &p.CriticalHitProbability
 			}
@@ -708,7 +617,7 @@ func ListItems(itemType string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	startIdx, endIdx := pagination.CalculateStartEndIndex(total)
-	links, _ := pagination.BuildLinks(*r.URL, total, config.ApiScheme, config.ApiHostName)
+	links := collectionPaginationLinks(r, total, pagination)
 	paginatedItems := items[startIdx:endIdx]
 
 	response := APIPageItem{
@@ -744,42 +653,21 @@ func ListCosmetics(w http.ResponseWriter, r *http.Request) {
 	ListItems("cosmetics", w, r)
 }
 
-func getLimitInBoundary(limitStr string) (int64, error) {
-	if limitStr == "" {
-		limitStr = "8"
-	}
-	var limit int
-	var err error
-	if limit, err = strconv.Atoi(limitStr); err != nil {
-		return 0, fmt.Errorf("invalid limit value")
-	}
-	if limit > 100 {
-		return 0, fmt.Errorf("limit value is too high")
-	}
-
-	return int64(limit), nil
-}
-
 // search
 func SearchMounts(w http.ResponseWriter, r *http.Request) {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
-	var err error
-	query := r.URL.Query().Get("query")
+	query := requestquery.From(r).String("query")
 	if query == "" {
 		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
-	var searchLimit int64
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Invalid limit value: "+err.Error())
-		return
-	}
+	searchLimit := int64(requestquery.From(r).IntDefault("limit", 8))
 
-	filterFamilyName := r.URL.Query().Get("filter[family.name]")
-	filterFamilyIdStr := r.URL.Query().Get("filter[family.id]")
+	filterFamilyName := requestquery.From(r).String("filter[family.name]")
+	filterFamilyId := requestquery.From(r).Int("filter[family.id]")
 
 	lang := r.Context().Value("lang").(string)
 
@@ -790,13 +678,7 @@ func SearchMounts(w http.ResponseWriter, r *http.Request) {
 		filterString = fmt.Sprintf("family.name=%s", filterFamilyName)
 	}
 
-	if filterFamilyIdStr != "" {
-		filterFamilyId, err := strconv.Atoi(filterFamilyIdStr)
-		if err != nil {
-			e.WriteInvalidQueryResponse(w, "Family ID must be an integer.")
-			return
-		}
-
+	if requestquery.From(r).Has("filter[family.id]") {
 		if filterString != "" {
 			filterString = fmt.Sprintf("%s AND family.id=%d", filterString, filterFamilyId)
 		} else {
@@ -871,29 +753,18 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
-	query := r.URL.Query().Get("query")
+	query := requestquery.From(r).String("query")
 	if query == "" {
 		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
 	lang := r.Context().Value("lang").(string)
-	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_highest_equipment_level]"))
-	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_highest_equipment_level]"))
-	filterContainsCosmeticsStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics]"))
-	filterContainsCosmeticsOnlyStr := strings.ToLower(r.URL.Query().Get("filter[contains_cosmetics_only]"))
-	filterString, err := MinMaxLevelMeiliFilterFromParams(filterMinLevel, filterMaxLevel, "highest_equipment_level")
-	if err != nil {
-		e.WriteInvalidFilterResponse(w, "Min/Max level filter is invalid: "+err.Error())
-		return
-	}
+	input := requestquery.From(r)
+	filterString := input.LevelFilter("filter[min_highest_equipment_level]", "filter[max_highest_equipment_level]", "highest_equipment_level")
 
-	if filterContainsCosmeticsOnlyStr != "" {
-		filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsOnlyStr)
-		if err != nil {
-			e.WriteInvalidFilterResponse(w, "filter[contains_cosmetics_only] must be a boolean.")
-			return
-		}
+	if input.Has("filter[contains_cosmetics_only]") {
+		filterIsCosmetic := input.Bool("filter[contains_cosmetics_only]")
 		isCosmeticMeiliFilterBoolString := strconv.FormatBool(filterIsCosmetic)
 		if filterString != "" {
 			filterString += " AND "
@@ -901,12 +772,8 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		filterString += fmt.Sprintf("contains_cosmetics_only=%s", isCosmeticMeiliFilterBoolString)
 	}
 
-	if filterContainsCosmeticsStr != "" {
-		filterIsCosmetic, err := strconv.ParseBool(filterContainsCosmeticsStr)
-		if err != nil {
-			e.WriteInvalidFilterResponse(w, "filter[contains_cosmetics] must be a boolean.")
-			return
-		}
+	if input.Has("filter[contains_cosmetics]") {
+		filterIsCosmetic := input.Bool("filter[contains_cosmetics]")
 		isCosmeticMeiliFilterBoolString := strconv.FormatBool(filterIsCosmetic)
 		if filterString != "" {
 			filterString += " AND "
@@ -914,11 +781,8 @@ func SearchSets(w http.ResponseWriter, r *http.Request) {
 		filterString += fmt.Sprintf("contains_cosmetics=%s", isCosmeticMeiliFilterBoolString)
 	}
 
-	var searchLimit int64
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
-		return
-	}
+	searchLimit := int64(input.IntDefault("limit", 8))
+	var err error
 
 	index := client.Index(fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang))
 	var request *meilisearch.SearchRequest
@@ -988,42 +852,32 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
-	query := r.URL.Query().Get("query")
+	query := requestquery.From(r).String("query")
 	if query == "" {
 		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
-	filterSearchIndex := strings.ToLower(r.URL.Query().Get("filter[search_index]"))
-	if filterSearchIndex == "" {
-		filterSearchIndex = strings.Join(searchAllowedIndices, ",")
+	filterSearchIndex := requestquery.From(r).Strings("filter[search_index]")
+	if len(filterSearchIndex) == 0 {
+		filterSearchIndex = searchAllowedIndices
 	}
 
-	parsedIndices := parseFields(filterSearchIndex)
+	parsedIndices := fieldSet(filterSearchIndex)
 	if !validateFields(parsedIndices, searchAllowedIndices) {
 		e.WriteInvalidFilterResponse(w, "filter[search_index] has invalid fields.")
 		return
 	}
 
-	itemExpansionsParam := strings.ToLower(r.URL.Query().Get("fields[item]"))
-	itemExpansions := parseFields(itemExpansionsParam)
-	if !validateFields(itemExpansions, searchAllItemAllowedExpandFields) {
-		e.WriteInvalidQueryResponse(w, "fields[item] has invalid fields.")
-		return
-	}
+	itemExpansions := fieldSet(requestquery.From(r).Strings("fields[item]"))
 
 	lang := r.Context().Value("lang").(string)
 
-	var searchLimit int64
-	var err error
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
-		return
-	}
+	searchLimit := int64(requestquery.From(r).IntDefault("limit", 8))
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
+	typeFiltering := requestquery.From(r).Strings("filter[type.name_id]")
 	exceptions := []string{"mount", "set"}
-	filterset := parseFields(typeFiltering)
+	filterset := fieldSet(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, &exceptions)
 	if err != nil {
 		e.WriteInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
@@ -1066,15 +920,21 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 	wordScoreWeight := 0.5
 	typoScoreWeight := 0.5
 
-	searchChans := make([]chan []ApiAllSearchResultScore, 0)
+	type searchOutcome struct {
+		results []ApiAllSearchResultScore
+		err     error
+	}
+	searchChans := make([]<-chan searchOutcome, 0)
+	addSearch := func(search func() ([]ApiAllSearchResultScore, error)) {
+		result := make(chan searchOutcome, 1)
+		searchChans = append(searchChans, result)
+		go func() { hits, err := search(); result <- searchOutcome{results: hits, err: err} }()
+	}
 
 	indicesHasItem := parsedIndices.Has("items-equipment") || parsedIndices.Has("items-consumables") || parsedIndices.Has("items-resources") || parsedIndices.Has("items-quest_items") || parsedIndices.Has("items-cosmetics") || parsedIndices.Has("mounts")
 	needItemSearch := parsedIndices.Size() == 0 || indicesHasItem
 	if needItemSearch {
-		itemRetChan := make(chan []ApiAllSearchResultScore)
-		searchChans = append(searchChans, itemRetChan)
-
-		go func() {
+		addSearch(func() ([]ApiAllSearchResultScore, error) {
 			indexUid := fmt.Sprintf("%s-all_items-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
 			index := client.Index(indexUid)
 
@@ -1084,19 +944,16 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				ShowRankingScoreDetails: true,
 			}
 
-			var searchResp *meilisearch.SearchResponse
-			if searchResp, err = index.Search(query, request); err != nil {
-				e.WriteServerErrorResponse(w, "Failed to search for query: "+err.Error())
-				return
+			searchResp, err := index.SearchWithContext(r.Context(), query, request)
+			if err != nil {
+				return nil, fmt.Errorf("item search: %w", err)
 			}
 
 			items := make([]ApiAllSearchResultScore, 0)
 			for _, hitRaw := range searchResp.Hits {
 				indexed := Hit{}
-				err = hitRaw.DecodeInto(&indexed)
-				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
-					return
+				if err := hitRaw.DecodeInto(&indexed); err != nil {
+					return nil, fmt.Errorf("decode item search hit: %w", err)
 				}
 
 				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
@@ -1104,11 +961,10 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				itemId := int(indexed.Id)
 				txn := database.Db.Txn(false)
 				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "all_items"), "id", itemId)
+				txn.Abort()
 
 				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not find item in database: "+err.Error())
-					itemRetChan <- nil
-					return
+					return nil, fmt.Errorf("read search item %d: %w", itemId, err)
 				}
 
 				if raw == nil {
@@ -1130,9 +986,7 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				case 5:
 					itemType += "cosmetics"
 				default:
-					e.WriteServerErrorResponse(w, "Unknown stuff type: "+strconv.Itoa(item.Type.SuperTypeId))
-					itemRetChan <- nil
-					return
+					return nil, fmt.Errorf("unknown item category %d", item.Type.CategoryId)
 				}
 
 				// search_index filter
@@ -1176,26 +1030,17 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			itemRetChan <- items
-		}()
+			return items, nil
+		})
 	}
 
-	needSetSearch := false
 	setIncluded := additiveTypesExceptions.Has("set")
 	notExcluded := !removedTypesExceptions.Has("set")
-	noIndexGiven := parsedIndices.Size() == 0 && notExcluded
-	if noIndexGiven {
-		needSetSearch = true
-	} else if parsedIndices.Size() != 0 && !parsedIndices.Has("sets") { // index given but no set
-		needSetSearch = false
-	} else {
-		needSetSearch = setIncluded && notExcluded
-	}
+	hasPositiveTypeFilter := additiveTypes.Size() > 0 || additiveTypesExceptions.Size() > 0
+	needSetSearch := parsedIndices.Has("sets") && notExcluded && (!hasPositiveTypeFilter || setIncluded)
 
 	if needSetSearch {
-		setRetChan := make(chan []ApiAllSearchResultScore)
-		searchChans = append(searchChans, setRetChan)
-		go func() {
+		addSearch(func() ([]ApiAllSearchResultScore, error) {
 			setIndexUid := fmt.Sprintf("%s-sets-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), lang)
 			setIndex := client.Index(setIndexUid)
 
@@ -1205,20 +1050,16 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				ShowRankingScoreDetails: true,
 			}
 
-			var searchResp *meilisearch.SearchResponse
-			if searchResp, err = setIndex.Search(query, request); err != nil {
-				e.WriteServerErrorResponse(w, "Failed to search for query: "+err.Error())
-				setRetChan <- nil
-				return
+			searchResp, err := setIndex.SearchWithContext(r.Context(), query, request)
+			if err != nil {
+				return nil, fmt.Errorf("set search: %w", err)
 			}
 
 			sets := make([]ApiAllSearchResultScore, 0)
 			for _, hitRaw := range searchResp.Hits {
 				indexed := Hit{}
-				err = hitRaw.DecodeInto(&indexed)
-				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not decode hit: "+err.Error())
-					return
+				if err := hitRaw.DecodeInto(&indexed); err != nil {
+					return nil, fmt.Errorf("decode set search hit: %w", err)
 				}
 
 				score := indexed.ScoreDetails.Words.Score*wordScoreWeight + indexed.ScoreDetails.Typo.Score*typoScoreWeight
@@ -1227,16 +1068,13 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 
 				txn := database.Db.Txn(false)
 				raw, err := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), "sets"), "id", setId)
+				txn.Abort()
 				if err != nil {
-					e.WriteServerErrorResponse(w, "Could not read database: "+err.Error())
-					setRetChan <- nil
-					return
+					return nil, fmt.Errorf("read search set %d: %w", setId, err)
 				}
 
 				if raw == nil {
-					e.WriteServerErrorResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "set", strconv.Itoa(setId)))
-					setRetChan <- nil
-					return
+					return nil, fmt.Errorf("search set %d missing from database", setId)
 				}
 
 				item := raw.(*mapping.MappedMultilangSetUnity)
@@ -1256,19 +1094,61 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			setRetChan <- sets
-		}()
+			return sets, nil
+		})
+	}
+
+	for _, resource := range mappedEntityResources {
+		if !parsedIndices.Has(resource.Route) {
+			continue
+		}
+		addSearch(func() ([]ApiAllSearchResultScore, error) {
+			index := client.Index(fmt.Sprintf("%s-%s-%s", utils.CurrentRedBlueVersionStr(database.Version.Search), resource.Table, lang))
+			searchResp, searchErr := index.SearchWithContext(r.Context(), query, &meilisearch.SearchRequest{Limit: searchLimit * 3, ShowRankingScoreDetails: true})
+			if searchErr != nil {
+				return nil, fmt.Errorf("%s search: %w", resource.Route, searchErr)
+			}
+			results := make([]ApiAllSearchResultScore, 0, len(searchResp.Hits))
+			for _, hitRaw := range searchResp.Hits {
+				var hit Hit
+				if decodeErr := hitRaw.DecodeInto(&hit); decodeErr != nil {
+					return nil, fmt.Errorf("decode %s search hit: %w", resource.Route, decodeErr)
+				}
+				txn := database.Db.Txn(false)
+				raw, readErr := txn.First(fmt.Sprintf("%s-%s", utils.CurrentRedBlueVersionStr(database.Version.MemDb), resource.Table), "id", int(hit.Id))
+				txn.Abort()
+				if readErr != nil || raw == nil {
+					continue
+				}
+				record := raw.(*MappedEntityRecord)
+				name := record.Name[lang]
+				if name == "" {
+					name = record.Name["en"]
+				}
+				score := hit.ScoreDetails.Words.Score*wordScoreWeight + hit.ScoreDetails.Typo.Score*typoScoreWeight
+				results = append(results, ApiAllSearchResultScore{
+					Result: ApiAllSearchResult{Name: name, Id: record.AnkamaId, Type: ApiAllSearchResultType{NameId: resource.Route}},
+					Score:  score,
+				})
+			}
+			return results, nil
+		})
 	}
 
 	// wait for all search results and merge them into one slice
 	var merged []ApiAllSearchResultScore
+	var searchErr error
 
 	for _, searchChan := range searchChans {
-		searchResults := <-searchChan
-		if searchResults == nil {
-			return
+		outcome := <-searchChan
+		if outcome.err != nil && searchErr == nil {
+			searchErr = outcome.err
 		}
-		merged = append(merged, searchResults...)
+		merged = append(merged, outcome.results...)
+	}
+	if searchErr != nil {
+		e.WriteServerErrorResponse(w, searchErr.Error())
+		return
 	}
 
 	if len(merged) == 0 {
@@ -1303,30 +1183,21 @@ func SearchItems(itemType string, all bool, w http.ResponseWriter, r *http.Reque
 	client := meilisearch.New(config.MeiliHost, meilisearch.WithAPIKey(config.MeiliKey))
 	defer client.Close()
 
-	query := r.URL.Query().Get("query")
+	query := requestquery.From(r).String("query")
 	if query == "" {
 		e.WriteInvalidQueryResponse(w, "Query parameter is required.")
 		return
 	}
 
-	filterMinLevel := strings.ToLower(r.URL.Query().Get("filter[min_level]"))
-	filterMaxLevel := strings.ToLower(r.URL.Query().Get("filter[max_level]"))
-	filterString, err := MinMaxLevelMeiliFilterFromParams(filterMinLevel, filterMaxLevel, "level")
-	if err != nil {
-		e.WriteInvalidFilterResponse(w, "Min/Max level filter is invalid: "+err.Error())
-		return
-	}
+	input := requestquery.From(r)
+	filterString := input.LevelFilter("filter[min_level]", "filter[max_level]", "level")
 
 	lang := r.Context().Value("lang").(string)
 
-	var searchLimit int64
-	if searchLimit, err = getLimitInBoundary(r.URL.Query().Get("limit")); err != nil {
-		e.WriteInvalidQueryResponse(w, "Limit parameter is invalid: "+err.Error())
-		return
-	}
+	searchLimit := int64(input.IntDefault("limit", 8))
 
-	typeFiltering := strings.ToLower(r.URL.Query().Get("filter[type.name_id]"))
-	filterset := parseFields(typeFiltering)
+	typeFiltering := requestquery.From(r).Strings("filter[type.name_id]")
+	filterset := fieldSet(typeFiltering)
 	additiveTypes, err := includeTypes(filterset, nil)
 	if err != nil {
 		e.WriteInvalidFilterResponse(w, "filter[type.name_id] is invalid: "+err.Error())
@@ -1622,6 +1493,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 	item := raw.(*mapping.MappedMultilangItemUnity)
 	if item.Type.SuperTypeId == 2 { // is weapon
 		weapon := RenderWeapon(item, lang)
+		weapon.Combat = getWeaponCombat(ankamaId, txn)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
 			weapon.Recipe = RenderRecipe(recipe, database.Db)
@@ -1634,6 +1506,7 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		}
 	} else {
 		equipment := RenderEquipment(item, lang)
+		equipment.Combat = getWeaponCombat(ankamaId, txn)
 		recipe, exists := GetRecipeIfExists(ankamaId, txn)
 		if exists {
 			equipment.Recipe = RenderRecipe(recipe, database.Db)
