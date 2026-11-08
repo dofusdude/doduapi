@@ -173,14 +173,16 @@ func TestQueryContractRoutesAndDiscovery(t *testing.T) {
 			if w.Code != 400 {
 				t.Fatalf("closed request schema: %d %s", w.Code, w.Body)
 			}
-			r := httptest.NewRequest("OPTIONS", path, nil)
-			r.Header.Set("Origin", "http://localhost:5173")
-			r.Header.Set("Access-Control-Request-Method", "QUERY")
-			r.Header.Set("Access-Control-Request-Headers", "content-type")
-			w = httptest.NewRecorder()
-			router.ServeHTTP(w, r)
-			if w.Code != 204 {
-				t.Fatalf("preflight: %d", w.Code)
+			for _, method := range []string{"GET", "QUERY", "OPTIONS"} {
+				r := httptest.NewRequest("OPTIONS", path, nil)
+				r.Header.Set("Origin", "http://localhost:5173")
+				r.Header.Set("Access-Control-Request-Method", method)
+				r.Header.Set("Access-Control-Request-Headers", "content-type")
+				w = httptest.NewRecorder()
+				router.ServeHTTP(w, r)
+				if w.Code != 204 {
+					t.Fatalf("%s preflight: %d", method, w.Code)
+				}
 			}
 		})
 	}

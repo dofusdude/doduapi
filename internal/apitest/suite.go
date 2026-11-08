@@ -309,17 +309,19 @@ func (s *Suite) queryEndpoint(t *testing.T, language, path string, endpoint quer
 				s.call(t, "QUERY", path, bad, 400)
 			}
 		}
-		r, _ := http.NewRequest("OPTIONS", s.options.BaseURL+path, nil)
-		r.Header.Set("Origin", "http://localhost:5173")
-		r.Header.Set("Access-Control-Request-Method", "QUERY")
-		r.Header.Set("Access-Control-Request-Headers", "content-type")
-		response, err := s.client.Do(r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		response.Body.Close()
-		if response.StatusCode != 204 || !strings.Contains(response.Header.Get("Access-Control-Allow-Methods"), "QUERY") {
-			t.Fatal("browser preflight failed")
+		for _, method := range []string{"GET", "QUERY", "OPTIONS"} {
+			r, _ := http.NewRequest("OPTIONS", s.options.BaseURL+path, nil)
+			r.Header.Set("Origin", "http://localhost:5173")
+			r.Header.Set("Access-Control-Request-Method", method)
+			r.Header.Set("Access-Control-Request-Headers", "content-type")
+			response, err := s.client.Do(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response.Body.Close()
+			if response.StatusCode != 204 || !strings.Contains(response.Header.Get("Access-Control-Allow-Methods"), "QUERY") {
+				t.Fatal("browser preflight failed")
+			}
 		}
 	}
 }

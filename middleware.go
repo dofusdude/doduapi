@@ -49,7 +49,7 @@ func useCors(next http.Handler) http.Handler {
 		if r.Method == http.MethodOptions && r.Header.Get("Origin") != "" && r.Header.Get("Access-Control-Request-Method") != "" {
 			method := r.Header.Get("Access-Control-Request-Method")
 			_, querySupported := query.Match(r.URL.Path)
-			if method != "GET" && method != "HEAD" && (method != "QUERY" || !querySupported) {
+			if method != "GET" && method != "HEAD" && ((method != "QUERY" && method != "OPTIONS") || !querySupported) {
 				w.WriteHeader(http.StatusMethodNotAllowed)
 				return
 			}

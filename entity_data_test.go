@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,31 @@ import (
 
 	"github.com/dofusdude/doduapi/config"
 )
+
+func TestStreamMappedEntitiesPreservesCollection(t *testing.T) {
+	for _, count := range []int{0, 1, 150} {
+		records := make([]*MappedEntityRecord, count)
+		for index := range records {
+			records[index] = &MappedEntityRecord{AnkamaId: 1, Name: map[string]string{"en": "Feca"}, Document: json.RawMessage(`{"ankama_id":1,"name":{"en":"Feca"}}`)}
+		}
+		response := httptest.NewRecorder()
+		streamMappedEntities(MappedEntityResource{ResponseKey: "classes"}, records, "en", true, MappedEntityRenderOptions{}, response, httptest.NewRequest("GET", "/", nil))
+		var collection struct {
+			Classes []map[string]any `json:"classes"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &collection); err != nil {
+			t.Fatal(err)
+		}
+		if len(collection.Classes) != count {
+			t.Fatalf("got %d classes; want %d", len(collection.Classes), count)
+		}
+		for _, class := range collection.Classes {
+			if class["name"] != "Feca" {
+				t.Fatal(class)
+			}
+		}
+	}
+}
 
 func TestLocalizeMappedDocumentRecursively(t *testing.T) {
 	document := json.RawMessage(`{

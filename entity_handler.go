@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/dofusdude/doduapi/database"
 	e "github.com/dofusdude/doduapi/errmsg"
 	requestquery "github.com/dofusdude/doduapi/query"
@@ -95,6 +97,11 @@ func ListMappedEntities(resource MappedEntityResource, w http.ResponseWriter, r 
 	}
 
 	start, end := pagination.CalculateStartEndIndex(len(records))
+	links := collectionPaginationLinks(r, len(records), pagination)
+	if end-start > 100 && links == (utils.PaginationLinks{}) {
+		streamMappedEntities(resource, records[start:end], language, full, options, w, r)
+		return
+	}
 	items := make([]any, 0, end-start)
 	for _, record := range records[start:end] {
 		rendered, renderErr := renderMappedEntityWithOptions(record, language, full, options)
@@ -104,7 +111,6 @@ func ListMappedEntities(resource MappedEntityResource, w http.ResponseWriter, r 
 		}
 		items = append(items, rendered)
 	}
-	links := collectionPaginationLinks(r, len(records), pagination)
 	response := map[string]any{resource.ResponseKey: items}
 	if links != (utils.PaginationLinks{}) {
 		response["_links"] = links
@@ -115,6 +121,35 @@ func ListMappedEntities(resource MappedEntityResource, w http.ResponseWriter, r 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		e.WriteServerErrorResponse(w, "Could not encode JSON: "+err.Error())
 	}
+}
+
+// Bulk exports must not retain every expanded monster/spell in memory before
+// sending the first byte. Keep the same collection schema, one record at a time.
+func streamMappedEntities(resource MappedEntityResource, records []*MappedEntityRecord, language string, full bool, options MappedEntityRenderOptions, w http.ResponseWriter, r *http.Request) {
+	utils.RequestsTotal.Inc()
+	utils.WriteCacheHeader(&w)
+	w.Header().Set("Content-Type", "application/json")
+	buffer := bufio.NewWriterSize(w, 64*1024)
+	fmt.Fprintf(buffer, "{%q:[", resource.ResponseKey)
+	encoder := json.NewEncoder(buffer)
+	for index, record := range records {
+		if r.Context().Err() != nil {
+			return
+		}
+		rendered, err := renderMappedEntityWithOptions(record, language, full, options)
+		if err != nil {
+			log.Error("Could not render bulk entity", "resource", resource.Route, "id", record.AnkamaId, "err", err)
+			return // Headers may already be sent; never append an error object to JSON.
+		}
+		if index > 0 {
+			buffer.WriteByte(',')
+		}
+		if encoder.Encode(rendered) != nil {
+			return
+		}
+	}
+	buffer.WriteString("]}\n")
+	buffer.Flush()
 }
 
 func GetSingleMappedEntity(resource MappedEntityResource, w http.ResponseWriter, r *http.Request) {

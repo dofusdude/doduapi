@@ -39,7 +39,19 @@ func Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(10 * time.Second))
+	r.Use(func(next http.Handler) http.Handler {
+		standard := middleware.Timeout(10 * time.Second)(next)
+		bulk := middleware.Timeout(2 * time.Minute)(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, resource := range mappedEntityResources {
+				if strings.HasSuffix(r.URL.Path, "/"+resource.Route+"/all") {
+					bulk.ServeHTTP(w, r)
+					return
+				}
+			}
+			standard.ServeHTTP(w, r)
+		})
+	})
 	r.Use(useCors)
 
 	var gameRelease string
