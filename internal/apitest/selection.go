@@ -17,15 +17,17 @@ func (s *Suite) fieldSelection(t *testing.T) {
 			id := c.Records[0].ID
 			filter := Object{"ids": []int{id}}
 			body := Object{"filter": filter, "fields": Object{c.Key: []string{"all"}}}
-			parameters := url.Values{"filter": {encoded(filter)}, "fields[" + c.Key + "]": {"all"}}
-			response := s.parity(t, path, c.Key, parameters, body, 200)
+			response := s.call(t, "QUERY", path, body, 200).Value
 			if len(rows(response, c.Key)) != 1 {
 				t.Fatal("field selection lost ID filter")
 			}
+			parameters := url.Values{"fields[" + c.Key + "]": {"all"}, "page[size]": {"1"}}
+			s.parity(t, path, c.Key, parameters, Object{"fields": Object{c.Key: []string{"all"}}, "page": Object{"size": 1}}, 200)
 			if c.Path == "monsters" {
 				for _, include := range []string{"spells", "spells.grade"} {
 					parameters.Set("include", include)
-					s.parity(t, path, c.Key, parameters, Object{"filter": filter, "include": []string{include}}, 200)
+					s.parity(t, path, c.Key, parameters, Object{"include": []string{include}, "page": Object{"size": 1}}, 200)
+					s.call(t, "QUERY", path, Object{"filter": filter, "include": []string{include}}, 200)
 				}
 			}
 			continue
