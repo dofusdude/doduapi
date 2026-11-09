@@ -66,7 +66,7 @@ func queryTestRequest(router http.Handler, method, path, body string) *httptest.
 	return w
 }
 
-func TestEntityQueryFiltersAndGETParity(t *testing.T) {
+func TestEntityQueryFiltersAndPagination(t *testing.T) {
 	router := setupEntityQueryTest(t)
 	filter := `{"and":[{"level":{"min":100,"max":200}},{"or":[{"subarea_ids":[123]},{"ids":[2]}]},{"spell_ids":[20]}]}`
 	body := `{"filter":` + filter + `,"sort":["-name"],"page":{"number":1,"size":1}}`
@@ -93,16 +93,23 @@ func TestEntityQueryFiltersAndGETParity(t *testing.T) {
 	if next.Code != 200 || !strings.Contains(next.Body.String(), `"ankama_id":1`) {
 		t.Fatalf("pagination lost body: %d %s", next.Code, next.Body)
 	}
-	get := queryTestRequest(router, "GET", "/dofus3/v1/en/monsters?filter="+url.QueryEscape(filter)+"&sort=-name&page[number]=1&page[size]=1", "")
-	if get.Code != 200 {
-		t.Fatalf("GET %d %s", get.Code, get.Body)
+	for _, resource := range []string{"monsters", "spells", "classes", "areas", "subareas", "super-areas"} {
+		for _, parameters := range []string{"filter=" + url.QueryEscape(filter), "filter=%7B%7D", "sort=name", "sort="} {
+			get := queryTestRequest(router, "GET", "/dofus3/v1/en/"+resource+"?"+parameters, "")
+			if get.Code != 400 || !strings.Contains(get.Body.String(), "require QUERY") {
+				t.Fatalf("GET accepted structured query: %s %d %s", resource, get.Code, get.Body)
+			}
+		}
 	}
-	var getResult struct {
-		Monsters []APIEntityListEntry `json:"monsters"`
-	}
-	json.Unmarshal(get.Body.Bytes(), &getResult)
-	if len(getResult.Monsters) != 1 || getResult.Monsters[0].AnkamaID != result.Monsters[0].AnkamaID {
-		t.Fatalf("GET/QUERY mismatch: %s", get.Body)
+}
+
+func TestMappedGETIgnoresJSONBody(t *testing.T) {
+	router := setupEntityQueryTest(t)
+	path := "/dofus3/v1/en/monsters?page[number]=1&page[size]=1"
+	plain := queryTestRequest(router, "GET", path, "")
+	withBody := queryTestRequest(router, "GET", path, `{"filter":{"ids":[2]},"sort":["-name"]}`)
+	if plain.Code != 200 || withBody.Code != 200 || plain.Body.String() != withBody.Body.String() {
+		t.Fatalf("GET body changed GET behavior: %d %s / %d %s", plain.Code, plain.Body, withBody.Code, withBody.Body)
 	}
 }
 

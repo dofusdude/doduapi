@@ -446,11 +446,14 @@ func collectionPaginationLinks(r *http.Request, total int, page utils.Pagination
 	return links
 }
 
-// GET uses the very same filter validator/evaluator as QUERY. Simple GET
-// requests retain their existing pagination behavior and defaults.
+// GET retains its original URL parameters. Structured filters and sorting
+// belong to QUERY, while both transports still share the list handler.
 func decodeMappedGET(resource string, r *http.Request) (*EntityQuery, error) {
 	values := r.URL.Query()
-	q := &EntityQuery{Active: values.Has("filter") || values.Has("sort"), Page: &EntityQueryPage{Number: 1, Size: 16}}
+	q := &EntityQuery{Page: &EntityQueryPage{Number: 1, Size: 16}}
+	if values.Has("filter") || values.Has("sort") {
+		return q, fmt.Errorf("structured filters and sorting require QUERY with a JSON body")
+	}
 	if include := strings.TrimSpace(values.Get("include")); include != "" {
 		q.Include = []string{include}
 	}
@@ -460,27 +463,6 @@ func decodeMappedGET(resource string, r *http.Request) (*EntityQuery, error) {
 	}
 	if values.Get("grade") != "" {
 		return q, fmt.Errorf("grade is only supported for a single spell")
-	}
-	if values.Has("filter") {
-		raw := values.Get("filter")
-		if len(raw) > maxEntityQueryBytes || len(strings.TrimSpace(raw)) == 0 || strings.TrimSpace(raw)[0] != '{' {
-			return q, fmt.Errorf("filter must be a JSON object of at most 64 KiB")
-		}
-		decoder := json.NewDecoder(strings.NewReader(raw))
-		if err := validateEntityQueryJSON([]byte(raw)); err != nil {
-			return q, err
-		}
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&q.Filter); err != nil {
-			return q, err
-		}
-		var extra any
-		if decoder.Decode(&extra) != io.EOF {
-			return q, fmt.Errorf("filter must contain one JSON object")
-		}
-	}
-	if values.Has("sort") {
-		q.Sort = strings.Split(values.Get("sort"), ",")
 	}
 	return q, nil
 }

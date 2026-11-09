@@ -25,11 +25,15 @@ func (s *Suite) filterCase(t *testing.T, c Collection, filter Object, parameters
 	}
 	body := Object{"filter": filter, "page": Object{"size": 100}}
 	parameters.Set("page[size]", "100")
-	if c.Mapped {
-		parameters.Set("filter", encoded(filter))
-	}
 	path := s.prefix(s.options.Languages[0]) + "/" + c.Path
-	value := s.parity(t, path, c.Key, parameters, body, status)
+	var value any
+	if c.Mapped {
+		value = s.call(t, "QUERY", path, body, status).Value
+		s.call(t, "GET", path+"?filter="+url.QueryEscape(encoded(filter)), nil, 400)
+		s.call(t, "GET", path+"?sort=name", nil, 400)
+	} else {
+		value = s.parity(t, path, c.Key, parameters, body, status)
+	}
 	if status != 200 {
 		return
 	}
