@@ -304,7 +304,7 @@ func TestLegacyQueryGETParity(t *testing.T) {
 	txn := database.Db.Txn(true)
 	for _, category := range []string{"equipment", "consumables", "resources", "quest_items", "cosmetics"} {
 		for id, level := range []int{50, 120, 180} {
-			item := &mapping.MappedMultilangItemUnity{AnkamaId: id + 1, Level: level, Name: map[string]string{"en": "Fixture"}, Description: map[string]string{"en": "Description"}, Type: mapping.MappedMultilangItemType{ItemTypeId: 242, Name: map[string]string{"en": "Mount"}}}
+			item := &mapping.MappedMultilangItemUnity{AnkamaId: id + 1, Level: level, Name: map[string]string{"en": "Fixture"}, Description: map[string]string{"en": "Description"}, Type: mapping.MappedMultilangItemType{ItemTypeId: 242, Name: map[string]string{"en": "Dragoturkey"}}}
 			if err := txn.Insert("red-"+category, item); err != nil {
 				txn.Abort()
 				t.Fatal(err)

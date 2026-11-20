@@ -42,11 +42,13 @@ var (
 
 	mountAllowedExpandFields = requestquery.MountFields
 
-	// Equipment item type IDs that represent mounts
-	mountEquipmentTypeIds = map[int]bool{
-		242: true,
-		245: true,
-		247: true,
+	// English item type names that represent mounts. Type IDs are positions in
+	// the persisted item_types list of each release, so they differ between
+	// main and beta and must not be hardcoded.
+	mountItemTypeNames = map[string]bool{
+		"Dragoturkey": true,
+		"Seemyool":    true,
+		"Rhineetle":   true,
 	}
 	setAllowedExpandFields       = requestquery.SetFields
 	itemAllowedExpandFields      = requestquery.ItemFields
@@ -189,7 +191,7 @@ func ListMounts(w http.ResponseWriter, r *http.Request) {
 	var mounts []APIMount
 	for obj := equipIt.Next(); obj != nil; obj = equipIt.Next() {
 		p := obj.(*mapping.MappedMultilangItemUnity)
-		if !mountEquipmentTypeIds[p.Type.ItemTypeId] {
+		if !isMountItem(p) {
 			continue
 		}
 		if filterFamilyName != "" {
@@ -990,8 +992,8 @@ func SearchAllIndices(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// search_index filter
-				isMountItem := mountEquipmentTypeIds[item.Type.ItemTypeId]
-				if !parsedIndices.Has(itemType) && !(parsedIndices.Has("mounts") && isMountItem) {
+				mountItem := isMountItem(item)
+				if !parsedIndices.Has(itemType) && !(parsedIndices.Has("mounts") && mountItem) {
 					continue
 				}
 
@@ -1391,7 +1393,7 @@ func GetSingleMountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item := raw.(*mapping.MappedMultilangItemUnity)
-	if !mountEquipmentTypeIds[item.Type.ItemTypeId] {
+	if !isMountItem(item) {
 		e.WriteNotFoundResponse(w, fmt.Sprintf("Could not find %s with ID %s in database", "mount", strconv.Itoa(ankamaId)))
 		return
 	}
@@ -1519,4 +1521,8 @@ func GetSingleEquipmentLikeHandler(cosmetic bool, w http.ResponseWriter, r *http
 		}
 
 	}
+}
+
+func isMountItem(item *mapping.MappedMultilangItemUnity) bool {
+	return mountItemTypeNames[item.Type.Name["en"]]
 }

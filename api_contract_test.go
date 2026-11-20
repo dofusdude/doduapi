@@ -218,9 +218,9 @@ func writeContractFixtures(t *testing.T, directory string) {
 			items = append(items, row)
 		}
 	}
-	for i, kind := range []int{242, 245} {
+	for i, family := range []string{"Seemyool", "Rhineetle"} {
 		id := 1101 + i
-		items = append(items, object{"ankama_id": id, "name": text(fmt.Sprintf("Contract Mount%d", i)), "description": text("Mount description"), "level": 1, "pods": 10, "iconId": id, "type": object{"itemTypeId": kind, "name": text(fmt.Sprintf("MountFamily%d", i)), "categoryId": 0, "superTypeId": 1}, "effects": []object{effect}, "conditions": condition})
+		items = append(items, object{"ankama_id": id, "name": text(fmt.Sprintf("Contract Mount%d", i)), "description": text("Mount description"), "level": 1, "pods": 10, "iconId": id, "type": object{"itemTypeId": 242 + 3*i, "name": text(family), "categoryId": 0, "superTypeId": 1}, "effects": []object{effect}, "conditions": condition})
 	}
 	items = append(items, object{"ankama_id": 99999, "name": text("Internal Contract Hidden"), "type": object{"categoryId": 4, "itemTypeId": 16, "name": text("Hat")}})
 	writeContractJSON(t, directory, "MAPPED_ITEMS.json", items)
@@ -288,7 +288,7 @@ func writeContractFixtures(t *testing.T, directory string) {
 	}
 	writeContractJSON(t, directory, "MAPPED_ALMANAX.json", []object{{"days": []string{"2030-01-01", "2030-01-02"}, "bonusType": text("Contract Bonus"), "bonus": text("Contract offering bonus"), "offering": object{"itemId": 3001, "itemCategoryId": 2, "itemName": text("Contract Category2 Item0"), "quantity": 2}, "rewardKamas": 1000, "experienceRatio": 1, "optimalLevel": 100, "duration": 1}})
 	writeContractJSON(t, directory, "elements.json", []string{"Strength"})
-	writeContractJSON(t, directory, "types.json", []string{"Sword", "Hat", "Type1", "Type2", "Type3", "Type5", "MountFamily0", "MountFamily1"})
+	writeContractJSON(t, directory, "types.json", []string{"Sword", "Hat", "Type1", "Type2", "Type3", "Type5", "Seemyool", "Rhineetle"})
 	var pixel bytes.Buffer
 	canvas := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	canvas.Set(0, 0, color.RGBA{R: 100, G: 200, B: 50, A: 255})
