@@ -624,7 +624,7 @@ func GenerateDatabase(items *[]mapping.MappedMultilangItemUnity, sets *[]mapping
 
 	mountIndexBatch := make(map[string][]SearchIndexedMount)
 	for _, item := range *items {
-		if !mountEquipmentTypeIds[item.Type.ItemTypeId] {
+		if !isMountItem(&item) {
 			continue
 		}
 		itemCp := item
